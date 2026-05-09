@@ -21,7 +21,8 @@ export interface RawEmail {
   to: string
   subject: string
   snippet: string
-  body: string          // truncated to 2000 chars
+  body: string          // plain text, truncated to 2000 chars
+  htmlBody?: string     // full HTML body for rendering
   date: string          // ISO string
   internalDate: number  // ms timestamp for sorting
   inReplyTo?: string
@@ -38,6 +39,7 @@ export interface Email {
   subject: string
   snippet: string
   body: string
+  htmlBody?: string
   date: string
   internalDate: number
   inReplyTo?: string
@@ -51,6 +53,10 @@ export interface Email {
   actionFlag: "reply" | "confirm" | "receipt" | "read"
   draftReply: string | null
   timeAgo: string
+  deletable: boolean           // AI flagged as safe to delete
+  deletableReason: string | null  // e.g. "Security login alert, no longer actionable"
+  packageDelivered: boolean    // AI detected this is a package delivery confirmation
+  orderSender: string | null   // e.g. "amazon.com" — extracted from delivered email
 }
 
 // ── Category ─────────────────────────────────────────────────────────────────

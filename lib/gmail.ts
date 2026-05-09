@@ -21,19 +21,24 @@ function decodeBase64(data: string): string {
 function extractPlainText(payload: any): string {
   if (!payload) return ""
 
-  // Direct text/plain part
   if (payload.mimeType === "text/plain" && payload.body?.data) {
     return decodeBase64(payload.body.data)
   }
 
-  // Walk multipart parts
   if (payload.parts) {
     for (const part of payload.parts) {
       if (part.mimeType === "text/plain" && part.body?.data) {
         return decodeBase64(part.body.data)
       }
     }
-    // Fallback: first text/html part, strip tags
+    // Recurse into nested multipart parts
+    for (const part of payload.parts) {
+      if (part.mimeType?.startsWith("multipart/")) {
+        const nested = extractPlainText(part)
+        if (nested) return nested
+      }
+    }
+    // Fallback: strip HTML tags
     for (const part of payload.parts) {
       if (part.mimeType === "text/html" && part.body?.data) {
         return decodeBase64(part.body.data).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
@@ -44,9 +49,32 @@ function extractPlainText(payload: any): string {
   return payload.snippet ?? ""
 }
 
+export function extractHtmlBody(payload: any): string {
+  if (!payload) return ""
+
+  if (payload.mimeType === "text/html" && payload.body?.data) {
+    return decodeBase64(payload.body.data)
+  }
+
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      if (part.mimeType === "text/html" && part.body?.data) {
+        return decodeBase64(part.body.data)
+      }
+      if (part.mimeType?.startsWith("multipart/")) {
+        const nested = extractHtmlBody(part)
+        if (nested) return nested
+      }
+    }
+  }
+
+  return ""
+}
+
 export function parseMessage(msg: any): RawEmail {
   const headers: { name?: string | null; value?: string | null }[] = msg.payload?.headers ?? []
   const body = extractPlainText(msg.payload).slice(0, 2000)
+  const htmlBody = extractHtmlBody(msg.payload)
   const fromRaw = getHeader(headers, "from")
   // Extract display name vs email
   const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/)
@@ -62,6 +90,7 @@ export function parseMessage(msg: any): RawEmail {
     subject: getHeader(headers, "subject") || "(no subject)",
     snippet: msg.snippet ?? "",
     body,
+    htmlBody: htmlBody || undefined,
     date: new Date(parseInt(msg.internalDate)).toISOString(),
     internalDate: parseInt(msg.internalDate),
     inReplyTo: getHeader(headers, "in-reply-to") || undefined,
@@ -135,6 +164,63 @@ export async function applyLabel(accessToken: string, messageId: string, gmailLa
     id: messageId,
     requestBody: { addLabelIds: [gmailLabelId] },
   })
+}
+
+// ── Star a message ───────────────────────────────────────────────────────────
+
+export async function starMessage(accessToken: string, messageId: string): Promise<void> {
+  const gmail = getGmailService(accessToken)
+  await gmail.users.messages.modify({
+    userId: "me",
+    id: messageId,
+    requestBody: { addLabelIds: ["STARRED"] },
+  })
+}
+
+// ── Trash a message ──────────────────────────────────────────────────────────
+
+export async function trashMessage(accessToken: string, messageId: string): Promise<void> {
+  const gmail = getGmailService(accessToken)
+  await gmail.users.messages.trash({
+    userId: "me",
+    id: messageId,
+  })
+}
+
+// ── Search archived messages by sender domain ─────────────────────────────────
+
+export async function searchArchivedMessages(
+  accessToken: string,
+  senderDomain: string
+): Promise<{ id: string; subject: string }[]> {
+  const gmail = getGmailService(accessToken)
+
+  const q = `from:${senderDomain} in:anywhere label:archive subject:(order OR shipping OR shipped OR tracking OR delivery)`
+  const list = await gmail.users.messages.list({
+    userId: "me",
+    q,
+    maxResults: 10,
+  })
+
+  const messages = list.data.messages ?? []
+  if (messages.length === 0) return []
+
+  const results = await Promise.all(
+    messages.map(m =>
+      gmail.users.messages.get({
+        userId: "me",
+        id: m.id!,
+        format: "metadata",
+        metadataHeaders: ["Subject"],
+      }).then(r => {
+        const headers: { name?: string | null; value?: string | null }[] = r.data.payload?.headers ?? []
+        const subject = headers.find(h => h.name?.toLowerCase() === "subject")?.value ?? "(no subject)"
+        return { id: m.id!, subject }
+      })
+    )
+  )
+
+  return results
 }
 
 // ── Archive a message (remove from INBOX) ────────────────────────────────────

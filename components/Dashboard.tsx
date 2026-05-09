@@ -4,10 +4,12 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import type { Email, Category, AccountId, RawEmail } from "@/lib/types"
 import { ACCOUNTS } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
+import { recordAction } from "@/lib/stats"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
 import AccountToggle from "./AccountToggle"
 import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
+import PlantHeader from "./PlantHeader"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
 
@@ -33,6 +35,7 @@ export default function Dashboard() {
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [proposedCategories, setProposedCategories] = useState<{ name: string; color: string }[] | null>(null)
   const [pendingRawEmails, setPendingRawEmails] = useState<RawEmail[]>([])
+  const [packageCleanup, setPackageCleanup] = useState<{ emailIds: string[]; sender: string } | null>(null)
 
   // In-memory cache for fast account switching within a session
   const sessionCache = useRef<Map<string, InboxCache>>(new Map())
@@ -146,13 +149,19 @@ export default function Dashboard() {
     setAppState("categorizing")
     setCategories(cats)
 
+    // Strip htmlBody before sending to API — it's large and not needed for categorization
+    const emailsForApi = rawEmails.map(({ htmlBody: _, ...rest }) => rest)
     const catRes = await fetch("/api/ai/categorize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emails: rawEmails, categories: cats, account: activeAccountConfig.email }),
+      body: JSON.stringify({ emails: emailsForApi, categories: cats, account: activeAccountConfig.email }),
     })
     if (!catRes.ok) throw new Error("Failed to categorize emails")
     const categorized: Email[] = await catRes.json()
+
+    // Reattach htmlBody from original rawEmails
+    const htmlBodyMap = new Map(rawEmails.map(e => [e.id, e.htmlBody]))
+    categorized.forEach(email => { email.htmlBody = htmlBodyMap.get(email.id) })
 
     // Apply Gmail labels in the background
     categorized.forEach(email => {
@@ -175,6 +184,25 @@ export default function Dashboard() {
     const cache: InboxCache = { account: activeAccountConfig.email, emails: categorized, categories: cats, fetchedAt: now }
     sessionCache.current.set(activeAccountConfig.email, cache)
     saveCachedInbox(activeAccountConfig.email, categorized, cats)
+
+    const delivered = categorized.find(e => e.packageDelivered && e.orderSender)
+    if (delivered?.orderSender) {
+      const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
+      if (!dismissed.includes(delivered.id)) {
+        fetch("/api/ai/package-cleanup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deliveredEmailId: delivered.id, orderSender: delivered.orderSender }),
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.emailIds?.length > 0) {
+              setPackageCleanup({ emailIds: data.emailIds, sender: delivered.orderSender! })
+            }
+          })
+          .catch(() => {})
+      }
+    }
   }, [activeAccountConfig.email])
 
   // ── Account switch ───────────────────────────────────────────────────────────
@@ -203,6 +231,7 @@ export default function Dashboard() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: email.id }),
     })
+    recordAction("archive")
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
       saveCachedInbox(activeAccountConfig.email, next, categories)
@@ -244,6 +273,43 @@ export default function Dashboard() {
         messageId: email.messageId,
       }),
     })
+    recordAction("reply")
+  }
+
+  async function handleStar(email: Email) {
+    await fetch("/api/gmail/star", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: email.id }),
+    })
+    recordAction("star")
+    setEmails(prev => {
+      const next = prev.filter(e => e.id !== email.id)
+      saveCachedInbox(activeAccountConfig.email, next, categories)
+      sessionCache.current.set(activeAccountConfig.email, {
+        account: activeAccountConfig.email, emails: next, categories, fetchedAt: fetchedAt ?? new Date().toISOString()
+      })
+      return next
+    })
+    if (selectedEmail?.id === email.id) setSelectedEmail(null)
+  }
+
+  async function handleDelete(email: Email) {
+    await fetch("/api/gmail/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: email.id }),
+    })
+    recordAction("delete")
+    setEmails(prev => {
+      const next = prev.filter(e => e.id !== email.id)
+      saveCachedInbox(activeAccountConfig.email, next, categories)
+      sessionCache.current.set(activeAccountConfig.email, {
+        account: activeAccountConfig.email, emails: next, categories, fetchedAt: fetchedAt ?? new Date().toISOString()
+      })
+      return next
+    })
+    if (selectedEmail?.id === email.id) setSelectedEmail(null)
   }
 
   const isLoading = appState === "fetching" || appState === "categorizing" || appState === "proposing"
@@ -275,6 +341,7 @@ export default function Dashboard() {
           onChange={handleAccountSwitch}
           loading={isLoading}
         />
+        <PlantHeader />
         <div className="flex items-center gap-3">
           {appState === "ready" && fetchedAt && (
             <span className="text-xs text-zinc-400">
@@ -333,6 +400,43 @@ export default function Dashboard() {
             </div>
           )}
 
+          {appState === "ready" && packageCleanup && (
+            <div className="flex items-center gap-3 mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+              <span>📦 Package from <span className="font-medium">{packageCleanup.sender}</span> arrived — {packageCleanup.emailIds.length} shipping email{packageCleanup.emailIds.length !== 1 ? "s" : ""} found.</span>
+              <button
+                onClick={async () => {
+                  await Promise.all(
+                    packageCleanup.emailIds.map(id =>
+                      fetch("/api/gmail/delete", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ messageId: id }),
+                      }).catch(() => {})
+                    )
+                  )
+                  setEmails(prev => prev.filter(e => !packageCleanup.emailIds.includes(e.id)))
+                  setPackageCleanup(null)
+                }}
+                className="ml-auto shrink-0 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors"
+              >
+                Delete chain
+              </button>
+              <button
+                onClick={() => {
+                  const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
+                  const deliveredEmail = emails.find(e => e.packageDelivered && e.orderSender === packageCleanup.sender)
+                  if (deliveredEmail) {
+                    localStorage.setItem("inbox-ai:dismissed-cleanups", JSON.stringify([...dismissed, deliveredEmail.id]))
+                  }
+                  setPackageCleanup(null)
+                }}
+                className="shrink-0 text-amber-700 hover:text-amber-900 text-xs font-medium px-2 py-1.5 rounded-md hover:bg-amber-100 transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           {appState === "ready" && categories.length > 0 && (
             <div className="grid grid-cols-3 gap-4">
               {categories.map(cat => (
@@ -346,6 +450,8 @@ export default function Dashboard() {
                   onMarkRead={handleMarkRead}
                   onArchive={handleArchive}
                   onSaveDraft={handleSaveDraft}
+                  onStar={handleStar}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>

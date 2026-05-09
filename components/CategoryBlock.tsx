@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import type { Email, Category } from "@/lib/types"
 import EmailRow from "./EmailRow"
 import DetailPanel from "./DetailPanel"
@@ -13,10 +14,46 @@ interface Props {
   onMarkRead: (email: Email) => void
   onArchive: (email: Email) => Promise<void>
   onSaveDraft: (email: Email, body: string) => Promise<void>
+  onStar: (email: Email) => Promise<void>
+  onDelete: (email: Email) => Promise<void>
 }
 
-export default function CategoryBlock({ category, emails, selectedEmail, onSelect, onClose, onMarkRead, onArchive, onSaveDraft }: Props) {
+export default function CategoryBlock({ category, emails, selectedEmail, onSelect, onClose, onMarkRead, onArchive, onSaveDraft, onStar, onDelete }: Props) {
   const sorted = [...emails].sort((a, b) => a.internalDate - b.internalDate)
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
+
+  const selectionMode = bulkSelected.size > 0
+  const allSelected = sorted.length > 0 && bulkSelected.size === sorted.length
+
+  function toggleSelectAll() {
+    setBulkSelected(allSelected ? new Set() : new Set(sorted.map(e => e.id)))
+  }
+
+  function toggleEmail(id: string) {
+    setBulkSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  async function handleBulkMarkRead() {
+    const targets = sorted.filter(e => bulkSelected.has(e.id))
+    setBulkSelected(new Set())
+    targets.forEach(e => onMarkRead(e))
+  }
+
+  async function handleBulkArchive() {
+    const targets = sorted.filter(e => bulkSelected.has(e.id))
+    setBulkSelected(new Set())
+    for (const e of targets) await onArchive(e)
+  }
+
+  async function handleBulkDelete() {
+    const targets = sorted.filter(e => bulkSelected.has(e.id))
+    setBulkSelected(new Set())
+    for (const e of targets) await onDelete(e)
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm">
@@ -35,15 +72,45 @@ export default function CategoryBlock({ category, emails, selectedEmail, onSelec
           )}
           {emails.length > 0 && (
             <button
-              onClick={() => emails.forEach(e => onMarkRead(e))}
+              onClick={toggleSelectAll}
               className="text-xs text-zinc-400 hover:text-zinc-700 hover:bg-white/80 px-2 py-0.5 rounded-full transition-colors"
-              title="Mark all as read"
             >
-              Mark all read
+              {allSelected ? "Deselect all" : "Select all"}
             </button>
           )}
         </div>
       </div>
+
+      {/* Bulk action bar */}
+      {selectionMode && (
+        <div className="flex items-center gap-1.5 px-3 py-2 bg-zinc-50 border-b border-zinc-100">
+          <span className="text-xs text-zinc-400 mr-1">{bulkSelected.size} selected</span>
+          <button
+            onClick={handleBulkMarkRead}
+            className="text-xs px-2 py-1 rounded border border-zinc-200 text-zinc-600 hover:bg-white transition-colors"
+          >
+            Mark read
+          </button>
+          <button
+            onClick={handleBulkArchive}
+            className="text-xs px-2 py-1 rounded border border-zinc-200 text-zinc-600 hover:bg-white transition-colors"
+          >
+            Archive
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            className="text-xs px-2 py-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setBulkSelected(new Set())}
+            className="text-xs text-zinc-400 hover:text-zinc-600 ml-auto transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Email list */}
       <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
@@ -54,11 +121,13 @@ export default function CategoryBlock({ category, emails, selectedEmail, onSelec
             <div key={email.id}>
               <EmailRow
                 email={email}
-                selected={email.id === selectedEmail?.id}
-                onClick={() => onSelect(email)}
+                selected={!selectionMode && email.id === selectedEmail?.id}
+                isSelected={bulkSelected.has(email.id)}
+                selectionMode={selectionMode}
+                onClick={selectionMode ? () => toggleEmail(email.id) : () => onSelect(email)}
                 onMarkRead={() => onMarkRead(email)}
               />
-              {email.id === selectedEmail?.id && (
+              {!selectionMode && email.id === selectedEmail?.id && (
                 <div className="mt-1 mb-2">
                   <DetailPanel
                     email={selectedEmail}
@@ -66,6 +135,8 @@ export default function CategoryBlock({ category, emails, selectedEmail, onSelec
                     onArchive={onArchive}
                     onMarkRead={onMarkRead}
                     onSaveDraft={onSaveDraft}
+                    onStar={onStar}
+                    onDelete={onDelete}
                   />
                 </div>
               )}

@@ -120,6 +120,10 @@ Also assign:
   - "read" — newsletter, FYI, promotional, no action needed
 - summary: 2-3 sentence plain-English summary IF the body is >150 words OR contains a special offer/promotion. Otherwise null.
 - draftReply: ${isWork ? "For patient emails needing a reply — write a reply in Dr. K's voice (warm, casual, 2-4 sentences, sign off 'Best, Dr. K'). For non-patient emails: null." : "null for all emails."}
+- deletable: true if the email is clearly no longer actionable and safe to delete. Flag: security login alerts, OTP/2FA codes, social media notifications (likes, follows), single-use promotional codes that have expired, shipping notifications where the package has already been delivered (status says "delivered").
+- deletableReason: one short phrase explaining why (e.g. "Security login alert, no longer actionable"), or null if not deletable.
+- packageDelivered: true if this email is a delivery confirmation (subject contains "delivered" or "arrived" — "out for delivery" is NOT enough).
+- orderSender: if packageDelivered is true, extract the sender domain (e.g. "amazon.com", "shopify" — keep it short). Otherwise null.
 
 Return a JSON array with one object per email, in the same order:
 [
@@ -130,7 +134,11 @@ Return a JSON array with one object per email, in the same order:
     "microSummary": "<2-3 words>",
     "actionFlag": "reply|confirm|receipt|read",
     "summary": "<2-3 sentences or null>",
-    "draftReply": "<reply text or null>"
+    "draftReply": "<reply text or null>",
+    "deletable": true|false,
+    "deletableReason": "<short phrase or null>",
+    "packageDelivered": true|false,
+    "orderSender": "<sender domain or null>"
   }
 ]
 
@@ -151,7 +159,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
   })
 
   const raw = response.content[0].type === "text" ? response.content[0].text : "[]"
-  let results: { id: string; category: string; priority: "urgent" | "today" | "fyi"; microSummary: string; actionFlag: "reply" | "confirm" | "receipt" | "read"; summary: string | null; draftReply: string | null }[]
+  let results: { id: string; category: string; priority: "urgent" | "today" | "fyi"; microSummary: string; actionFlag: "reply" | "confirm" | "receipt" | "read"; summary: string | null; draftReply: string | null; deletable: boolean; deletableReason: string | null; packageDelivered: boolean; orderSender: string | null }[]
   try {
     results = JSON.parse(extractJson(raw))
   } catch {
@@ -167,6 +175,10 @@ Return ONLY valid JSON array. No markdown, no explanation.
       actionFlag: "read" as const,
       summary: null,
       draftReply: null,
+      deletable: false,
+      deletableReason: null,
+      packageDelivered: false,
+      orderSender: null,
     }
     return {
       ...raw,
@@ -177,6 +189,10 @@ Return ONLY valid JSON array. No markdown, no explanation.
       summary: ai.summary,
       draftReply: ai.draftReply,
       timeAgo: timeAgo(raw.internalDate),
+      deletable: ai.deletable ?? false,
+      deletableReason: ai.deletableReason ?? null,
+      packageDelivered: ai.packageDelivered ?? false,
+      orderSender: ai.orderSender ?? null,
     }
   })
 }

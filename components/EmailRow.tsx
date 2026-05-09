@@ -5,6 +5,8 @@ import type { Email } from "@/lib/types"
 interface Props {
   email: Email
   selected: boolean
+  isSelected?: boolean
+  selectionMode?: boolean
   onClick: () => void
   onMarkRead: () => void
 }
@@ -22,7 +24,7 @@ const ACTION_FLAG: Record<string, { label: string; className: string } | null> =
   read:    null,
 }
 
-export default function EmailRow({ email, selected, onClick, onMarkRead }: Props) {
+export default function EmailRow({ email, selected, isSelected, selectionMode, onClick, onMarkRead }: Props) {
   const flag = ACTION_FLAG[email.actionFlag] ?? null
 
   return (
@@ -32,13 +34,27 @@ export default function EmailRow({ email, selected, onClick, onMarkRead }: Props
       onClick={onClick}
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick() }}
       className={`w-full text-left px-3 py-2 rounded-lg transition-colors duration-100 group cursor-pointer ${
-        selected
+        isSelected
+          ? "bg-violet-50 border border-violet-300"
+          : selected
           ? "bg-violet-50 border border-violet-200"
           : "hover:bg-zinc-50 border border-transparent"
       }`}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[email.priority] ?? "bg-zinc-300"}`} />
+        {selectionMode ? (
+          <span className={`w-4 h-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+            isSelected ? "bg-violet-500 border-violet-500" : "border-zinc-300"
+          }`}>
+            {isSelected && (
+              <svg viewBox="0 0 8 8" fill="none" className="w-2.5 h-2.5">
+                <path d="M1.5 4L3.5 6L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </span>
+        ) : (
+          <span className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[email.priority] ?? "bg-zinc-300"}`} />
+        )}
 
         {/* Sender · micro-summary */}
         <div className="text-xs min-w-0 flex-1 truncate">
@@ -55,7 +71,7 @@ export default function EmailRow({ email, selected, onClick, onMarkRead }: Props
         )}
 
         {/* Mark as read button */}
-        <button
+        {!selectionMode && <button
           onClick={e => {
             e.stopPropagation()
             onMarkRead()
@@ -66,7 +82,7 @@ export default function EmailRow({ email, selected, onClick, onMarkRead }: Props
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
             <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
           </svg>
-        </button>
+        </button>}
       </div>
     </div>
   )
