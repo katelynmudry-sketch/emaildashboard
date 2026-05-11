@@ -20,9 +20,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ emailIds: [] })
     }
 
-    const prompt = `Sender domain: ${orderSender}
+    const prompt = `Sender: ${orderSender}
 
-These emails are archived Gmail messages from that sender. Return only the IDs that are clearly part of the same order/shipping chain (order confirmation, shipping notification, tracking update, delivery confirmation):
+These are archived Gmail messages from that sender. Return the IDs of all emails that are shipping/delivery notifications (order confirmations, shipping updates, out for delivery, delivered notices, tracking updates). These are safe to delete.
 
 ${candidates.map(c => `ID: ${c.id}\nSubject: ${c.subject}`).join("\n---\n")}
 
@@ -30,7 +30,7 @@ Return a JSON array of IDs only, e.g. ["id1","id2"]. No explanation.`
 
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 256,
+      max_tokens: 512,
       messages: [{ role: "user", content: prompt }],
     })
 
@@ -45,10 +45,14 @@ Return a JSON array of IDs only, e.g. ["id1","id2"]. No explanation.`
       emailIds = []
     }
 
-    const validIds = new Set(candidates.map(c => c.id))
-    emailIds = emailIds.filter(id => validIds.has(id))
+    const validMap = new Map(candidates.map(c => [c.id, c]))
+    emailIds = emailIds.filter(id => validMap.has(id))
+    const emails = emailIds.map(id => {
+      const c = validMap.get(id)!
+      return { id: c.id, subject: c.subject, date: c.date, snippet: c.snippet }
+    })
 
-    return NextResponse.json({ emailIds })
+    return NextResponse.json({ emailIds, emails })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Cleanup failed" }, { status: 500 })
   }

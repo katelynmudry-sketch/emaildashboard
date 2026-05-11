@@ -187,15 +187,14 @@ export async function trashMessage(accessToken: string, messageId: string): Prom
   })
 }
 
-// ── Search archived messages by sender domain ─────────────────────────────────
+// ── Search for recent delivery confirmation emails (last 7 days) ──────────────
 
-export async function searchArchivedMessages(
-  accessToken: string,
-  senderDomain: string
-): Promise<{ id: string; subject: string }[]> {
+export async function searchRecentDeliveries(
+  accessToken: string
+): Promise<{ id: string; subject: string; from: string; sender: string }[]> {
   const gmail = getGmailService(accessToken)
 
-  const q = `from:${senderDomain} in:anywhere label:archive subject:(order OR shipping OR shipped OR tracking OR delivery)`
+  const q = `subject:(delivered OR "has been delivered" OR "your order has arrived" OR "your package has arrived" OR "delivery confirmation") newer_than:7d -is:sent`
   const list = await gmail.users.messages.list({
     userId: "me",
     q,
@@ -211,11 +210,54 @@ export async function searchArchivedMessages(
         userId: "me",
         id: m.id!,
         format: "metadata",
-        metadataHeaders: ["Subject"],
+        metadataHeaders: ["Subject", "From"],
       }).then(r => {
         const headers: { name?: string | null; value?: string | null }[] = r.data.payload?.headers ?? []
         const subject = headers.find(h => h.name?.toLowerCase() === "subject")?.value ?? "(no subject)"
-        return { id: m.id!, subject }
+        const fromRaw = headers.find(h => h.name?.toLowerCase() === "from")?.value ?? ""
+        const domainMatch = fromRaw.match(/@([\w.-]+)/)
+        const sender = domainMatch ? domainMatch[1] : fromRaw
+        return { id: m.id!, subject, from: fromRaw, sender }
+      })
+    )
+  )
+
+  return results
+}
+
+// ── Search archived messages by sender domain ─────────────────────────────────
+
+export async function searchArchivedMessages(
+  accessToken: string,
+  senderDomain: string
+): Promise<{ id: string; subject: string; date: string; snippet: string }[]> {
+  const gmail = getGmailService(accessToken)
+
+  const senderQuery = senderDomain.includes(" ") ? `"${senderDomain}"` : senderDomain
+  const q = `from:${senderQuery} subject:(order OR shipping OR shipped OR tracking OR delivery OR confirmation OR arrived OR delivered)`
+  const list = await gmail.users.messages.list({
+    userId: "me",
+    q,
+    maxResults: 20,
+  })
+
+  const messages = list.data.messages ?? []
+  if (messages.length === 0) return []
+
+  const results = await Promise.all(
+    messages.map(m =>
+      gmail.users.messages.get({
+        userId: "me",
+        id: m.id!,
+        format: "metadata",
+        metadataHeaders: ["Subject", "Date"],
+      }).then(r => {
+        const headers: { name?: string | null; value?: string | null }[] = r.data.payload?.headers ?? []
+        const subject = headers.find(h => h.name?.toLowerCase() === "subject")?.value ?? "(no subject)"
+        const rawDate = headers.find(h => h.name?.toLowerCase() === "date")?.value ?? ""
+        const date = rawDate ? new Date(rawDate).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }) : ""
+        const snippet = r.data.snippet ?? ""
+        return { id: m.id!, subject, date, snippet }
       })
     )
   )
@@ -278,4 +320,37 @@ export async function createDraft(
   })
 
   return draft.data.id!
+}
+
+// ── Send an email ─────────────────────────────────────────────────────────────
+
+export async function sendEmail(
+  accessToken: string,
+  to: string,
+  subject: string,
+  body: string,
+  threadId: string,
+  inReplyTo?: string,
+  messageId?: string
+): Promise<void> {
+  const gmail = getGmailService(accessToken)
+
+  const replySubject = subject.toLowerCase().startsWith("re:") ? subject : `Re: ${subject}`
+  const mimeLines = [
+    `To: ${to}`,
+    `Subject: ${replySubject}`,
+    inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
+    messageId ? `References: ${messageId}` : null,
+    "Content-Type: text/plain; charset=UTF-8",
+    "MIME-Version: 1.0",
+    "",
+    body,
+  ].filter(Boolean).join("\r\n")
+
+  const raw = Buffer.from(mimeLines).toString("base64url")
+
+  await gmail.users.messages.send({
+    userId: "me",
+    requestBody: { raw, threadId },
+  })
 }

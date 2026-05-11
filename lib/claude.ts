@@ -34,14 +34,26 @@ export async function proposeCategories(
 ): Promise<ProposeResponse> {
   const isWork = account.includes("drkmudry")
 
-  const prompt = `
-Analyze these ${emails.length} emails from ${account} and propose exactly 6 categories to organize this inbox.
+  const existingSection = existingLabelNames.length > 0
+    ? `The user already has these Gmail labels — USE THEM AS-IS wherever they make sense. List each matching label first, before any new suggestions. Only invent a new category name if none of the existing labels fit a clear pattern in the emails.
 
-${existingLabelNames.length > 0 ? `Existing Gmail labels to incorporate where relevant: ${existingLabelNames.join(", ")}` : "No existing labels — propose fresh categories."}
+Existing Gmail labels (reuse these):
+${existingLabelNames.map(n => `  - ${n}`).join("\n")}`
+    : "No existing labels — propose fresh categories based on the email patterns below."
+
+  const prompt = `
+Analyze these ${emails.length} emails from ${account} and propose inbox categories to organize this inbox.
+
+${existingSection}
 
 ${isWork ? "This is a clinic/work inbox. Categories should reflect clinical practice email types." : "This is a personal inbox. Categories should reflect personal life email types."}
 
-Return a JSON array of exactly 6 objects:
+Rules:
+- Prefer reusing existing label names over inventing new ones.
+- Propose as many or as few categories as actually make sense for the emails — no fixed minimum or maximum.
+- Each category should cover a meaningfully distinct slice of the inbox.
+
+Return a JSON array of objects:
 [
   { "name": "CategoryName", "color": "bg-violet-500" },
   ...

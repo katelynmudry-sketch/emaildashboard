@@ -35,8 +35,13 @@ export default function Dashboard() {
   const [errorMsg, setErrorMsg] = useState("")
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [proposedCategories, setProposedCategories] = useState<{ name: string; color: string }[] | null>(null)
+  const [existingLabelNames, setExistingLabelNames] = useState<string[]>([])
   const [pendingRawEmails, setPendingRawEmails] = useState<RawEmail[]>([])
-  const [packageCleanup, setPackageCleanup] = useState<{ emailIds: string[]; sender: string } | null>(null)
+  const [packageCleanup, setPackageCleanup] = useState<{ emails: { id: string; subject: string; date: string; snippet: string }[]; sender: string } | null>(null)
+  const [cleanupExpanded, setCleanupExpanded] = useState(false)
+  const [cleanupChecked, setCleanupChecked] = useState<Set<string>>(new Set())
+  const [cleanupPreview, setCleanupPreview] = useState<{ id: string; subject: string } | null>(null)
+  const [cleanupPreviewHtml, setCleanupPreviewHtml] = useState<string | null>(null)
   const [expandedEmail, setExpandedEmail] = useState<Email | null>(null)
   const [totalEmailsAtLoad, setTotalEmailsAtLoad] = useState(0)
 
@@ -98,14 +103,15 @@ export default function Dashboard() {
         setPendingRawEmails(rawEmails)
 
         const existingLabelsRes = await fetch("/api/gmail/labels")
-        const existingLabelNames: string[] = existingLabelsRes.ok
+        const fetchedLabelNames: string[] = existingLabelsRes.ok
           ? (await existingLabelsRes.json()).map((l: { name: string }) => l.name)
           : []
+        setExistingLabelNames(fetchedLabelNames)
 
         const proposeRes = await fetch("/api/ai/propose", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ emails: rawEmails, existingLabelNames, account: activeAccountConfig.email }),
+          body: JSON.stringify({ emails: rawEmails, existingLabelNames: fetchedLabelNames, account: activeAccountConfig.email }),
         })
         if (!proposeRes.ok) throw new Error("Failed to propose categories")
         const { categories: proposed } = await proposeRes.json()
@@ -197,7 +203,9 @@ export default function Dashboard() {
     const deliveredFromInbox = categorized.find(e => e.packageDelivered && e.orderSender)
     if (deliveredFromInbox?.orderSender) {
       const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
+      console.log("[inbox-ai] about to fetch cleanup, id:", deliveredFromInbox.id, "dismissed:", dismissed)
       if (!dismissed.includes(deliveredFromInbox.id)) {
+        console.log("[inbox-ai] firing package-cleanup fetch")
         fetch("/api/ai/package-cleanup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -206,8 +214,9 @@ export default function Dashboard() {
           .then(r => r.json())
           .then(data => {
             console.log("[inbox-ai] package-cleanup response:", data)
-            if (data.emailIds?.length > 0) {
-              setPackageCleanup({ emailIds: data.emailIds, sender: deliveredFromInbox.orderSender! })
+            if (data.emails?.length > 0) {
+              setPackageCleanup({ emails: data.emails, sender: deliveredFromInbox.orderSender! })
+              setCleanupChecked(new Set(data.emails.map((e: { id: string }) => e.id)))
             }
           })
           .catch(err => console.error("[inbox-ai] package-cleanup error:", err))
@@ -230,8 +239,9 @@ export default function Dashboard() {
         })
           .then(r => r.json())
           .then(data => {
-            if (data.emailIds?.length > 0) {
-              setPackageCleanup({ emailIds: data.emailIds, sender: first.sender })
+            if (data.emails?.length > 0) {
+              setPackageCleanup({ emails: data.emails, sender: first.sender })
+              setCleanupChecked(new Set(data.emails.map((e: { id: string }) => e.id)))
             }
           })
           .catch(() => {})
@@ -355,6 +365,7 @@ export default function Dashboard() {
       <CategoryProposal
         proposed={proposedCategories}
         account={activeAccountConfig.email}
+        existingLabelNames={existingLabelNames}
         onConfirm={handleConfirmCategories}
       />
     )
@@ -448,39 +459,93 @@ export default function Dashboard() {
           )}
 
           {appState === "ready" && packageCleanup && (
-            <div className="flex items-center gap-3 mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
-              <span>📦 Package from <span className="font-medium">{packageCleanup.sender}</span> arrived — {packageCleanup.emailIds.length} shipping email{packageCleanup.emailIds.length !== 1 ? "s" : ""} found.</span>
-              <button
-                onClick={async () => {
-                  await Promise.all(
-                    packageCleanup.emailIds.map(id =>
-                      fetch("/api/gmail/delete", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ messageId: id }),
-                      }).catch(() => {})
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900 overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <span>📦 Package from <span className="font-medium">{packageCleanup.sender}</span> arrived — {packageCleanup.emails.length} shipping email{packageCleanup.emails.length !== 1 ? "s" : ""} found.</span>
+                <button
+                  onClick={() => setCleanupExpanded(v => !v)}
+                  className="text-amber-700 hover:text-amber-900 text-xs font-medium px-2 py-1 rounded hover:bg-amber-100 transition-colors"
+                >
+                  {cleanupExpanded ? "▲ Hide" : "▼ Review"}
+                </button>
+                <button
+                  onClick={async () => {
+                    const toDelete = [...cleanupChecked]
+                    await Promise.all(
+                      toDelete.map(id =>
+                        fetch("/api/gmail/delete", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ messageId: id }),
+                        }).catch(() => {})
+                      )
                     )
-                  )
-                  setEmails(prev => prev.filter(e => !packageCleanup.emailIds.includes(e.id)))
-                  setPackageCleanup(null)
-                }}
-                className="ml-auto shrink-0 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors"
-              >
-                Delete chain
-              </button>
-              <button
-                onClick={() => {
-                  const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
-                  const deliveredEmail = emails.find(e => e.packageDelivered && e.orderSender === packageCleanup.sender)
-                  if (deliveredEmail) {
-                    localStorage.setItem("inbox-ai:dismissed-cleanups", JSON.stringify([...dismissed, deliveredEmail.id]))
-                  }
-                  setPackageCleanup(null)
-                }}
-                className="shrink-0 text-amber-700 hover:text-amber-900 text-xs font-medium px-2 py-1.5 rounded-md hover:bg-amber-100 transition-colors"
-              >
-                Dismiss
-              </button>
+                    setEmails(prev => prev.filter(e => !cleanupChecked.has(e.id)))
+                    setPackageCleanup(null)
+                    setCleanupExpanded(false)
+                  }}
+                  disabled={cleanupChecked.size === 0}
+                  className="ml-auto shrink-0 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors"
+                >
+                  Delete {cleanupChecked.size > 0 ? `${cleanupChecked.size} ` : ""}selected
+                </button>
+                <button
+                  onClick={() => {
+                    const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
+                    const deliveredEmail = emails.find(e => e.packageDelivered && e.orderSender === packageCleanup.sender)
+                    if (deliveredEmail) {
+                      localStorage.setItem("inbox-ai:dismissed-cleanups", JSON.stringify([...dismissed, deliveredEmail.id]))
+                    }
+                    setPackageCleanup(null)
+                    setCleanupExpanded(false)
+                  }}
+                  className="shrink-0 text-amber-700 hover:text-amber-900 text-xs font-medium px-2 py-1.5 rounded-md hover:bg-amber-100 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+              {cleanupExpanded && (
+                <div className="border-t border-amber-200 divide-y divide-amber-100 max-h-64 overflow-y-auto">
+                  {packageCleanup.emails.map(email => {
+                    const trackingMatch = email.snippet.match(
+                      /(?:tracking(?:\s*(?:number|#|no\.?)?)?[\s:]+|order(?:\s*(?:number|#|no\.?)?)?[\s:]+|#)([A-Z0-9][-A-Z0-9]{5,30})/i
+                    )
+                    const trackingInfo = trackingMatch ? trackingMatch[0].trim() : null
+                    return (
+                      <div key={email.id} className="flex items-center gap-3 px-4 py-2 hover:bg-amber-100 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={cleanupChecked.has(email.id)}
+                          onChange={e => {
+                            setCleanupChecked(prev => {
+                              const next = new Set(prev)
+                              if (e.target.checked) next.add(email.id)
+                              else next.delete(email.id)
+                              return next
+                            })
+                          }}
+                          className="accent-amber-600 shrink-0"
+                        />
+                        <button
+                          onClick={() => {
+                            setCleanupPreview({ id: email.id, subject: email.subject })
+                            setCleanupPreviewHtml(null)
+                            fetch(`/api/gmail/html?id=${email.id}`)
+                              .then(r => r.json())
+                              .then(d => setCleanupPreviewHtml(d.htmlBody ?? "<p>No content</p>"))
+                              .catch(() => setCleanupPreviewHtml("<p>Failed to load</p>"))
+                          }}
+                          className="flex-1 flex items-center gap-3 text-left min-w-0"
+                        >
+                          <span className="text-xs font-medium text-amber-900 truncate">{email.subject}</span>
+                          {trackingInfo && <span className="text-xs text-amber-600 font-mono shrink-0 truncate max-w-[160px]">{trackingInfo}</span>}
+                          {email.date && <span className="text-xs text-amber-400 shrink-0 ml-auto">{email.date}</span>}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -518,6 +583,23 @@ export default function Dashboard() {
           onDelete={handleDelete}
           onSaveDraft={handleSaveDraft}
         />
+      )}
+
+      {cleanupPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setCleanupPreview(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-[720px] max-w-[95vw] max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200 shrink-0">
+              <span className="text-sm font-medium text-zinc-800 truncate pr-4">{cleanupPreview.subject}</span>
+              <button onClick={() => setCleanupPreview(null)} className="text-zinc-400 hover:text-zinc-600 text-lg leading-none shrink-0">✕</button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {cleanupPreviewHtml === null
+                ? <div className="flex items-center justify-center h-40 text-sm text-zinc-400">Loading…</div>
+                : <iframe srcDoc={cleanupPreviewHtml} className="w-full h-full border-0" sandbox="allow-same-origin" />
+              }
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
