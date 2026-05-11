@@ -20,8 +20,13 @@ const PRIORITY_BADGE: Record<string, string> = {
   fyi:    "bg-emerald-100 text-emerald-700",
 }
 
+const btnBase =
+  "text-[11px] font-medium px-2 py-1 rounded-md bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75 whitespace-nowrap"
+
 export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onSaveDraft, onStar, onDelete }: Props) {
-  const [showDraft, setShowDraft] = useState(false)
+  const [draftMode, setDraftMode] = useState<"ai" | "manual" | "forward" | null>(null)
+  const [aiDraftBody, setAiDraftBody] = useState<string | null>(null)
+  const [aiDraftLoading, setAiDraftLoading] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [archived, setArchived] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -34,7 +39,6 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
       setHtmlBody(email.htmlBody)
       return
     }
-    // Fetch HTML body on demand for cached emails that don't have it
     setHtmlBody(null)
     setHtmlLoading(true)
     fetch(`/api/gmail/html?id=${email.id}`)
@@ -84,7 +88,6 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
 
       {/* Body */}
       <div className="max-h-[520px] overflow-y-auto p-4 space-y-3">
-        {/* AI summary — only shown when present */}
         {email.summary && (
           <div className="bg-violet-50 border border-violet-100 rounded-xl p-3">
             <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-1">AI Summary</p>
@@ -92,7 +95,6 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
           </div>
         )}
 
-        {/* Email body */}
         {htmlLoading ? (
           <div className="flex items-center gap-2 py-4 text-sm text-zinc-400">
             <div className="w-4 h-4 border-2 border-violet-300 border-t-transparent rounded-full animate-spin" />
@@ -100,8 +102,13 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
           </div>
         ) : htmlBody ? (
           <iframe
-            srcDoc={htmlBody}
-            sandbox="allow-same-origin"
+            srcDoc={(() => {
+              const inject = '<base target="_blank"><style>html{zoom:0.85}</style>'
+              return /<head>/i.test(htmlBody)
+                ? htmlBody.replace(/<head>/i, `<head>${inject}`)
+                : `${inject}${htmlBody}`
+            })()}
+            sandbox="allow-same-origin allow-popups"
             className="w-full border-0 rounded"
             style={{ minHeight: "200px" }}
             onLoad={e => {
@@ -117,47 +124,77 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
           </div>
         )}
 
-        {/* Draft editor */}
-        {showDraft && (
+        {draftMode && (
           <DraftEditor
             email={email}
-            onApprove={async body => {
+            mode={draftMode === "forward" ? "forward" : "reply"}
+            initialBody={draftMode === "ai" ? (aiDraftBody ?? "") : ""}
+            onSaveDraft={async body => {
               await onSaveDraft(email, body)
-              setShowDraft(false)
+              setDraftMode(null)
             }}
-            onCancel={() => setShowDraft(false)}
+            onCancel={() => setDraftMode(null)}
           />
         )}
       </div>
 
       {/* Actions */}
-      <div className="p-4 border-t border-zinc-100 space-y-2">
+      <div className="px-3 py-2.5 border-t border-zinc-100 space-y-1.5">
         {archived ? (
-          <p className="text-sm text-emerald-600 text-center font-medium">Archived ✓</p>
+          <p className="text-xs text-emerald-600 text-center font-medium">Archived ✓</p>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-1">
             <button
-              onClick={() => { onMarkRead(email) }}
-              className="flex-1 text-sm py-1.5 border border-zinc-200 text-zinc-600 hover:text-zinc-800 hover:bg-zinc-50 rounded-lg transition-colors"
+              onClick={() => onMarkRead(email)}
+              className={btnBase}
             >
               Mark read
             </button>
             <button
-              onClick={() => setShowDraft(v => !v)}
-              className="flex-1 text-sm py-1.5 bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 rounded-lg transition-colors font-medium"
+              disabled={aiDraftLoading}
+              onClick={async () => {
+                if (draftMode === "ai") { setDraftMode(null); return }
+                setAiDraftLoading(true)
+                setDraftMode(null)
+                try {
+                  const res = await fetch("/api/ai/draft", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body } }),
+                  })
+                  const data = await res.json()
+                  setAiDraftBody(data.draft ?? "")
+                } finally {
+                  setAiDraftLoading(false)
+                  setDraftMode("ai")
+                }
+              }}
+              className={`${btnBase} disabled:opacity-50`}
             >
-              {showDraft ? "Hide draft" : "Reply"}
+              {aiDraftLoading ? "Drafting…" : "AI Draft"}
+            </button>
+            <button
+              onClick={() => setDraftMode(m => m === "manual" ? null : "manual")}
+              className={btnBase}
+            >
+              Reply
+            </button>
+            <button
+              onClick={() => setDraftMode(m => m === "forward" ? null : "forward")}
+              className={btnBase}
+            >
+              Forward
             </button>
             <button
               onClick={() => onStar(email)}
-              className="flex-1 text-sm py-1.5 bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors font-medium"
+              className={btnBase}
             >
               Star
             </button>
             <button
               onClick={handleArchive}
               disabled={archiving}
-              className="flex-1 text-sm py-1.5 bg-zinc-800 hover:bg-zinc-900 disabled:opacity-50 text-white rounded-lg transition-colors font-medium"
+              className={`${btnBase} disabled:opacity-50`}
             >
               {archiving ? "…" : "Archive"}
             </button>
@@ -168,7 +205,7 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
                 setDeleting(false)
               }}
               disabled={deleting}
-              className="flex-1 text-sm py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 disabled:opacity-50 rounded-lg transition-colors font-medium"
+              className={`${btnBase} text-rose-600 disabled:opacity-50`}
             >
               {deleting ? "…" : "Delete"}
             </button>

@@ -8,6 +8,7 @@ interface Props {
   isSelected?: boolean
   selectionMode?: boolean
   onClick: () => void
+  onDoubleClick?: () => void
   onMarkRead: () => void
 }
 
@@ -20,11 +21,11 @@ const PRIORITY_DOT: Record<string, string> = {
 const ACTION_FLAG: Record<string, { label: string; className: string } | null> = {
   reply:   { label: "REPLY",  className: "bg-blue-50 text-blue-600" },
   confirm: { label: "ACTION", className: "bg-amber-50 text-amber-600" },
-  receipt: { label: "KEEP",   className: "bg-emerald-50 text-emerald-700" },
+  receipt: null,
   read:    null,
 }
 
-export default function EmailRow({ email, selected, isSelected, selectionMode, onClick, onMarkRead }: Props) {
+export default function EmailRow({ email, selected, isSelected, selectionMode, onClick, onDoubleClick, onMarkRead }: Props) {
   const flag = ACTION_FLAG[email.actionFlag] ?? null
 
   return (
@@ -32,6 +33,7 @@ export default function EmailRow({ email, selected, isSelected, selectionMode, o
       role="button"
       tabIndex={0}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick() }}
       className={`w-full text-left px-3 py-2 rounded-lg transition-colors duration-100 group cursor-pointer ${
         isSelected

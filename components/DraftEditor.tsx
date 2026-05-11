@@ -5,20 +5,61 @@ import type { Email } from "@/lib/types"
 
 interface Props {
   email: Email
-  onApprove: (body: string) => Promise<void>
+  mode?: "reply" | "forward"
+  initialBody?: string
+  onSaveDraft: (body: string) => Promise<void>
   onCancel: () => void
 }
 
-export default function DraftEditor({ email, onApprove, onCancel }: Props) {
-  const [body, setBody] = useState(email.draftReply ?? "")
+const btnBase =
+  "text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75"
+
+function forwardBody(email: Email): string {
+  return `\n\n---------- Forwarded message ----------\nFrom: ${email.from} <${email.fromEmail}>\nSubject: ${email.subject}\n\n${email.body}`
+}
+
+export default function DraftEditor({ email, mode = "reply", initialBody, onSaveDraft, onCancel }: Props) {
+  const [body, setBody] = useState(initialBody ?? (mode === "forward" ? forwardBody(email) : ""))
+  const [forwardTo, setForwardTo] = useState("")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
-  async function handleApprove() {
+  const to = mode === "forward" ? forwardTo : email.fromEmail
+  const subject = mode === "forward" ? `Fwd: ${email.subject}` : email.subject
+
+  async function handleSaveDraft() {
     setSaving(true)
-    await onApprove(body)
+    await onSaveDraft(body)
     setSaving(false)
     setSaved(true)
+  }
+
+  async function handleSend() {
+    setSending(true)
+    setSendError(null)
+    try {
+      const res = await fetch("/api/gmail/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to,
+          subject,
+          body,
+          threadId: email.threadId,
+          inReplyTo: mode === "reply" ? email.inReplyTo : undefined,
+          messageId: mode === "reply" ? email.messageId : undefined,
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setSent(true)
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to send")
+    } finally {
+      setSending(false)
+    }
   }
 
   if (saved) {
@@ -29,9 +70,28 @@ export default function DraftEditor({ email, onApprove, onCancel }: Props) {
     )
   }
 
+  if (sent) {
+    return (
+      <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+        Sent ✓
+      </div>
+    )
+  }
+
   return (
     <div className="mt-3 space-y-2">
-      <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Draft reply</p>
+      <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
+        {mode === "forward" ? "Forward" : "Draft reply"}
+      </p>
+      {mode === "forward" && (
+        <input
+          type="email"
+          value={forwardTo}
+          onChange={e => setForwardTo(e.target.value)}
+          placeholder="To: email address"
+          className="w-full text-sm text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent"
+        />
+      )}
       <textarea
         value={body}
         onChange={e => setBody(e.target.value)}
@@ -39,18 +99,25 @@ export default function DraftEditor({ email, onApprove, onCancel }: Props) {
         className="w-full text-sm text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-xl p-3 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent"
         placeholder="Write your reply..."
       />
+      {sendError && (
+        <p className="text-xs text-rose-600">{sendError}</p>
+      )}
       <div className="flex gap-2">
         <button
-          onClick={handleApprove}
-          disabled={saving || !body.trim()}
-          className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+          onClick={handleSaveDraft}
+          disabled={saving || !body.trim() || (mode === "forward" && !forwardTo.trim())}
+          className={`${btnBase} disabled:opacity-50`}
         >
-          {saving ? "Saving…" : "Save to Gmail Drafts"}
+          {saving ? "Saving…" : "Save to Drafts"}
         </button>
         <button
-          onClick={onCancel}
-          className="px-4 text-sm text-zinc-500 hover:text-zinc-700 border border-zinc-200 rounded-lg transition-colors"
+          onClick={handleSend}
+          disabled={sending || !body.trim() || (mode === "forward" && !forwardTo.trim())}
+          className={`${btnBase} disabled:opacity-50`}
         >
+          {sending ? "Sending…" : "Send"}
+        </button>
+        <button onClick={onCancel} className={btnBase}>
           Cancel
         </button>
       </div>

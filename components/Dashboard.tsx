@@ -9,6 +9,7 @@ import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-ca
 import AccountToggle from "./AccountToggle"
 import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
+import EmailModal from "./EmailModal"
 import PlantHeader from "./PlantHeader"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
@@ -36,6 +37,8 @@ export default function Dashboard() {
   const [proposedCategories, setProposedCategories] = useState<{ name: string; color: string }[] | null>(null)
   const [pendingRawEmails, setPendingRawEmails] = useState<RawEmail[]>([])
   const [packageCleanup, setPackageCleanup] = useState<{ emailIds: string[]; sender: string } | null>(null)
+  const [expandedEmail, setExpandedEmail] = useState<Email | null>(null)
+  const [totalEmailsAtLoad, setTotalEmailsAtLoad] = useState(0)
 
   // In-memory cache for fast account switching within a session
   const sessionCache = useRef<Map<string, InboxCache>>(new Map())
@@ -177,6 +180,7 @@ export default function Dashboard() {
 
     const now = new Date().toISOString()
     setEmails(categorized)
+    setTotalEmailsAtLoad(categorized.length)
     setFetchedAt(now)
     setAppState("ready")
 
@@ -185,24 +189,54 @@ export default function Dashboard() {
     sessionCache.current.set(activeAccountConfig.email, cache)
     saveCachedInbox(activeAccountConfig.email, categorized, cats)
 
-    const delivered = categorized.find(e => e.packageDelivered && e.orderSender)
-    if (delivered?.orderSender) {
+    // Debug: log parcel-related emails
+    const parcelEmails = categorized.filter(e => e.category === "Orders" || e.packageDelivered || /parcel|ship|deliver|tracking/i.test(e.subject + " " + e.microSummary))
+    console.log("[inbox-ai] parcel candidates:", parcelEmails.map(e => ({ from: e.from, subject: e.subject, microSummary: e.microSummary, packageDelivered: e.packageDelivered, orderSender: e.orderSender, actionFlag: e.actionFlag })))
+
+    // Check unread inbox for delivery confirmations
+    const deliveredFromInbox = categorized.find(e => e.packageDelivered && e.orderSender)
+    if (deliveredFromInbox?.orderSender) {
       const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
-      if (!dismissed.includes(delivered.id)) {
+      if (!dismissed.includes(deliveredFromInbox.id)) {
         fetch("/api/ai/package-cleanup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deliveredEmailId: delivered.id, orderSender: delivered.orderSender }),
+          body: JSON.stringify({ deliveredEmailId: deliveredFromInbox.id, orderSender: deliveredFromInbox.orderSender }),
+        })
+          .then(r => r.json())
+          .then(data => {
+            console.log("[inbox-ai] package-cleanup response:", data)
+            if (data.emailIds?.length > 0) {
+              setPackageCleanup({ emailIds: data.emailIds, sender: deliveredFromInbox.orderSender! })
+            }
+          })
+          .catch(err => console.error("[inbox-ai] package-cleanup error:", err))
+        return
+      }
+    }
+
+    // Also check for recent deliveries that may already be read
+    fetch("/api/gmail/recent-deliveries")
+      .then(r => r.json())
+      .then((deliveries: { id: string; subject: string; from: string; sender: string }[]) => {
+        if (!deliveries?.length) return
+        const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
+        const first = deliveries.find(d => !dismissed.includes(d.id))
+        if (!first) return
+        fetch("/api/ai/package-cleanup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deliveredEmailId: first.id, orderSender: first.sender }),
         })
           .then(r => r.json())
           .then(data => {
             if (data.emailIds?.length > 0) {
-              setPackageCleanup({ emailIds: data.emailIds, sender: delivered.orderSender! })
+              setPackageCleanup({ emailIds: data.emailIds, sender: first.sender })
             }
           })
           .catch(() => {})
-      }
-    }
+      })
+      .catch(() => {})
   }, [activeAccountConfig.email])
 
   // ── Account switch ───────────────────────────────────────────────────────────
@@ -331,23 +365,36 @@ export default function Dashboard() {
   return (
     <div className="h-screen bg-zinc-50 flex flex-col overflow-hidden">
       {/* Top bar */}
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-zinc-200 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-lg">📬</span>
-          <h1 className="text-base font-semibold text-zinc-900">Inbox AI</h1>
-        </div>
-        <AccountToggle
-          active={activeAccount}
-          onChange={handleAccountSwitch}
-          loading={isLoading}
-        />
-        <PlantHeader />
-        <div className="flex items-center gap-3">
+      <header className="grid grid-cols-3 items-center px-6 py-3 bg-white border-b border-zinc-200 shrink-0">
+        {/* Left — logo + unread badge */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">📬</span>
+            <h1 className="text-base font-semibold text-zinc-900">Inbox AI</h1>
+          </div>
           {appState === "ready" && fetchedAt && (
-            <span className="text-xs text-zinc-400">
-              {emails.length} unread · {formatFetchedAt(fetchedAt)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                {emails.length} unread
+              </span>
+              <span className="text-xs text-zinc-400">{formatFetchedAt(fetchedAt)}</span>
+            </div>
           )}
+        </div>
+
+        {/* Center — plant */}
+        <div className="flex justify-center">
+          <PlantHeader remaining={emails.length} total={totalEmailsAtLoad} />
+        </div>
+
+        {/* Right — account toggle + refresh */}
+        <div className="flex items-center justify-end gap-3">
+          <AccountToggle
+            active={activeAccount}
+            onChange={handleAccountSwitch}
+            loading={isLoading}
+          />
           <button
             onClick={loadInbox}
             disabled={isLoading}
@@ -446,6 +493,7 @@ export default function Dashboard() {
                   emails={emails.filter(e => e.category === cat.name)}
                   selectedEmail={selectedEmail?.category === cat.name ? selectedEmail : null}
                   onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                  onExpand={email => setExpandedEmail(email)}
                   onClose={() => setSelectedEmail(null)}
                   onMarkRead={handleMarkRead}
                   onArchive={handleArchive}
@@ -459,6 +507,18 @@ export default function Dashboard() {
         </div>
 
       </div>
+
+      {expandedEmail && (
+        <EmailModal
+          email={expandedEmail}
+          onClose={() => setExpandedEmail(null)}
+          onMarkRead={handleMarkRead}
+          onStar={handleStar}
+          onArchive={handleArchive}
+          onDelete={handleDelete}
+          onSaveDraft={handleSaveDraft}
+        />
+      )}
     </div>
   )
 }

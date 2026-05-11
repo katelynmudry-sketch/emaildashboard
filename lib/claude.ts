@@ -5,30 +5,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ── Static context (cached by Claude) ────────────────────────────────────────
 
-const CLINIC_CONTEXT = `
-You are an AI assistant helping Dr. Katelyn Mudry (naturopathic doctor, Kimberley BC) triage her email.
-
-## Her accounts
-- katelynmudry@gmail.com — personal account
-- drkmudry@gmail.com — clinic/work account
-
-## Clinic voice for draft replies
-- Warm, casual, concise. 2-4 sentences max.
-- Address patient by first name.
-- Sign off: "Best, Dr. K"
-- Never use "I hope this email finds you well"
-- Supplements: most can be taken together. B vitamins with food/morning. Iron 15min from coffee. Magnesium at night.
-- Side effects: stop all, wait 2-3 days, restart at half dose, contact Dr. K if returns.
-- Labs: encourage GP ordering first (covered). LifeLabs Kimberley for extras. Ask for photo of GP req.
-- Never comment on specific lab values in email — save for appointment.
-
-## Summary rules
-Only generate a summary if the email body is:
-- Longer than ~150 words (more than 1 paragraph), OR
-- Contains a special offer, promotion, discount, or deal
-
-For short transactional emails, receipts, appointment confirmations, brief patient messages — set summary to null and just show the actual email.
-`.trim()
+const CLINIC_CONTEXT = (process.env.CLINIC_CONTEXT ?? "You are an AI assistant helping the user triage their email.\n\n## Summary rules\nOnly generate a summary if the email body is longer than ~150 words or contains a special offer/promotion. Otherwise set summary to null.").trim()
 
 function extractJson(text: string): string {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
@@ -122,8 +99,8 @@ Also assign:
 - draftReply: ${isWork ? "For patient emails needing a reply — write a reply in Dr. K's voice (warm, casual, 2-4 sentences, sign off 'Best, Dr. K'). For non-patient emails: null." : "null for all emails."}
 - deletable: true if the email is clearly no longer actionable and safe to delete. Flag: security login alerts, OTP/2FA codes, social media notifications (likes, follows), single-use promotional codes that have expired, shipping notifications where the package has already been delivered (status says "delivered").
 - deletableReason: one short phrase explaining why (e.g. "Security login alert, no longer actionable"), or null if not deletable.
-- packageDelivered: true if this email is a delivery confirmation (subject contains "delivered" or "arrived" — "out for delivery" is NOT enough).
-- orderSender: if packageDelivered is true, extract the sender domain (e.g. "amazon.com", "shopify" — keep it short). Otherwise null.
+- packageDelivered: true if this email confirms a package/parcel was successfully delivered. Look at subject AND body. Signs: "delivered", "arrived", "left at door", "delivery complete", "your parcel is here", "successfully delivered". "Out for delivery" or "on its way" are NOT enough — must confirm actual delivery happened.
+- orderSender: if packageDelivered is true, extract a short identifier for the sender (e.g. "amazon.ca", "Postmedia Parcel Services", "Canada Post" — use the display name if the domain isn't recognizable). Otherwise null.
 
 Return a JSON array with one object per email, in the same order:
 [
@@ -195,4 +172,34 @@ Return ONLY valid JSON array. No markdown, no explanation.
       orderSender: ai.orderSender ?? null,
     }
   })
+}
+
+// ── Generate a draft reply for a single email ─────────────────────────────────
+
+export async function generateDraftReply(
+  email: { from: string; fromEmail: string; subject: string; body: string },
+  account: string
+): Promise<string> {
+  const isWork = account.includes("drkmudry")
+
+  const prompt = isWork
+    ? `Write a warm, casual reply to this email in Dr. K's voice (naturopathic doctor). 2-4 sentences. Address the sender by first name. Sign off "Best, Dr. K". Never say "I hope this email finds you well". Return only the reply text.
+
+From: ${email.from} <${email.fromEmail}>
+Subject: ${email.subject}
+Message: ${email.body.slice(0, 1000)}`
+    : `Write a friendly, concise reply to this email. 2-4 sentences. Return only the reply text.
+
+From: ${email.from}
+Subject: ${email.subject}
+Message: ${email.body.slice(0, 1000)}`
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 500,
+    system: [{ type: "text", text: CLINIC_CONTEXT, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content: prompt }],
+  })
+
+  return response.content[0].type === "text" ? response.content[0].text.trim() : ""
 }

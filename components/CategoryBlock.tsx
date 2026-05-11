@@ -10,6 +10,7 @@ interface Props {
   emails: Email[]
   selectedEmail: Email | null
   onSelect: (email: Email) => void
+  onExpand: (email: Email) => void
   onClose: () => void
   onMarkRead: (email: Email) => void
   onArchive: (email: Email) => Promise<void>
@@ -18,7 +19,7 @@ interface Props {
   onDelete: (email: Email) => Promise<void>
 }
 
-export default function CategoryBlock({ category, emails, selectedEmail, onSelect, onClose, onMarkRead, onArchive, onSaveDraft, onStar, onDelete }: Props) {
+export default function CategoryBlock({ category, emails, selectedEmail, onSelect, onExpand, onClose, onMarkRead, onArchive, onSaveDraft, onStar, onDelete }: Props) {
   const sorted = [...emails].sort((a, b) => a.internalDate - b.internalDate)
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
 
@@ -125,6 +126,7 @@ export default function CategoryBlock({ category, emails, selectedEmail, onSelec
                 isSelected={bulkSelected.has(email.id)}
                 selectionMode={selectionMode}
                 onClick={selectionMode ? () => toggleEmail(email.id) : () => onSelect(email)}
+                onDoubleClick={selectionMode ? undefined : () => onExpand(email)}
                 onMarkRead={() => onMarkRead(email)}
               />
               {!selectionMode && email.id === selectedEmail?.id && (

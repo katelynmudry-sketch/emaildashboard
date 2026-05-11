@@ -134,6 +134,6 @@ export interface AccountConfig {
 }
 
 export const ACCOUNTS: AccountConfig[] = [
-  { id: "personal", email: "katelynmudry@gmail.com", label: "katelynmudry" },
-  { id: "work",     email: "drkmudry@gmail.com",     label: "drkmudry" },
+  { id: "personal", email: process.env.NEXT_PUBLIC_OWNER_EMAIL ?? "", label: process.env.NEXT_PUBLIC_OWNER_EMAIL?.split("@")[0] ?? "personal" },
+  { id: "work",     email: process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL ?? "", label: process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL?.split("@")[0] ?? "work" },
 ]

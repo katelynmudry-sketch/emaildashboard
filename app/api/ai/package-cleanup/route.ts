@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     const { deliveredEmailId, orderSender }: { deliveredEmailId: string; orderSender: string } = await request.json()
 
     const candidates = await searchArchivedMessages(session.access_token, orderSender)
+    console.log("[package-cleanup] orderSender:", orderSender, "candidates found:", candidates.length, candidates.map(c => c.subject))
     if (candidates.length === 0) {
       return NextResponse.json({ emailIds: [] })
     }
@@ -28,7 +29,7 @@ ${candidates.map(c => `ID: ${c.id}\nSubject: ${c.subject}`).join("\n---\n")}
 Return a JSON array of IDs only, e.g. ["id1","id2"]. No explanation.`
 
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 256,
       messages: [{ role: "user", content: prompt }],
     })
