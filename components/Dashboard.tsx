@@ -73,6 +73,7 @@ export default function Dashboard() {
   const [roast, setRoast] = useState<string | null>(null)
   const [roasting, setRoasting] = useState(false)
   const [confetti, setConfetti] = useState(false)
+  const [todoOpen, setTodoOpen] = useState(false)
   const [todoLabelId, setTodoLabelId] = useState<string | null>(null)
   const prevEmailCount = useRef<number | null>(null)
 
@@ -173,6 +174,18 @@ export default function Dashboard() {
     }
     return false
   }
+
+  // ── Close TODO dropdown on outside click ─────────────────────────────────────
+
+  useEffect(() => {
+    if (!todoOpen) return
+    function handleClick(e: MouseEvent) {
+      const target = e.target as Element
+      if (!target.closest("[data-todo-popover]")) setTodoOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [todoOpen])
 
   // ── Confetti on inbox zero ───────────────────────────────────────────────────
 
@@ -800,6 +813,40 @@ export default function Dashboard() {
                   Connect work Gmail
                 </button>
               )}
+              {todoEmails.length > 0 && (
+                <div className="relative" data-todo-popover>
+                  <button
+                    type="button"
+                    onClick={() => setTodoOpen(v => !v)}
+                    className="relative inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-500 text-amber-950 text-sm font-bold px-4 py-2 rounded-full transition-colors shadow-sm"
+                  >
+                    ★ TODO
+                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-950 text-amber-100 text-[10px] font-bold">
+                      {todoEmails.length}
+                    </span>
+                  </button>
+                  {todoOpen && (
+                    <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white rounded-2xl border-2 border-amber-300 shadow-xl overflow-hidden">
+                      <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-900">★ TODO — {todoEmails.length} pinned</span>
+                        <button onClick={() => setTodoOpen(false)} className="text-amber-500 hover:text-amber-800 text-lg leading-none">×</button>
+                      </div>
+                      <div className="max-h-72 overflow-y-auto py-1">
+                        {todoEmails.map(email => (
+                          <div
+                            key={email.id}
+                            className="px-3 py-2 hover:bg-amber-50 cursor-pointer transition-colors"
+                            onClick={() => { setExpandedEmail(email); setExpandedComposeMode(null); setTodoOpen(false) }}
+                          >
+                            <p className="text-xs font-semibold text-zinc-800 truncate">{email.subject}</p>
+                            <p className="text-[10px] text-zinc-500 truncate">{email.from} · {email.microSummary}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setComposeOpen(true)}
@@ -980,73 +1027,35 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Top row: briefing (left, ~2/3) + TODO (right, ~1/3), stacks on mobile */}
-          {appState === "ready" && (briefingEmails.length > 0 || todoEmails.length > 0) && (
-            <div className="mb-4 flex flex-col lg:flex-row gap-4 items-start">
-              {briefingEmails.length > 0 && (
-                <div className="flex-1 min-w-0 bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm">
-                  <div className="relative flex items-center justify-between px-4 py-3">
-                    <div className="absolute inset-0 -z-0 bg-violet-500 opacity-10 rounded-t-2xl" />
-                    <div className="relative flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                      <h2 className="text-sm font-semibold text-zinc-800">Daily briefing</h2>
-                    </div>
-                    <span className="relative text-xs font-medium bg-white/70 text-zinc-600 rounded-full px-2 py-0.5">{briefingEmails.length}</span>
-                  </div>
-                  <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
-                    {briefingEmails.map(email => (
-                      <EmailRow
-                        key={email.id}
-                        email={email}
-                        selected={email.id === selectedEmail?.id}
-                        isSelected={false}
-                        selectionMode={false}
-                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
-                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                        onMarkRead={() => { void handleMarkRead(email) }}
-                        onDelete={() => { void handleDelete(email) }}
-                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                        onToggleTodo={() => handleToggleTodo(email)}
-                        onSnooze={() => setSnoozeTarget(email)}
-                      />
-                    ))}
-                  </div>
+          {appState === "ready" && briefingEmails.length > 0 && (
+            <div className="mb-4 bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm">
+              <div className="relative flex items-center justify-between px-4 py-3">
+                <div className="absolute inset-0 -z-0 bg-violet-500 opacity-10 rounded-t-2xl" />
+                <div className="relative flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                  <h2 className="text-sm font-semibold text-zinc-800">Daily briefing</h2>
                 </div>
-              )}
-
-              {/* TODO — fixed width, always top-right, stacks below briefing on mobile */}
-              {todoEmails.length > 0 && (
-                <div className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border-2 border-amber-300 flex flex-col shadow-sm">
-                  <div className="relative flex items-center justify-between px-4 py-3">
-                    <div className="absolute inset-0 -z-0 bg-amber-400 opacity-10 rounded-t-2xl" />
-                    <div className="relative flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                      <h2 className="text-sm font-semibold text-amber-900">★ TODO</h2>
-                    </div>
-                    <span className="relative text-xs font-medium bg-white/70 text-amber-700 rounded-full px-2 py-0.5">{todoEmails.length}</span>
-                  </div>
-                  <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
-                    {todoEmails.map(email => (
-                      <EmailRow
-                        key={email.id}
-                        email={email}
-                        selected={email.id === selectedEmail?.id}
-                        isSelected={false}
-                        selectionMode={false}
-                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
-                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                        onMarkRead={() => { void handleMarkRead(email) }}
-                        onDelete={() => { void handleDelete(email) }}
-                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                        onToggleTodo={() => handleToggleTodo(email)}
-                        onSnooze={() => setSnoozeTarget(email)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+                <span className="relative text-xs font-medium bg-white/70 text-zinc-600 rounded-full px-2 py-0.5">{briefingEmails.length}</span>
+              </div>
+              <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
+                {briefingEmails.map(email => (
+                  <EmailRow
+                    key={email.id}
+                    email={email}
+                    selected={email.id === selectedEmail?.id}
+                    isSelected={false}
+                    selectionMode={false}
+                    onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
+                    onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                    onMarkRead={() => { void handleMarkRead(email) }}
+                    onDelete={() => { void handleDelete(email) }}
+                    onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                    onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                    onToggleTodo={() => handleToggleTodo(email)}
+                    onSnooze={() => setSnoozeTarget(email)}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
