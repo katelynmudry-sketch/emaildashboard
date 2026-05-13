@@ -14,7 +14,28 @@ interface Props {
   onDelete: (email: Email) => Promise<void>
   onSaveDraft: (email: Email, body: string) => Promise<void>
   onSend: (email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) => Promise<void>
+  onToggleTodo?: (email: Email) => void
+  onSnooze?: (email: Email) => void
   initialComposeMode?: "ai" | "reply" | "forward" | null
+}
+
+function extractUnsubscribeUrl(html: string | null, body: string): string | null {
+  // Try HTML first — find <a> tags with unsubscribe-related text or href
+  if (html) {
+    const linkRe = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi
+    let m: RegExpExecArray | null
+    while ((m = linkRe.exec(html)) !== null) {
+      const href = m[1]
+      const text = m[2].toLowerCase()
+      if (/unsubscribe|opt.?out|manage.*pref|email.*pref/i.test(text) || /unsubscribe/i.test(href)) {
+        if (href.startsWith("http")) return href
+      }
+    }
+  }
+  // Fall back to plain text URL extraction
+  const plainRe = /https?:\/\/[^\s<>"]+unsubscribe[^\s<>"]+/i
+  const match = body.match(plainRe)
+  return match ? match[0] : null
 }
 
 function injectStyles(html: string): string {
@@ -26,9 +47,12 @@ function injectStyles(html: string): string {
 
 const btn = "text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75"
 
-export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, onStar, onArchive, onDelete, onSaveDraft, onSend, initialComposeMode }: Props) {
+export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, onStar, onArchive, onDelete, onSaveDraft, onSend, onToggleTodo, onSnooze, initialComposeMode }: Props) {
   const [htmlBody, setHtmlBody] = useState<string | null>(email.htmlBody ?? null)
   const [loading, setLoading] = useState(!email.htmlBody)
+  const [unsubscribeUrl, setUnsubscribeUrl] = useState<string | null>(() =>
+    extractUnsubscribeUrl(email.htmlBody ?? null, email.body)
+  )
   const [composeMode, setComposeMode] = useState<"ai" | "reply" | "forward" | null>(null)
   const [draftBody, setDraftBody] = useState("")
   const [forwardTo, setForwardTo] = useState("")
@@ -38,11 +62,18 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
   const [sendError, setSendError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (email.htmlBody) { setHtmlBody(email.htmlBody); return }
+    if (email.htmlBody) {
+      setHtmlBody(email.htmlBody)
+      setUnsubscribeUrl(extractUnsubscribeUrl(email.htmlBody, email.body))
+      return
+    }
     setLoading(true)
     fetch(`/api/gmail/html?id=${encodeURIComponent(email.id)}&account=${gmailAccount}`)
       .then(r => r.json())
-      .then(data => setHtmlBody(data.htmlBody ?? null))
+      .then(data => {
+        setHtmlBody(data.htmlBody ?? null)
+        setUnsubscribeUrl(extractUnsubscribeUrl(data.htmlBody ?? null, email.body))
+      })
       .catch(() => setHtmlBody(null))
       .finally(() => setLoading(false))
   }, [email.id, gmailAccount])
@@ -163,11 +194,22 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
         </div>
 
         {/* Action bar */}
-        <div className="flex items-center gap-2 px-5 py-2.5 border-b border-zinc-100 shrink-0">
+        <div className="flex items-center gap-2 px-5 py-2.5 border-b border-zinc-100 shrink-0 flex-wrap">
           <button onClick={handleMarkRead} className={btn}>Mark read</button>
           <button onClick={handleArchive} className={`${btn} text-zinc-900 font-semibold`}>Archive</button>
           <button onClick={handleStar} className={btn}>Star</button>
           <button onClick={handleDelete} className={`${btn} text-rose-600`}>Delete</button>
+          {onToggleTodo && (
+            <button
+              onClick={() => onToggleTodo(email)}
+              className={`${btn} ${email.todo ? "text-amber-800 bg-amber-100 border-amber-300" : ""}`}
+            >
+              {email.todo ? "★ TODO" : "☆ TODO"}
+            </button>
+          )}
+          {onSnooze && (
+            <button onClick={() => onSnooze(email)} className={btn}>💤 Snooze</button>
+          )}
           <div className="flex-1" />
           <button onClick={() => openCompose("ai")} disabled={aiDraftLoading} className={`${btn} disabled:opacity-50`}>
             {aiDraftLoading ? "Drafting…" : "AI Draft"}
@@ -175,6 +217,28 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
           <button onClick={() => openCompose("reply")} className={btn}>Reply</button>
           <button onClick={() => openCompose("forward")} className={btn}>Forward</button>
         </div>
+
+        {/* Unsubscribe banner */}
+        {unsubscribeUrl && (
+          <div className="flex items-center gap-3 px-5 py-2 bg-rose-50 border-b border-rose-100 shrink-0">
+            <span className="text-xs text-rose-700 flex-1">📭 This email has an unsubscribe link.</span>
+            <a
+              href={unsubscribeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-rose-700 border border-rose-300 bg-white hover:bg-rose-50 px-3 py-1 rounded-full transition-colors"
+            >
+              Unsubscribe
+            </a>
+            <button
+              onClick={() => setUnsubscribeUrl(null)}
+              className="text-rose-400 hover:text-rose-600 text-sm leading-none"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Body */}
         <div className="flex-1 overflow-auto">

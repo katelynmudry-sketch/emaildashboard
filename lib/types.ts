@@ -66,6 +66,8 @@ export interface Email {
   labelIds: string[]
   replied?: boolean
   forwarded?: boolean
+  todo?: boolean         // manually pinned by user to top of briefing
+  snoozedUntil?: string  // ISO date string — hidden until this date
   // AI-added fields
   category: string
   priority: "urgent" | "today" | "fyi"

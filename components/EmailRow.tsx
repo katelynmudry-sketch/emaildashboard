@@ -18,6 +18,8 @@ interface Props {
   onDelete?: () => void
   onReply?: () => void
   onForward?: () => void
+  onToggleTodo?: () => void
+  onSnooze?: () => void
 }
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -26,7 +28,7 @@ const PRIORITY_DOT: Record<string, string> = {
   fyi:    "bg-emerald-400",
 }
 
-export default function EmailRow({ email, selected, isSelected, selectionMode, onClick, onDoubleClick, onMarkRead, onDelete, onReply, onForward }: Props) {
+export default function EmailRow({ email, selected, isSelected, selectionMode, onClick, onDoubleClick, onMarkRead, onDelete, onReply, onForward, onToggleTodo, onSnooze }: Props) {
   return (
     <div
       role="button"
@@ -72,6 +74,16 @@ export default function EmailRow({ email, selected, isSelected, selectionMode, o
         <div className="text-xs min-w-0 flex-1">
           <div className="font-semibold text-zinc-800 truncate">{email.subject}</div>
           <div className="flex flex-wrap items-center gap-2 mt-0.5">
+            {email.todo && (
+              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
+                ★ TODO
+              </span>
+            )}
+            {email.snoozedUntil && (
+              <span className="text-[10px] font-semibold text-violet-700 bg-violet-100 rounded-full px-2 py-0.5">
+                💤 {email.snoozedUntil}
+              </span>
+            )}
             {email.replied && (
               <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5">
                 Replied
@@ -125,6 +137,34 @@ export default function EmailRow({ email, selected, isSelected, selectionMode, o
                   className="shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold text-zinc-600 border border-zinc-200 hover:bg-zinc-100"
                 >
                   Fwd
+                </button>
+              )}
+              {onToggleTodo && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    onToggleTodo()
+                  }}
+                  title={email.todo ? "Remove TODO" : "Mark as TODO"}
+                  className={`shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold border transition-colors ${
+                    email.todo
+                      ? "text-amber-800 bg-amber-100 border-amber-300 hover:bg-amber-200"
+                      : "text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                  }`}
+                >
+                  {email.todo ? "★" : "☆"}
+                </button>
+              )}
+              {onSnooze && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    onSnooze()
+                  }}
+                  title="Snooze"
+                  className="shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold text-violet-600 border border-violet-200 hover:bg-violet-50"
+                >
+                  💤
                 </button>
               )}
               {onDelete && (

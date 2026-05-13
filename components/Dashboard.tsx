@@ -7,6 +7,7 @@ import { ACCOUNTS } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction } from "@/lib/stats"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
+import { getTodoIds, setTodo, snoozeEmail, getSnoozedUntil, partitionSnoozed } from "@/lib/todo-snooze"
 import AccountToggle from "./AccountToggle"
 import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
@@ -14,6 +15,8 @@ import EmailModal from "./EmailModal"
 import EmailRow from "./EmailRow"
 import PlantHeader from "./PlantHeader"
 import ComposeModal from "./ComposeModal"
+import SnoozeModal from "./SnoozeModal"
+import ConfettiBlast from "./ConfettiBlast"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
 
@@ -66,6 +69,11 @@ export default function Dashboard() {
   const [importBatchSize, setImportBatchSize] = useState<ImportBatchSize>(() => readStoredBatchSize())
   const [pendingImportMeta, setPendingImportMeta] = useState<InboxFetchMeta | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [snoozeTarget, setSnoozeTarget] = useState<Email | null>(null)
+  const [roast, setRoast] = useState<string | null>(null)
+  const [roasting, setRoasting] = useState(false)
+  const [confetti, setConfetti] = useState(false)
+  const prevEmailCount = useRef<number | null>(null)
 
   // In-memory cache for fast account switching within a session
   const sessionCache = useRef<Map<string, InboxCache>>(new Map())
@@ -73,14 +81,32 @@ export default function Dashboard() {
   const activeAccountConfig = ACCOUNTS.find(a => a.id === activeAccount)!
   const gmailAccountQuery = `account=${activeAccount}`
   const workNeedsLink = activeAccount === "work" && !session?.workAccountLinked
-  const deletableEmails = emails.filter(email => email.deletable)
-  const briefingEmails = emails
-    .filter(email => !email.deletable && (
+
+  // Annotate emails with live todo/snooze state from localStorage
+  const annotatedEmails = emails.map(email => ({
+    ...email,
+    todo: email.todo ?? false,
+    snoozedUntil: email.snoozedUntil,
+  }))
+
+  const visibleEmails = annotatedEmails.filter(email => {
+    if (!email.snoozedUntil) return true
+    const today = new Date().toISOString().slice(0, 10)
+    return email.snoozedUntil <= today
+  })
+
+  const deletableEmails = visibleEmails.filter(email => email.deletable && !email.todo)
+  const briefingEmails = visibleEmails
+    .filter(email => !email.deletable || email.todo)
+    .filter(email =>
+      email.todo ||
       email.priority !== "fyi" ||
       email.actionFlag === "confirm" ||
       /expire|expir|due|deadline|ends?/i.test(email.summary ?? "")
-    ))
+    )
     .sort((a, b) => {
+      if (a.todo && !b.todo) return -1
+      if (!a.todo && b.todo) return 1
       const rank = (email: Email) => email.priority === "urgent" ? 0 : email.priority === "today" ? 1 : 2
       const diff = rank(a) - rank(b)
       return diff !== 0 ? diff : a.internalDate - b.internalDate
@@ -102,11 +128,21 @@ export default function Dashboard() {
 
   // ── Restore cached data ──────────────────────────────────────────────────────
 
+  function rehydrateEmails(rawEmails: Email[]): Email[] {
+    const todoIds = getTodoIds()
+    const today = new Date().toISOString().slice(0, 10)
+    return rawEmails.map(e => ({
+      ...e,
+      todo: todoIds.has(e.id),
+      snoozedUntil: e.snoozedUntil && e.snoozedUntil > today ? e.snoozedUntil : undefined,
+    }))
+  }
+
   function restoreCache(accountEmail: string) {
     // Check in-memory session cache first (faster)
     const session = sessionCache.current.get(accountEmail)
     if (session) {
-      setEmails(session.emails)
+      setEmails(rehydrateEmails(session.emails))
       setCategories(session.categories)
       setFetchedAt(session.fetchedAt)
       setTotalEmailsAtLoad(session.emails.length)
@@ -117,7 +153,7 @@ export default function Dashboard() {
     // Fall back to localStorage
     const stored = getCachedInbox(accountEmail)
     if (stored) {
-      setEmails(stored.emails)
+      setEmails(rehydrateEmails(stored.emails))
       setCategories(stored.categories)
       setFetchedAt(stored.fetchedAt)
       setTotalEmailsAtLoad(stored.emails.length)
@@ -138,6 +174,17 @@ export default function Dashboard() {
     }
     return false
   }
+
+  // ── Confetti on inbox zero ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (appState !== "ready") return
+    const count = visibleEmails.filter(e => !e.deletable && !e.snoozedUntil).length
+    if (prevEmailCount.current !== null && prevEmailCount.current > 0 && count === 0) {
+      setConfetti(true)
+    }
+    prevEmailCount.current = count
+  }, [visibleEmails, appState])
 
   // ── On mount: restore last active account's data ─────────────────────────────
 
@@ -566,6 +613,48 @@ export default function Dashboard() {
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
   }
 
+  function handleToggleTodo(email: Email) {
+    const next = !email.todo
+    setTodo(email.id, next)
+    setEmails(prev => {
+      const updated = prev.map(e => e.id === email.id ? { ...e, todo: next } : e)
+      writeInboxCache(updated, categories)
+      return updated
+    })
+    if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, todo: next } : null)
+  }
+
+  function handleSnooze(email: Email, until: string) {
+    snoozeEmail(email.id, until)
+    setEmails(prev => {
+      const updated = prev.map(e => e.id === email.id ? { ...e, snoozedUntil: until } : e)
+      writeInboxCache(updated, categories)
+      return updated
+    })
+    setSnoozeTarget(null)
+    if (selectedEmail?.id === email.id) setSelectedEmail(null)
+  }
+
+  async function handleRoast() {
+    if (roasting || emails.length === 0) return
+    setRoasting(true)
+    setRoast(null)
+    try {
+      const payload = emails.map(e => ({ from: e.from, subject: e.subject, category: e.category, priority: e.priority }))
+      const res = await fetch("/api/ai/roast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: payload }),
+      })
+      const data = await res.json()
+      setRoast(data.roast ?? null)
+    } catch {
+      setRoast("Claude took one look at your inbox and had nothing to say.")
+    } finally {
+      setRoasting(false)
+    }
+  }
+
   const isLoading = appState === "fetching" || appState === "categorizing" || appState === "proposing"
 
   // ── Category proposal screen ─────────────────────────────────────────────────
@@ -629,6 +718,21 @@ export default function Dashboard() {
                         ? " You hit the batch cap; refresh to see if more unread are available."
                         : " No extra unread estimated beyond this import."}
                   </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={handleRoast}
+                      disabled={roasting || emails.length === 0}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-50 transition-colors"
+                    >
+                      {roasting ? "Roasting…" : "🔥 Roast my inbox"}
+                    </button>
+                    {roast && (
+                      <div className="flex items-center gap-2 bg-zinc-900 text-zinc-100 text-xs px-3 py-1.5 rounded-full max-w-lg">
+                        <span className="italic">"{roast}"</span>
+                        <button onClick={() => setRoast(null)} className="text-zinc-400 hover:text-zinc-200 leading-none ml-1">×</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -854,9 +958,16 @@ export default function Dashboard() {
           {appState === "ready" && briefingEmails.length > 0 && (
             <div className="mb-4 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-zinc-900">Daily briefing</p>
-                  <p className="text-xs text-zinc-500">Requires a response or is expiring soon.</p>
+                <div className="flex items-center gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-900">Daily briefing</p>
+                    <p className="text-xs text-zinc-500">Requires a response or is expiring soon.</p>
+                  </div>
+                  {briefingEmails.some(e => e.todo) && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-1 text-[11px] font-bold text-amber-800">
+                      ★ {briefingEmails.filter(e => e.todo).length} TODO
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs text-zinc-500">{briefingEmails.length} items</span>
               </div>
@@ -886,9 +997,19 @@ export default function Dashboard() {
                       setExpandedEmail(email)
                       setExpandedComposeMode("forward")
                     }}
+                    onToggleTodo={() => handleToggleTodo(email)}
+                    onSnooze={() => setSnoozeTarget(email)}
                   />
                 ))}
               </div>
+            </div>
+          )}
+
+          {appState === "ready" && visibleEmails.filter(e => !e.deletable).length === 0 && totalEmailsAtLoad > 0 && (
+            <div className="mb-4 rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-6 text-center shadow-sm">
+              <p className="text-3xl mb-2">🎉</p>
+              <p className="text-sm font-semibold text-emerald-800">Inbox zero!</p>
+              <p className="text-xs text-emerald-600 mt-1">You triaged everything in this batch. Refresh to load more.</p>
             </div>
           )}
 
@@ -974,10 +1095,22 @@ export default function Dashboard() {
           onDelete={handleDelete}
           onSaveDraft={handleSaveDraft}
           onSend={handleSendMessage}
+          onToggleTodo={handleToggleTodo}
+          onSnooze={email => setSnoozeTarget(email)}
         />
       )}
 
       <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} gmailAccount={activeAccount} />
+
+      {snoozeTarget && (
+        <SnoozeModal
+          email={snoozeTarget}
+          onSnooze={handleSnooze}
+          onClose={() => setSnoozeTarget(null)}
+        />
+      )}
+
+      {confetti && <ConfettiBlast onDone={() => setConfetti(false)} />}
 
       {cleanupPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setCleanupPreview(null)}>
