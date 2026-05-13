@@ -7,7 +7,7 @@ import { ACCOUNTS } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction } from "@/lib/stats"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
-import { getTodoIds, setTodo, snoozeEmail, getSnoozedUntil, partitionSnoozed } from "@/lib/todo-snooze"
+import { snoozeEmail } from "@/lib/todo-snooze"
 import AccountToggle from "./AccountToggle"
 import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
@@ -73,6 +73,7 @@ export default function Dashboard() {
   const [roast, setRoast] = useState<string | null>(null)
   const [roasting, setRoasting] = useState(false)
   const [confetti, setConfetti] = useState(false)
+  const [todoLabelId, setTodoLabelId] = useState<string | null>(null)
   const prevEmailCount = useRef<number | null>(null)
 
   // In-memory cache for fast account switching within a session
@@ -129,11 +130,9 @@ export default function Dashboard() {
   // ── Restore cached data ──────────────────────────────────────────────────────
 
   function rehydrateEmails(rawEmails: Email[]): Email[] {
-    const todoIds = getTodoIds()
     const today = new Date().toISOString().slice(0, 10)
     return rawEmails.map(e => ({
       ...e,
-      todo: todoIds.has(e.id),
       snoozedUntil: e.snoozedUntil && e.snoozedUntil > today ? e.snoozedUntil : undefined,
     }))
   }
@@ -228,6 +227,7 @@ export default function Dashboard() {
       const rawEmails: RawEmail[] = data.emails
       const totalUnread = typeof data.totalUnread === "number" ? data.totalUnread : rawEmails.length
       const capRaw = data.maxResults
+      if (data.todoLabelId) setTodoLabelId(data.todoLabelId)
       const batchCap: ImportBatchSize =
         capRaw === 30 || capRaw === 50 || capRaw === 100 ? capRaw : importBatchSize
       const fetchMeta: InboxFetchMeta = { totalUnreadEstimate: totalUnread, importBatchSize: batchCap }
@@ -331,9 +331,14 @@ export default function Dashboard() {
     }
     const categorized: Email[] = await catRes.json()
 
-    // Reattach htmlBody from original rawEmails
+    // Reattach htmlBody from original rawEmails and mark TODO from Gmail label
     const htmlBodyMap = new Map(rawEmails.map(e => [e.id, e.htmlBody]))
-    categorized.forEach(email => { email.htmlBody = htmlBodyMap.get(email.id) })
+    const labelIdMap = new Map(rawEmails.map(e => [e.id, e.labelIds]))
+    categorized.forEach(email => {
+      email.htmlBody = htmlBodyMap.get(email.id)
+      const labelIds = labelIdMap.get(email.id) ?? []
+      if (todoLabelId && labelIds.includes(todoLabelId)) email.todo = true
+    })
 
     // Apply Gmail labels in the background
     categorized.forEach(email => {
@@ -615,13 +620,25 @@ export default function Dashboard() {
 
   function handleToggleTodo(email: Email) {
     const next = !email.todo
-    setTodo(email.id, next)
+    // Optimistic update immediately
     setEmails(prev => {
       const updated = prev.map(e => e.id === email.id ? { ...e, todo: next } : e)
       writeInboxCache(updated, categories)
       return updated
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, todo: next } : null)
+    // Persist to Gmail label in background
+    fetch("/api/gmail/todo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: email.id, value: next, account: activeAccount }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        // Store the label ID so future refreshes can detect it
+        if (data.labelId) setTodoLabelId(data.labelId)
+      })
+      .catch(() => {})
   }
 
   function handleSnooze(email: Email, until: string) {
@@ -963,12 +980,11 @@ export default function Dashboard() {
             </div>
           )}
 
-          {appState === "ready" && categories.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-
-              {/* Daily briefing — spans 2 cols like a wide category block */}
+          {/* Top row: briefing (left, ~2/3) + TODO (right, ~1/3), stacks on mobile */}
+          {appState === "ready" && (briefingEmails.length > 0 || todoEmails.length > 0) && (
+            <div className="mb-4 flex flex-col lg:flex-row gap-4 items-start">
               {briefingEmails.length > 0 && (
-                <div className="col-span-1 sm:col-span-2 bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm">
+                <div className="flex-1 min-w-0 bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm">
                   <div className="relative flex items-center justify-between px-4 py-3">
                     <div className="absolute inset-0 -z-0 bg-violet-500 opacity-10 rounded-t-2xl" />
                     <div className="relative flex items-center gap-2">
@@ -999,9 +1015,9 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* TODO — 1 col, same card style as category blocks */}
+              {/* TODO — fixed width, always top-right, stacks below briefing on mobile */}
               {todoEmails.length > 0 && (
-                <div className="col-span-1 bg-white rounded-2xl border-2 border-amber-300 flex flex-col shadow-sm">
+                <div className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border-2 border-amber-300 flex flex-col shadow-sm">
                   <div className="relative flex items-center justify-between px-4 py-3">
                     <div className="absolute inset-0 -z-0 bg-amber-400 opacity-10 rounded-t-2xl" />
                     <div className="relative flex items-center gap-2">
@@ -1031,7 +1047,11 @@ export default function Dashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
 
+          {appState === "ready" && categories.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {categories.map(cat => (
                 <CategoryBlock
                   key={cat.id}

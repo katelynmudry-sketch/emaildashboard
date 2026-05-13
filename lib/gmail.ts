@@ -175,6 +175,17 @@ export async function applyLabel(accessToken: string, messageId: string, gmailLa
   })
 }
 
+// ── Remove a label from a message ───────────────────────────────────────────
+
+export async function removeLabel(accessToken: string, messageId: string, gmailLabelId: string): Promise<void> {
+  const gmail = getGmailService(accessToken)
+  await gmail.users.messages.modify({
+    userId: "me",
+    id: messageId,
+    requestBody: { removeLabelIds: [gmailLabelId] },
+  })
+}
+
 // ── Star a message ───────────────────────────────────────────────────────────
 
 export async function starMessage(accessToken: string, messageId: string): Promise<void> {
