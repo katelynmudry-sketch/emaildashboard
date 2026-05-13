@@ -8,6 +8,7 @@ interface Props {
   mode?: "reply" | "forward"
   initialBody?: string
   onSaveDraft: (body: string) => Promise<void>
+  onSend: (body: string, forwardTo?: string) => Promise<void>
   onCancel: () => void
 }
 
@@ -18,7 +19,7 @@ function forwardBody(email: Email): string {
   return `\n\n---------- Forwarded message ----------\nFrom: ${email.from} <${email.fromEmail}>\nSubject: ${email.subject}\n\n${email.body}`
 }
 
-export default function DraftEditor({ email, mode = "reply", initialBody, onSaveDraft, onCancel }: Props) {
+export default function DraftEditor({ email, mode = "reply", initialBody, onSaveDraft, onSend, onCancel }: Props) {
   const [body, setBody] = useState(initialBody ?? (mode === "forward" ? forwardBody(email) : ""))
   const [forwardTo, setForwardTo] = useState("")
   const [saving, setSaving] = useState(false)
@@ -41,19 +42,7 @@ export default function DraftEditor({ email, mode = "reply", initialBody, onSave
     setSending(true)
     setSendError(null)
     try {
-      const res = await fetch("/api/gmail/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to,
-          subject,
-          body,
-          threadId: email.threadId,
-          inReplyTo: mode === "reply" ? email.inReplyTo : undefined,
-          messageId: mode === "reply" ? email.messageId : undefined,
-        }),
-      })
-      if (!res.ok) throw new Error(await res.text())
+      await onSend(body, mode === "forward" ? forwardTo : undefined)
       setSent(true)
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Failed to send")

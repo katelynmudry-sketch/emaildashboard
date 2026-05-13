@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
+import { useSession, signIn } from "next-auth/react"
 import type { Email, Category, AccountId, RawEmail } from "@/lib/types"
 import { ACCOUNTS } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
@@ -10,9 +11,24 @@ import AccountToggle from "./AccountToggle"
 import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
 import EmailModal from "./EmailModal"
+import EmailRow from "./EmailRow"
 import PlantHeader from "./PlantHeader"
+import ComposeModal from "./ComposeModal"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
+
+const IMPORT_BATCH_OPTIONS = [30, 50, 100] as const
+type ImportBatchSize = (typeof IMPORT_BATCH_OPTIONS)[number]
+const BATCH_PREF_KEY = "inbox-ai:import-batch-size"
+
+function readStoredBatchSize(): ImportBatchSize {
+  if (typeof window === "undefined") return 30
+  const raw = localStorage.getItem(BATCH_PREF_KEY)
+  const n = raw ? parseInt(raw, 10) : NaN
+  return IMPORT_BATCH_OPTIONS.includes(n as ImportBatchSize) ? (n as ImportBatchSize) : 30
+}
+
+type InboxFetchMeta = { totalUnreadEstimate: number; importBatchSize: ImportBatchSize }
 
 function formatFetchedAt(iso: string): string {
   const d = new Date(iso)
@@ -27,6 +43,7 @@ function formatFetchedAt(iso: string): string {
 }
 
 export default function Dashboard() {
+  const { data: session } = useSession()
   const [activeAccount, setActiveAccount] = useState<AccountId>("personal")
   const [emails, setEmails] = useState<Email[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -43,12 +60,45 @@ export default function Dashboard() {
   const [cleanupPreview, setCleanupPreview] = useState<{ id: string; subject: string } | null>(null)
   const [cleanupPreviewHtml, setCleanupPreviewHtml] = useState<string | null>(null)
   const [expandedEmail, setExpandedEmail] = useState<Email | null>(null)
+  const [expandedComposeMode, setExpandedComposeMode] = useState<"ai" | "reply" | "forward" | null>(null)
   const [totalEmailsAtLoad, setTotalEmailsAtLoad] = useState(0)
+  const [totalUnreadInbox, setTotalUnreadInbox] = useState(0)
+  const [importBatchSize, setImportBatchSize] = useState<ImportBatchSize>(() => readStoredBatchSize())
+  const [pendingImportMeta, setPendingImportMeta] = useState<InboxFetchMeta | null>(null)
+  const [composeOpen, setComposeOpen] = useState(false)
 
   // In-memory cache for fast account switching within a session
   const sessionCache = useRef<Map<string, InboxCache>>(new Map())
 
   const activeAccountConfig = ACCOUNTS.find(a => a.id === activeAccount)!
+  const gmailAccountQuery = `account=${activeAccount}`
+  const workNeedsLink = activeAccount === "work" && !session?.workAccountLinked
+  const deletableEmails = emails.filter(email => email.deletable)
+  const briefingEmails = emails
+    .filter(email => !email.deletable && (
+      email.priority !== "fyi" ||
+      email.actionFlag === "confirm" ||
+      /expire|expir|due|deadline|ends?/i.test(email.summary ?? "")
+    ))
+    .sort((a, b) => {
+      const rank = (email: Email) => email.priority === "urgent" ? 0 : email.priority === "today" ? 1 : 2
+      const diff = rank(a) - rank(b)
+      return diff !== 0 ? diff : a.internalDate - b.internalDate
+    })
+
+  const urgentCount = emails.filter(email => email.priority === "urgent").length
+  const todayCount = emails.filter(email => email.priority === "today").length
+  const fyiCount = emails.filter(email => email.priority === "fyi").length
+  const unreadLeftApprox = Math.max(0, totalUnreadInbox - emails.length)
+
+  function updateImportBatchSize(n: ImportBatchSize) {
+    setImportBatchSize(n)
+    try {
+      localStorage.setItem(BATCH_PREF_KEY, String(n))
+    } catch {
+      // ignore
+    }
+  }
 
   // ── Restore cached data ──────────────────────────────────────────────────────
 
@@ -59,6 +109,8 @@ export default function Dashboard() {
       setEmails(session.emails)
       setCategories(session.categories)
       setFetchedAt(session.fetchedAt)
+      setTotalEmailsAtLoad(session.emails.length)
+      setTotalUnreadInbox(session.totalUnreadEstimate ?? session.emails.length)
       setAppState("ready")
       return true
     }
@@ -68,8 +120,20 @@ export default function Dashboard() {
       setEmails(stored.emails)
       setCategories(stored.categories)
       setFetchedAt(stored.fetchedAt)
+      setTotalEmailsAtLoad(stored.emails.length)
+      setTotalUnreadInbox(stored.totalUnreadEstimate ?? stored.emails.length)
       sessionCache.current.set(accountEmail, stored)
       setAppState("ready")
+      return true
+    }
+    return false
+  }
+
+  function restoreCategories(accountEmail: string) {
+    const saved = getCategories(accountEmail)
+    if (saved && saved.length > 0) {
+      setCategories(saved)
+      setAppState("idle")
       return true
     }
     return false
@@ -78,7 +142,10 @@ export default function Dashboard() {
   // ── On mount: restore last active account's data ─────────────────────────────
 
   useEffect(() => {
-    restoreCache(activeAccountConfig.email)
+    const restoredInbox = restoreCache(activeAccountConfig.email)
+    if (!restoredInbox) {
+      restoreCategories(activeAccountConfig.email)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -89,20 +156,48 @@ export default function Dashboard() {
     setErrorMsg("")
     setSelectedEmail(null)
     setEmails([])
+    setPendingImportMeta(null)
 
     try {
-      const msgRes = await fetch("/api/gmail/messages")
+      const inboxParams = new URLSearchParams({ account: activeAccount, max: String(importBatchSize) })
+      const msgRes = await fetch(`/api/gmail/messages?${inboxParams}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      })
+      if (msgRes.status === 403) {
+        const j = (await msgRes.json()) as { code?: string }
+        if (j.code === "ACCOUNT_NOT_LINKED") {
+          throw new Error(
+            `This inbox is not connected yet. Use “Connect work Gmail” in the header, sign in with your work Google account, then click Refresh.`,
+          )
+        }
+      }
+      if (msgRes.status === 401) {
+        await signIn("google")
+        return
+      }
       if (!msgRes.ok) throw new Error("Failed to fetch Gmail messages")
-      const rawEmails: RawEmail[] = await msgRes.json()
+      const data = await msgRes.json()
+      const rawEmails: RawEmail[] = data.emails
+      const totalUnread = typeof data.totalUnread === "number" ? data.totalUnread : rawEmails.length
+      const capRaw = data.maxResults
+      const batchCap: ImportBatchSize =
+        capRaw === 30 || capRaw === 50 || capRaw === 100 ? capRaw : importBatchSize
+      const fetchMeta: InboxFetchMeta = { totalUnreadEstimate: totalUnread, importBatchSize: batchCap }
+      setTotalUnreadInbox(totalUnread)
 
       const saved = getCategories(activeAccountConfig.email)
       if (saved && saved.length > 0) {
-        await runCategorization(rawEmails, saved)
+        await runCategorization(rawEmails, saved, fetchMeta)
       } else {
         setAppState("proposing")
+        setPendingImportMeta(fetchMeta)
         setPendingRawEmails(rawEmails)
 
-        const existingLabelsRes = await fetch("/api/gmail/labels")
+        const existingLabelsRes = await fetch(`/api/gmail/labels?${gmailAccountQuery}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+        })
         const fetchedLabelNames: string[] = existingLabelsRes.ok
           ? (await existingLabelsRes.json()).map((l: { name: string }) => l.name)
           : []
@@ -110,16 +205,21 @@ export default function Dashboard() {
 
         const proposeRes = await fetch("/api/ai/propose", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ emails: rawEmails, existingLabelNames: fetchedLabelNames, account: activeAccountConfig.email }),
         })
-        if (!proposeRes.ok) throw new Error("Failed to propose categories")
+        if (!proposeRes.ok) {
+          const body = await proposeRes.text()
+          throw new Error(body || "Failed to propose categories")
+        }
         const { categories: proposed } = await proposeRes.json()
         setProposedCategories(proposed)
       }
     } catch (err) {
       setAppState("error")
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong")
+      setPendingImportMeta(null)
     }
   }
 
@@ -136,7 +236,7 @@ export default function Dashboard() {
         const res = await fetch("/api/gmail/ensure-label", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: cat.name }),
+          body: JSON.stringify({ name: cat.name, account: activeAccount }),
         })
         if (!res.ok) throw new Error(`Failed to create Gmail label: ${cat.name}`)
         const { id } = await res.json()
@@ -145,7 +245,12 @@ export default function Dashboard() {
 
       saveCategories(activeAccountConfig.email, confirmed)
       setCategories(confirmed)
-      await runCategorization(pendingRawEmails, confirmed)
+      const fetchMeta: InboxFetchMeta = pendingImportMeta ?? {
+        totalUnreadEstimate: pendingRawEmails.length,
+        importBatchSize: importBatchSize,
+      }
+      setPendingImportMeta(null)
+      await runCategorization(pendingRawEmails, confirmed, fetchMeta)
     } catch (err) {
       setAppState("error")
       setErrorMsg(err instanceof Error ? err.message : "Failed to set up categories")
@@ -154,7 +259,7 @@ export default function Dashboard() {
 
   // ── Run Claude categorization ────────────────────────────────────────────────
 
-  const runCategorization = useCallback(async (rawEmails: RawEmail[], cats: Category[]) => {
+  const runCategorization = useCallback(async (rawEmails: RawEmail[], cats: Category[], fetchMeta: InboxFetchMeta) => {
     setAppState("categorizing")
     setCategories(cats)
 
@@ -162,10 +267,21 @@ export default function Dashboard() {
     const emailsForApi = rawEmails.map(({ htmlBody: _, ...rest }) => rest)
     const catRes = await fetch("/api/ai/categorize", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ emails: emailsForApi, categories: cats, account: activeAccountConfig.email }),
     })
-    if (!catRes.ok) throw new Error("Failed to categorize emails")
+    if (!catRes.ok) {
+      const body = await catRes.text()
+      let message = "Failed to categorize emails"
+      try {
+        const json = JSON.parse(body)
+        if (json?.error) message = json.error
+      } catch {
+        if (body) message = body
+      }
+      throw new Error(message)
+    }
     const categorized: Email[] = await catRes.json()
 
     // Reattach htmlBody from original rawEmails
@@ -179,7 +295,7 @@ export default function Dashboard() {
         fetch("/api/gmail/label", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messageId: email.id, gmailLabelId: cat.gmailLabelId }),
+          body: JSON.stringify({ messageId: email.id, gmailLabelId: cat.gmailLabelId, account: activeAccount }),
         }).catch(() => {})
       }
     })
@@ -191,9 +307,20 @@ export default function Dashboard() {
     setAppState("ready")
 
     // Persist to both caches
-    const cache: InboxCache = { account: activeAccountConfig.email, emails: categorized, categories: cats, fetchedAt: now }
+    const cache: InboxCache = {
+      account: activeAccountConfig.email,
+      emails: categorized,
+      categories: cats,
+      fetchedAt: now,
+      totalUnreadEstimate: fetchMeta.totalUnreadEstimate,
+      importBatchSize: fetchMeta.importBatchSize,
+    }
     sessionCache.current.set(activeAccountConfig.email, cache)
-    saveCachedInbox(activeAccountConfig.email, categorized, cats)
+    saveCachedInbox(activeAccountConfig.email, categorized, cats, {
+      fetchedAt: now,
+      totalUnreadEstimate: fetchMeta.totalUnreadEstimate,
+      importBatchSize: fetchMeta.importBatchSize,
+    })
 
     // Debug: log parcel-related emails
     const parcelEmails = categorized.filter(e => e.category === "Orders" || e.packageDelivered || /parcel|ship|deliver|tracking/i.test(e.subject + " " + e.microSummary))
@@ -209,7 +336,11 @@ export default function Dashboard() {
         fetch("/api/ai/package-cleanup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deliveredEmailId: deliveredFromInbox.id, orderSender: deliveredFromInbox.orderSender }),
+          body: JSON.stringify({
+            deliveredEmailId: deliveredFromInbox.id,
+            orderSender: deliveredFromInbox.orderSender,
+            account: activeAccount,
+          }),
         })
           .then(r => r.json())
           .then(data => {
@@ -225,7 +356,7 @@ export default function Dashboard() {
     }
 
     // Also check for recent deliveries that may already be read
-    fetch("/api/gmail/recent-deliveries")
+    fetch(`/api/gmail/recent-deliveries?${gmailAccountQuery}`)
       .then(r => r.json())
       .then((deliveries: { id: string; subject: string; from: string; sender: string }[]) => {
         if (!deliveries?.length) return
@@ -235,7 +366,7 @@ export default function Dashboard() {
         fetch("/api/ai/package-cleanup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deliveredEmailId: first.id, orderSender: first.sender }),
+          body: JSON.stringify({ deliveredEmailId: first.id, orderSender: first.sender, account: activeAccount }),
         })
           .then(r => r.json())
           .then(data => {
@@ -247,7 +378,28 @@ export default function Dashboard() {
           .catch(() => {})
       })
       .catch(() => {})
-  }, [activeAccountConfig.email])
+  }, [activeAccount, activeAccountConfig.email, gmailAccountQuery])
+
+  const writeInboxCache = useCallback((next: Email[], cats: Category[], opt?: { totalUnreadEstimate?: number }) => {
+    const sess = sessionCache.current.get(activeAccountConfig.email)
+    const ft = fetchedAt ?? sess?.fetchedAt ?? new Date().toISOString()
+    const totalUnreadEstimate =
+      opt?.totalUnreadEstimate !== undefined ? opt.totalUnreadEstimate : sess?.totalUnreadEstimate
+    const importBatchSize = sess?.importBatchSize
+    saveCachedInbox(activeAccountConfig.email, next, cats, {
+      fetchedAt: ft,
+      ...(totalUnreadEstimate !== undefined && { totalUnreadEstimate }),
+      ...(importBatchSize !== undefined && { importBatchSize }),
+    })
+    sessionCache.current.set(activeAccountConfig.email, {
+      account: activeAccountConfig.email,
+      emails: next,
+      categories: cats,
+      fetchedAt: ft,
+      totalUnreadEstimate,
+      importBatchSize,
+    })
+  }, [activeAccountConfig.email, fetchedAt])
 
   // ── Account switch ───────────────────────────────────────────────────────────
 
@@ -258,12 +410,15 @@ export default function Dashboard() {
     setErrorMsg("")
 
     const accountEmail = ACCOUNTS.find(a => a.id === id)!.email
-    const restored = restoreCache(accountEmail)
-    if (!restored) {
+    const restoredInbox = restoreCache(accountEmail)
+    if (!restoredInbox) {
+      const restoredCategories = restoreCategories(accountEmail)
       setEmails([])
-      setCategories([])
       setFetchedAt(null)
-      setAppState("idle")
+      setTotalUnreadInbox(0)
+      if (!restoredCategories) {
+        setCategories([])
+      }
     }
   }
 
@@ -273,15 +428,16 @@ export default function Dashboard() {
     await fetch("/api/gmail/archive", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId: email.id }),
+      body: JSON.stringify({ messageId: email.id, account: activeAccount }),
     })
     recordAction("archive")
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
-      saveCachedInbox(activeAccountConfig.email, next, categories)
-      sessionCache.current.set(activeAccountConfig.email, {
-        account: activeAccountConfig.email, emails: next, categories, fetchedAt: fetchedAt ?? new Date().toISOString()
-      })
+      const sess = sessionCache.current.get(activeAccountConfig.email)
+      const base = sess?.totalUnreadEstimate ?? totalUnreadInbox
+      const nu = Math.max(0, base - 1)
+      setTotalUnreadInbox(nu)
+      writeInboxCache(next, categories, { totalUnreadEstimate: nu })
       return next
     })
     setSelectedEmail(null)
@@ -291,14 +447,15 @@ export default function Dashboard() {
     await fetch("/api/gmail/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId: email.id }),
+      body: JSON.stringify({ messageId: email.id, account: activeAccount }),
     })
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
-      saveCachedInbox(activeAccountConfig.email, next, categories)
-      sessionCache.current.set(activeAccountConfig.email, {
-        account: activeAccountConfig.email, emails: next, categories, fetchedAt: fetchedAt ?? new Date().toISOString()
-      })
+      const sess = sessionCache.current.get(activeAccountConfig.email)
+      const base = sess?.totalUnreadEstimate ?? totalUnreadInbox
+      const nu = Math.max(0, base - 1)
+      setTotalUnreadInbox(nu)
+      writeInboxCache(next, categories, { totalUnreadEstimate: nu })
       return next
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
@@ -313,26 +470,78 @@ export default function Dashboard() {
         subject: email.subject,
         body,
         threadId: email.threadId,
-        inReplyTo: email.inReplyTo,
+        inReplyTo: email.messageId,
         messageId: email.messageId,
+        account: activeAccount,
       }),
     })
-    recordAction("reply")
+    recordAction("saveDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
+  }
+
+  async function handleSendMessage(
+    email: Email,
+    mode: "reply" | "forward",
+    body: string,
+    forwardTo?: string
+  ) {
+    const to = mode === "forward" ? forwardTo?.trim() ?? "" : email.fromEmail
+    if (mode === "forward" && !to) {
+      throw new Error("Forward recipient is required")
+    }
+    if (!to) {
+      throw new Error("Recipient email address is missing")
+    }
+
+    const subject = mode === "forward" ? `Fwd: ${email.subject}` : email.subject
+
+    const res = await fetch("/api/gmail/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to,
+        subject,
+        body,
+        threadId: email.threadId,
+        inReplyTo: mode === "reply" ? email.messageId : undefined,
+        messageId: mode === "reply" ? email.messageId : undefined,
+        account: activeAccount,
+      }),
+    })
+
+    if (!res.ok) {
+      try {
+        const error = await res.json()
+        throw new Error(error.error || `Failed to send: ${res.status}`)
+      } catch {
+        throw new Error(`Failed to send: ${res.status}`)
+      }
+    }
+
+    setEmails(prev => prev.map(e =>
+      e.id === email.id
+        ? { ...e, replied: mode === "reply" ? true : e.replied, forwarded: mode === "forward" ? true : e.forwarded }
+        : e
+    ))
+
+    recordAction(mode === "forward" ? "forwardSent" : "replySent", {
+      emailId: email.id,
+      subject: email.subject,
+      mode,
+    })
+
+    await handleMarkRead(email)
   }
 
   async function handleStar(email: Email) {
     await fetch("/api/gmail/star", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId: email.id }),
+      body: JSON.stringify({ messageId: email.id, account: activeAccount }),
     })
     recordAction("star")
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
-      saveCachedInbox(activeAccountConfig.email, next, categories)
-      sessionCache.current.set(activeAccountConfig.email, {
-        account: activeAccountConfig.email, emails: next, categories, fetchedAt: fetchedAt ?? new Date().toISOString()
-      })
+      writeInboxCache(next, categories)
       return next
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
@@ -342,15 +551,16 @@ export default function Dashboard() {
     await fetch("/api/gmail/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId: email.id }),
+      body: JSON.stringify({ messageId: email.id, account: activeAccount }),
     })
     recordAction("delete")
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
-      saveCachedInbox(activeAccountConfig.email, next, categories)
-      sessionCache.current.set(activeAccountConfig.email, {
-        account: activeAccountConfig.email, emails: next, categories, fetchedAt: fetchedAt ?? new Date().toISOString()
-      })
+      const sess = sessionCache.current.get(activeAccountConfig.email)
+      const base = sess?.totalUnreadEstimate ?? totalUnreadInbox
+      const nu = Math.max(0, base - 1)
+      setTotalUnreadInbox(nu)
+      writeInboxCache(next, categories, { totalUnreadEstimate: nu })
       return next
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
@@ -374,56 +584,141 @@ export default function Dashboard() {
   // ── Main layout ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-screen bg-zinc-50 flex flex-col overflow-hidden">
-      {/* Top bar */}
-      <header className="grid grid-cols-3 items-center px-6 py-3 bg-white border-b border-zinc-200 shrink-0">
-        {/* Left — logo + unread badge */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2.5">
-            <span className="text-xl">📬</span>
-            <h1 className="text-base font-semibold text-zinc-900">Inbox AI</h1>
-          </div>
-          {appState === "ready" && fetchedAt && (
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-700 text-xs font-semibold px-2.5 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                {emails.length} unread
-              </span>
-              <span className="text-xs text-zinc-400">{formatFetchedAt(fetchedAt)}</span>
+    <div className="relative min-h-screen bg-[#f0ebf8]">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle,rgba(124,77,255,0.055)_1px,transparent_1px)] bg-[length:28px_28px]" />
+      <div className="relative z-10 flex flex-col">
+        <header className="px-6 pt-6 pb-4">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-500 to-cyan-500 text-white shadow-[0_18px_40px_rgba(124,77,255,0.22)]">
+                  <span className="text-xl">📬</span>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold text-zinc-950">Inbox AI</h1>
+                  <p className="text-sm text-zinc-500">A gamified AI inbox experience with quick unread insight.</p>
+                </div>
+              </div>
+              {appState === "ready" && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[#ddd5ea] bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm">
+                      <span className="h-2.5 w-2.5 rounded-full bg-violet-600" />
+                      ~{totalUnreadInbox} unread in Gmail
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#f0ecff] px-3 py-2 text-xs font-semibold text-violet-700">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#7c4dff]" />
+                      {emails.length} imported
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold shadow-sm ${
+                        unreadLeftApprox > 0
+                          ? "border-amber-200 bg-amber-50 text-amber-900"
+                          : "border-[#ddd5ea] bg-white text-zinc-600"
+                      }`}
+                    >
+                      <span className={`h-2.5 w-2.5 rounded-full ${unreadLeftApprox > 0 ? "bg-amber-500" : "bg-zinc-300"}`} />
+                      ~{unreadLeftApprox} left to load
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-500 max-w-xl leading-relaxed">
+                    Estimates come from Gmail. This workspace only holds the current batch (up to {importBatchSize} per refresh).
+                    {unreadLeftApprox > 0
+                      ? " Refresh after you work through these to fetch and analyze the next chunk."
+                      : emails.length >= importBatchSize
+                        ? " You hit the batch cap; refresh to see if more unread are available."
+                        : " No extra unread estimated beyond this import."}
+                  </p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Center — plant */}
-        <div className="flex justify-center">
-          <PlantHeader remaining={emails.length} total={totalEmailsAtLoad} />
-        </div>
+            <div className="flex items-center flex-wrap gap-3 justify-end">
+              {!workNeedsLink && (
+                <div className="flex flex-col items-end gap-1 mr-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Per refresh</span>
+                  <div className="flex rounded-full border border-zinc-200 bg-zinc-50 p-0.5 shadow-sm">
+                    {IMPORT_BATCH_OPTIONS.map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => updateImportBatchSize(n)}
+                        className={`min-w-[2.25rem] px-2 py-1 text-xs font-semibold rounded-full transition-colors disabled:opacity-50 ${
+                          importBatchSize === n
+                            ? "bg-white text-violet-700 shadow-sm"
+                            : "text-zinc-600 hover:text-zinc-900"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <AccountToggle
+                active={activeAccount}
+                onChange={handleAccountSwitch}
+                loading={isLoading}
+              />
+              {workNeedsLink && activeAccountConfig.email && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    signIn(
+                      "google",
+                      { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
+                      {
+                        login_hint: activeAccountConfig.email,
+                        prompt: "select_account consent",
+                      },
+                    )
+                  }
+                  className="border border-amber-300 bg-amber-50 text-amber-900 text-sm font-medium px-4 py-2 rounded-full hover:bg-amber-100 transition-colors"
+                >
+                  Connect work Gmail
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setComposeOpen(true)}
+                disabled={workNeedsLink}
+                className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 text-sm font-medium px-4 py-2 rounded-full transition-colors shadow-sm disabled:opacity-50"
+              >
+                Compose
+              </button>
+              <button
+                onClick={loadInbox}
+                disabled={isLoading || workNeedsLink}
+                className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors"
+              >
+                {appState === "fetching" ? "Fetching…"
+                  : appState === "proposing" ? "Analyzing…"
+                  : appState === "categorizing" ? "Sorting…"
+                  : appState === "ready" ? "Refresh"
+                  : "Load inbox"}
+              </button>
+            </div>
+          </div>
+        </header>
 
-        {/* Right — account toggle + refresh */}
-        <div className="flex items-center justify-end gap-3">
-          <AccountToggle
-            active={activeAccount}
-            onChange={handleAccountSwitch}
-            loading={isLoading}
-          />
-          <button
-            onClick={loadInbox}
-            disabled={isLoading}
-            className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            {appState === "fetching" ? "Fetching…"
-              : appState === "proposing" ? "Analyzing…"
-              : appState === "categorizing" ? "Sorting…"
-              : appState === "ready" ? "Refresh"
-              : "Load inbox"}
-          </button>
+        <div className="px-6 py-2 bg-transparent border-b border-[#e6dff6] text-[11px] text-zinc-500 flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-zinc-700">Legend:</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#e6dff6] bg-white px-2 py-0.5">
+            <span className="w-2 h-2 rounded-full bg-rose-500" /> urgent
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#e6dff6] bg-white px-2 py-0.5">
+            <span className="w-2 h-2 rounded-full bg-amber-400" /> today
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#e6dff6] bg-white px-2 py-0.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" /> fyi
+          </span>
         </div>
-      </header>
 
       {/* Main area */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex">
         {/* Block grid */}
-        <div className="flex-1 min-w-0 p-5 overflow-y-auto">
+        <div className="flex-1 min-w-0 p-5">
           {appState === "idle" && (
             <div className="h-full flex items-center justify-center">
               <div className="text-center">
@@ -476,11 +771,14 @@ export default function Dashboard() {
                         fetch("/api/gmail/delete", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ messageId: id }),
+                          body: JSON.stringify({ messageId: id, account: activeAccount }),
                         }).catch(() => {})
                       )
                     )
                     setEmails(prev => prev.filter(e => !cleanupChecked.has(e.id)))
+                    recordAction("cleanupDelete", {
+                      details: `Deleted ${toDelete.length} cleanup email${toDelete.length === 1 ? "" : "s"}`,
+                    })
                     setPackageCleanup(null)
                     setCleanupExpanded(false)
                   }}
@@ -495,6 +793,10 @@ export default function Dashboard() {
                     const deliveredEmail = emails.find(e => e.packageDelivered && e.orderSender === packageCleanup.sender)
                     if (deliveredEmail) {
                       localStorage.setItem("inbox-ai:dismissed-cleanups", JSON.stringify([...dismissed, deliveredEmail.id]))
+                      recordAction("cleanupDismiss", {
+                        emailId: deliveredEmail.id,
+                        subject: deliveredEmail.subject,
+                      })
                     }
                     setPackageCleanup(null)
                     setCleanupExpanded(false)
@@ -530,7 +832,7 @@ export default function Dashboard() {
                           onClick={() => {
                             setCleanupPreview({ id: email.id, subject: email.subject })
                             setCleanupPreviewHtml(null)
-                            fetch(`/api/gmail/html?id=${email.id}`)
+                            fetch(`/api/gmail/html?id=${encodeURIComponent(email.id)}&${gmailAccountQuery}`)
                               .then(r => r.json())
                               .then(d => setCleanupPreviewHtml(d.htmlBody ?? "<p>No content</p>"))
                               .catch(() => setCleanupPreviewHtml("<p>Failed to load</p>"))
@@ -549,8 +851,49 @@ export default function Dashboard() {
             </div>
           )}
 
+          {appState === "ready" && briefingEmails.length > 0 && (
+            <div className="mb-4 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-900">Daily briefing</p>
+                  <p className="text-xs text-zinc-500">Requires a response or is expiring soon.</p>
+                </div>
+                <span className="text-xs text-zinc-500">{briefingEmails.length} items</span>
+              </div>
+              <div className="mt-2 space-y-1">
+                {briefingEmails.map(email => (
+                  <EmailRow
+                    key={email.id}
+                    email={email}
+                    selected={email.id === selectedEmail?.id}
+                    isSelected={false}
+                    selectionMode={false}
+                    onClick={() => {
+                      setExpandedEmail(email)
+                      setExpandedComposeMode("ai")
+                    }}
+                    onDoubleClick={() => {
+                      setExpandedEmail(email)
+                      setExpandedComposeMode(null)
+                    }}
+                    onMarkRead={() => { void handleMarkRead(email) }}
+                    onDelete={() => { void handleDelete(email) }}
+                    onReply={() => {
+                      setExpandedEmail(email)
+                      setExpandedComposeMode("reply")
+                    }}
+                    onForward={() => {
+                      setExpandedEmail(email)
+                      setExpandedComposeMode("forward")
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {appState === "ready" && categories.length > 0 && (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {categories.map(cat => (
                 <CategoryBlock
                   key={cat.id}
@@ -558,15 +901,58 @@ export default function Dashboard() {
                   emails={emails.filter(e => e.category === cat.name)}
                   selectedEmail={selectedEmail?.category === cat.name ? selectedEmail : null}
                   onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
-                  onExpand={email => setExpandedEmail(email)}
+                  onExpand={(email, composeMode) => {
+                    setExpandedEmail(email)
+                    setExpandedComposeMode(composeMode ?? null)
+                  }}
                   onClose={() => setSelectedEmail(null)}
                   onMarkRead={handleMarkRead}
                   onArchive={handleArchive}
                   onSaveDraft={handleSaveDraft}
+                  onSend={handleSendMessage}
                   onStar={handleStar}
                   onDelete={handleDelete}
+                  gmailAccount={activeAccount}
                 />
               ))}
+            </div>
+          )}
+
+          {appState === "ready" && deletableEmails.length > 0 && (
+            <div className="mt-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-zinc-200">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-900">Delete candidates</p>
+                  <p className="text-xs text-zinc-500">Emails likely safe to remove — old offers, expired links, OTPs, or delivery confirmations.</p>
+                </div>
+                <span className="text-xs text-zinc-500">{deletableEmails.length} emails</span>
+              </div>
+              <div className="mt-3 space-y-2 max-h-72 overflow-y-auto">
+                {deletableEmails.map(email => (
+                  <EmailRow
+                    key={email.id}
+                    email={email}
+                    selected={email.id === selectedEmail?.id}
+                    isSelected={false}
+                    selectionMode={false}
+                    onClick={() => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                    onDoubleClick={() => {
+                      setExpandedEmail(email)
+                      setExpandedComposeMode(null)
+                    }}
+                    onMarkRead={() => { void handleMarkRead(email) }}
+                    onDelete={() => { void handleDelete(email) }}
+                    onReply={() => {
+                      setExpandedEmail(email)
+                      setExpandedComposeMode("reply")
+                    }}
+                    onForward={() => {
+                      setExpandedEmail(email)
+                      setExpandedComposeMode("forward")
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -576,14 +962,22 @@ export default function Dashboard() {
       {expandedEmail && (
         <EmailModal
           email={expandedEmail}
-          onClose={() => setExpandedEmail(null)}
+          initialComposeMode={expandedComposeMode}
+          gmailAccount={activeAccount}
+          onClose={() => {
+            setExpandedEmail(null)
+            setExpandedComposeMode(null)
+          }}
           onMarkRead={handleMarkRead}
           onStar={handleStar}
           onArchive={handleArchive}
           onDelete={handleDelete}
           onSaveDraft={handleSaveDraft}
+          onSend={handleSendMessage}
         />
       )}
+
+      <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} gmailAccount={activeAccount} />
 
       {cleanupPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setCleanupPreview(null)}>
@@ -601,6 +995,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

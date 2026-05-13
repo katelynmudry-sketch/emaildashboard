@@ -7,7 +7,7 @@ export const maxDuration = 120
 
 export async function POST(request: Request) {
   const session = await auth()
-  if (!session?.access_token) {
+  if (!session?.access_token && !session?.work_access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { createDraft } from "@/lib/gmail"
+import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 import type { DraftRequest } from "@/lib/types"
 
 export async function POST(request: Request) {
   const session = await auth()
-  if (!session?.access_token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const { to, subject, body, threadId, inReplyTo, messageId, account }: DraftRequest = await request.json()
+  const accountId = parseAccountId(account)
+  const authz = requireGmailAccess(session, accountId)
+  if (!authz.success) return authz.response
 
   try {
-    const { to, subject, body, threadId, inReplyTo, messageId }: DraftRequest = await request.json()
-    const draftId = await createDraft(session.access_token, to, subject, body, threadId, inReplyTo, messageId)
+    const draftId = await createDraft(authz.accessToken, to, subject, body, threadId, inReplyTo, messageId)
     return NextResponse.json({ draftId })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Draft creation failed" }, { status: 500 })

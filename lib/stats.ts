@@ -1,4 +1,27 @@
 const STORAGE_KEY = "inbox-ai:stats";
+const MAX_ACTION_HISTORY = 200;
+
+type ActionKind =
+  | "archive"
+  | "star"
+  | "delete"
+  | "replySent"
+  | "forwardSent"
+  | "composeSent"
+  | "saveDraft"
+  | "markRead"
+  | "aiDraft"
+  | "cleanupDelete"
+  | "cleanupDismiss";
+
+export interface ActionEvent {
+  action: ActionKind;
+  emailId?: string;
+  subject?: string;
+  mode?: "reply" | "forward";
+  timestamp: string;
+  details?: string;
+}
 
 interface Stats {
   xp: number;
@@ -6,9 +29,17 @@ interface Stats {
   totalStarred: number;
   totalDeleted: number;
   totalReplied: number;
+  totalRepliesSent: number;
+  totalForwardsSent: number;
+  totalDraftsSaved: number;
+  totalRead: number;
+  totalAiDrafts: number;
+  totalCleanupDeleted: number;
+  totalCleanupDismissed: number;
   lastActionDate: string | null;
   currentStreak: number;
   longestStreak: number;
+  history: ActionEvent[];
 }
 
 const DEFAULT_STATS: Stats = {
@@ -17,16 +48,31 @@ const DEFAULT_STATS: Stats = {
   totalStarred: 0,
   totalDeleted: 0,
   totalReplied: 0,
+  totalRepliesSent: 0,
+  totalForwardsSent: 0,
+  totalDraftsSaved: 0,
+  totalRead: 0,
+  totalAiDrafts: 0,
+  totalCleanupDeleted: 0,
+  totalCleanupDismissed: 0,
   lastActionDate: null,
   currentStreak: 0,
   longestStreak: 0,
+  history: [],
 };
 
-const XP_VALUES: Record<"archive" | "star" | "delete" | "reply", number> = {
+const XP_VALUES: Record<ActionKind, number> = {
   archive: 2,
   star: 2,
   delete: 3,
-  reply: 5,
+  replySent: 5,
+  forwardSent: 4,
+  composeSent: 5,
+  saveDraft: 1,
+  markRead: 1,
+  aiDraft: 1,
+  cleanupDelete: 2,
+  cleanupDismiss: 0,
 };
 
 function today(): string {
@@ -60,18 +106,33 @@ export function getStats(): Stats {
 }
 
 export function recordAction(
-  action: "archive" | "star" | "delete" | "reply"
+  action: ActionKind,
+  meta: {
+    emailId?: string;
+    subject?: string;
+    mode?: "reply" | "forward";
+    details?: string;
+  } = {}
 ): Stats {
   const stats = getStats();
   const todayStr = today();
-  const xpGain = XP_VALUES[action];
+  const xpGain = XP_VALUES[action] ?? 0;
 
   stats.xp += xpGain;
 
   if (action === "archive") stats.totalArchived += 1;
   if (action === "star") stats.totalStarred += 1;
   if (action === "delete") stats.totalDeleted += 1;
-  if (action === "reply") stats.totalReplied += 1;
+  if (action === "replySent") {
+    stats.totalReplied += 1;
+    stats.totalRepliesSent += 1;
+  }
+  if (action === "forwardSent") stats.totalForwardsSent += 1;
+  if (action === "saveDraft") stats.totalDraftsSaved += 1;
+  if (action === "markRead") stats.totalRead += 1;
+  if (action === "aiDraft") stats.totalAiDrafts += 1;
+  if (action === "cleanupDelete") stats.totalCleanupDeleted += 1;
+  if (action === "cleanupDismiss") stats.totalCleanupDismissed += 1;
 
   if (stats.lastActionDate === null) {
     stats.currentStreak = 1;
@@ -92,6 +153,19 @@ export function recordAction(
   }
 
   stats.lastActionDate = todayStr;
+
+  stats.history.unshift({
+    action,
+    emailId: meta.emailId,
+    subject: meta.subject,
+    mode: meta.mode,
+    timestamp: new Date().toISOString(),
+    details: meta.details,
+  });
+
+  if (stats.history.length > MAX_ACTION_HISTORY) {
+    stats.history = stats.history.slice(0, MAX_ACTION_HISTORY);
+  }
 
   saveStats(stats);
 

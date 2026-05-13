@@ -8,8 +8,27 @@ declare module "next-auth" {
     refresh_token?: string
     expires_at?: number
     error?: "RefreshTokenError"
+    work_access_token?: string
+    work_refresh_token?: string
+    work_expires_at?: number
+    work_error?: "RefreshTokenError"
+    /** True when the configured work inbox has completed at least one Google sign-in with tokens stored. */
+    workAccountLinked?: boolean
   }
 }
+
+declare module "@auth/core/jwt" {
+  interface JWT {
+    work_access_token?: string
+    work_refresh_token?: string
+    work_expires_at?: number
+    work_error?: "RefreshTokenError"
+  }
+}
+
+// ── UI accounts (also used by Gmail API account selector) ───────────────────
+
+export type AccountId = "personal" | "work"
 
 // ── Email ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +64,8 @@ export interface Email {
   inReplyTo?: string
   messageId?: string
   labelIds: string[]
+  replied?: boolean
+  forwarded?: boolean
   // AI-added fields
   category: string
   priority: "urgent" | "today" | "fyi"
@@ -104,28 +125,32 @@ export interface ProposeResponse {
 export interface LabelRequest {
   messageId: string
   gmailLabelId: string
+  /** Which linked Google account to use (default: personal). */
+  account?: AccountId
 }
 
 export interface ArchiveRequest {
   messageId: string
+  account?: AccountId
 }
 
 export interface ReadRequest {
   messageId: string
+  account?: AccountId
 }
 
 export interface DraftRequest {
   to: string
   subject: string
   body: string
-  threadId: string
+  /** Omit for a brand-new message (not a reply in an existing thread). */
+  threadId?: string
   inReplyTo?: string
   messageId?: string
+  account?: AccountId
 }
 
 // ── UI state ─────────────────────────────────────────────────────────────────
-
-export type AccountId = "personal" | "work"
 
 export interface AccountConfig {
   id: AccountId

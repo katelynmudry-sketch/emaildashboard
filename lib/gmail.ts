@@ -101,7 +101,12 @@ export function parseMessage(msg: any): RawEmail {
 
 // ── Fetch unread inbox messages ───────────────────────────────────────────────
 
-export async function fetchInboxMessages(accessToken: string, maxResults = 30): Promise<RawEmail[]> {
+export interface InboxFetchResult {
+  emails: RawEmail[]
+  totalUnread: number
+}
+
+export async function fetchInboxMessages(accessToken: string, maxResults = 30): Promise<InboxFetchResult> {
   const gmail = getGmailService(accessToken)
 
   const list = await gmail.users.messages.list({
@@ -110,8 +115,9 @@ export async function fetchInboxMessages(accessToken: string, maxResults = 30): 
     maxResults,
   })
 
+  const totalUnread = list.data.resultSizeEstimate ?? 0
   const messages = list.data.messages ?? []
-  if (messages.length === 0) return []
+  if (messages.length === 0) return { emails: [], totalUnread }
 
   const details = await Promise.all(
     messages.map(m =>
@@ -123,7 +129,10 @@ export async function fetchInboxMessages(accessToken: string, maxResults = 30): 
     )
   )
 
-  return details.sort((a, b) => b.internalDate - a.internalDate)
+  return {
+    emails: details.sort((a, b) => b.internalDate - a.internalDate),
+    totalUnread,
+  }
 }
 
 // ── Fetch existing Gmail label names for an account ───────────────────────────
@@ -234,7 +243,7 @@ export async function searchArchivedMessages(
   const gmail = getGmailService(accessToken)
 
   const senderQuery = senderDomain.includes(" ") ? `"${senderDomain}"` : senderDomain
-  const q = `from:${senderQuery} subject:(order OR shipping OR shipped OR tracking OR delivery OR confirmation OR arrived OR delivered)`
+  const q = `from:${senderQuery} subject:(order OR shipping OR shipped OR tracking OR delivery OR confirmation OR arrived OR delivered OR package OR parcel OR shipment OR item OR received)`
   const list = await gmail.users.messages.list({
     userId: "me",
     q,
@@ -294,18 +303,25 @@ export async function createDraft(
   to: string,
   subject: string,
   body: string,
-  threadId: string,
+  threadId?: string,
   inReplyTo?: string,
   messageId?: string
 ): Promise<string> {
   const gmail = getGmailService(accessToken)
 
-  const replySubject = subject.toLowerCase().startsWith("re:") ? subject : `Re: ${subject}`
+  const isThreadedReply = Boolean(inReplyTo || messageId)
+  const mimeSubject = isThreadedReply
+    ? (subject.toLowerCase().startsWith("re:") ? subject : `Re: ${subject}`)
+    : (subject.trim() || "(no subject)")
+  const referencesHeader = inReplyTo && messageId && inReplyTo !== messageId
+    ? `${inReplyTo} ${messageId}`
+    : messageId ?? inReplyTo
+
   const mimeLines = [
     `To: ${to}`,
-    `Subject: ${replySubject}`,
+    `Subject: ${mimeSubject}`,
     inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
-    messageId ? `References: ${messageId}` : null,
+    referencesHeader ? `References: ${referencesHeader}` : null,
     "Content-Type: text/plain; charset=UTF-8",
     "MIME-Version: 1.0",
     "",
@@ -314,9 +330,12 @@ export async function createDraft(
 
   const raw = Buffer.from(mimeLines).toString("base64url")
 
+  const message: { raw: string; threadId?: string } = { raw }
+  if (threadId) message.threadId = threadId
+
   const draft = await gmail.users.drafts.create({
     userId: "me",
-    requestBody: { message: { raw, threadId } },
+    requestBody: { message },
   })
 
   return draft.data.id!
@@ -329,28 +348,42 @@ export async function sendEmail(
   to: string,
   subject: string,
   body: string,
-  threadId: string,
+  threadId?: string,
   inReplyTo?: string,
   messageId?: string
 ): Promise<void> {
   const gmail = getGmailService(accessToken)
 
-  const replySubject = subject.toLowerCase().startsWith("re:") ? subject : `Re: ${subject}`
+  if (!to || !to.trim()) {
+    throw new Error("Recipient email address is required")
+  }
+
+  const isThreadedReply = Boolean(inReplyTo || messageId)
+  const mimeSubject = isThreadedReply
+    ? (subject.toLowerCase().startsWith("re:") ? subject : `Re: ${subject}`)
+    : (subject.trim() || "(no subject)")
+  const referencesHeader = inReplyTo && messageId && inReplyTo !== messageId
+    ? `${inReplyTo} ${messageId}`
+    : messageId ?? inReplyTo
+
   const mimeLines = [
     `To: ${to}`,
-    `Subject: ${replySubject}`,
+    `Subject: ${mimeSubject}`,
+    `Content-Type: text/plain; charset=UTF-8`,
+    `MIME-Version: 1.0`,
     inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
-    messageId ? `References: ${messageId}` : null,
-    "Content-Type: text/plain; charset=UTF-8",
-    "MIME-Version: 1.0",
+    referencesHeader ? `References: ${referencesHeader}` : null,
     "",
     body,
   ].filter(Boolean).join("\r\n")
 
-  const raw = Buffer.from(mimeLines).toString("base64url")
+  const raw = Buffer.from(mimeLines, "utf8").toString("base64url")
+
+  const requestBody: { raw: string; threadId?: string } = { raw }
+  if (threadId) requestBody.threadId = threadId
 
   await gmail.users.messages.send({
     userId: "me",
-    requestBody: { raw, threadId },
+    requestBody,
   })
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import type { Email, Category } from "@/lib/types"
+import type { AccountId, Email, Category } from "@/lib/types"
 import EmailRow from "./EmailRow"
 import DetailPanel from "./DetailPanel"
 
@@ -10,16 +10,18 @@ interface Props {
   emails: Email[]
   selectedEmail: Email | null
   onSelect: (email: Email) => void
-  onExpand: (email: Email) => void
+  onExpand: (email: Email, composeMode?: "reply" | "forward") => void
   onClose: () => void
-  onMarkRead: (email: Email) => void
+  onMarkRead: (email: Email) => Promise<void>
   onArchive: (email: Email) => Promise<void>
   onSaveDraft: (email: Email, body: string) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) => Promise<void>
   onStar: (email: Email) => Promise<void>
   onDelete: (email: Email) => Promise<void>
+  gmailAccount: AccountId
 }
 
-export default function CategoryBlock({ category, emails, selectedEmail, onSelect, onExpand, onClose, onMarkRead, onArchive, onSaveDraft, onStar, onDelete }: Props) {
+export default function CategoryBlock({ category, emails, selectedEmail, onSelect, onExpand, onClose, onMarkRead, onArchive, onSaveDraft, onSend, onStar, onDelete, gmailAccount }: Props) {
   const sorted = [...emails].sort((a, b) => a.internalDate - b.internalDate)
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
 
@@ -128,15 +130,20 @@ export default function CategoryBlock({ category, emails, selectedEmail, onSelec
                 onClick={selectionMode ? () => toggleEmail(email.id) : () => onSelect(email)}
                 onDoubleClick={selectionMode ? undefined : () => onExpand(email)}
                 onMarkRead={() => onMarkRead(email)}
+                onDelete={() => onDelete(email)}
+                onReply={() => onExpand(email, "reply")}
+                onForward={() => onExpand(email, "forward")}
               />
               {!selectionMode && email.id === selectedEmail?.id && (
                 <div className="mt-1 mb-2">
                   <DetailPanel
                     email={selectedEmail}
+                    gmailAccount={gmailAccount}
                     onClose={onClose}
                     onArchive={onArchive}
                     onMarkRead={onMarkRead}
                     onSaveDraft={onSaveDraft}
+                    onSend={onSend}
                     onStar={onStar}
                     onDelete={onDelete}
                   />

@@ -1,15 +1,18 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { Email } from "@/lib/types"
+import type { AccountId, Email } from "@/lib/types"
+import { recordAction } from "@/lib/stats"
 import DraftEditor from "./DraftEditor"
 
 interface Props {
   email: Email | null
+  gmailAccount: AccountId
   onClose: () => void
   onArchive: (email: Email) => Promise<void>
   onMarkRead: (email: Email) => Promise<void>
   onSaveDraft: (email: Email, body: string) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) => Promise<void>
   onStar: (email: Email) => Promise<void>
   onDelete: (email: Email) => Promise<void>
 }
@@ -23,7 +26,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 const btnBase =
   "text-[11px] font-medium px-2 py-1 rounded-md bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75 whitespace-nowrap"
 
-export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onSaveDraft, onStar, onDelete }: Props) {
+export default function DetailPanel({ email, gmailAccount, onClose, onArchive, onMarkRead, onSaveDraft, onSend, onStar, onDelete }: Props) {
   const [draftMode, setDraftMode] = useState<"ai" | "manual" | "forward" | null>(null)
   const [aiDraftBody, setAiDraftBody] = useState<string | null>(null)
   const [aiDraftLoading, setAiDraftLoading] = useState(false)
@@ -41,14 +44,15 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
     }
     setHtmlBody(null)
     setHtmlLoading(true)
-    fetch(`/api/gmail/html?id=${email.id}`)
+    fetch(`/api/gmail/html?id=${encodeURIComponent(email.id)}&account=${gmailAccount}`)
       .then(r => r.json())
       .then(data => { setHtmlBody(data.htmlBody ?? null) })
       .catch(() => { setHtmlBody(null) })
       .finally(() => setHtmlLoading(false))
-  }, [email?.id])
+  }, [email?.id, gmailAccount])
 
   if (!email) return null
+
 
   async function handleArchive() {
     if (!email) return
@@ -63,16 +67,26 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
       {/* Header */}
       <div className="flex items-start justify-between p-5 border-b border-zinc-100">
         <div className="flex-1 min-w-0 pr-3">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PRIORITY_BADGE[email.priority]}`}>
               {email.priority}
             </span>
+            {email.replied && (
+              <span className="text-xs font-semibold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5">
+                Replied
+              </span>
+            )}
+            {email.forwarded && (
+              <span className="text-xs font-semibold text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">
+                Forwarded
+              </span>
+            )}
             <span className="text-xs text-zinc-400">{email.timeAgo}</span>
           </div>
           <h2 className="text-sm font-semibold text-zinc-900 leading-snug">{email.subject}</h2>
           {email.deletable && (
             <p className="text-xs text-zinc-400 mt-1">
-              🗑 {email.deletableReason ?? "Safe to delete"}
+              🗑 Marked safe to delete
             </p>
           )}
           <p className="text-xs text-zinc-500 mt-0.5">{email.from} · {email.fromEmail}</p>
@@ -133,6 +147,10 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
               await onSaveDraft(email, body)
               setDraftMode(null)
             }}
+            onSend={async (body, forwardTo) => {
+              await onSend(email, draftMode === "forward" ? "forward" : "reply", body, forwardTo)
+              setDraftMode(null)
+            }}
             onCancel={() => setDraftMode(null)}
           />
         )}
@@ -156,6 +174,7 @@ export default function DetailPanel({ email, onClose, onArchive, onMarkRead, onS
                 if (draftMode === "ai") { setDraftMode(null); return }
                 setAiDraftLoading(true)
                 setDraftMode(null)
+                recordAction("aiDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
                 try {
                   const res = await fetch("/api/ai/draft", {
                     method: "POST",

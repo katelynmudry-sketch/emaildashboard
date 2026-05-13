@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { applyLabel } from "@/lib/gmail"
+import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 import type { LabelRequest } from "@/lib/types"
 
 export async function POST(request: Request) {
   const session = await auth()
-  if (!session?.access_token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const { messageId, gmailLabelId, account }: LabelRequest = await request.json()
+  const accountId = parseAccountId(account)
+  const authz = requireGmailAccess(session, accountId)
+  if (!authz.success) return authz.response
 
   try {
-    const { messageId, gmailLabelId }: LabelRequest = await request.json()
-    await applyLabel(session.access_token, messageId, gmailLabelId)
+    await applyLabel(authz.accessToken, messageId, gmailLabelId)
     return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Label apply failed" }, { status: 500 })

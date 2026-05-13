@@ -1,16 +1,20 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { Email } from "@/lib/types"
+import type { AccountId, Email } from "@/lib/types"
+import { recordAction } from "@/lib/stats"
 
 interface Props {
   email: Email
+  gmailAccount: AccountId
   onClose: () => void
   onMarkRead: (email: Email) => Promise<void>
   onStar: (email: Email) => Promise<void>
   onArchive: (email: Email) => Promise<void>
   onDelete: (email: Email) => Promise<void>
   onSaveDraft: (email: Email, body: string) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) => Promise<void>
+  initialComposeMode?: "ai" | "reply" | "forward" | null
 }
 
 function injectStyles(html: string): string {
@@ -22,7 +26,7 @@ function injectStyles(html: string): string {
 
 const btn = "text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75"
 
-export default function EmailModal({ email, onClose, onMarkRead, onStar, onArchive, onDelete, onSaveDraft }: Props) {
+export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, onStar, onArchive, onDelete, onSaveDraft, onSend, initialComposeMode }: Props) {
   const [htmlBody, setHtmlBody] = useState<string | null>(email.htmlBody ?? null)
   const [loading, setLoading] = useState(!email.htmlBody)
   const [composeMode, setComposeMode] = useState<"ai" | "reply" | "forward" | null>(null)
@@ -31,22 +35,28 @@ export default function EmailModal({ email, onClose, onMarkRead, onStar, onArchi
   const [aiDraftLoading, setAiDraftLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   useEffect(() => {
     if (email.htmlBody) { setHtmlBody(email.htmlBody); return }
     setLoading(true)
-    fetch(`/api/gmail/html?id=${email.id}`)
+    fetch(`/api/gmail/html?id=${encodeURIComponent(email.id)}&account=${gmailAccount}`)
       .then(r => r.json())
       .then(data => setHtmlBody(data.htmlBody ?? null))
       .catch(() => setHtmlBody(null))
       .finally(() => setLoading(false))
-  }, [email.id])
+  }, [email.id, gmailAccount])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose() }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
+
+  useEffect(() => {
+    if (!initialComposeMode) return
+    openCompose(initialComposeMode)
+  }, [initialComposeMode, email.id])
 
   async function openCompose(mode: "ai" | "reply" | "forward") {
     if (mode === "forward") {
@@ -61,8 +71,11 @@ export default function EmailModal({ email, onClose, onMarkRead, onStar, onArchi
       return
     }
     // AI Draft — call Claude
+    recordAction("aiDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
     setAiDraftLoading(true)
     setComposeMode("ai")
+    // Snapshot any user-typed/pasted content before clearing so we can append it after
+    const userContent = draftBody.trim()
     setDraftBody("")
     try {
       const res = await fetch("/api/ai/draft", {
@@ -71,7 +84,8 @@ export default function EmailModal({ email, onClose, onMarkRead, onStar, onArchi
         body: JSON.stringify({ email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body } }),
       })
       const data = await res.json()
-      setDraftBody(data.draft ?? "")
+      const draftText = data.draft ?? ""
+      setDraftBody(userContent ? `${draftText}\n\n${userContent}` : draftText)
     } finally {
       setAiDraftLoading(false)
     }
@@ -81,6 +95,7 @@ export default function EmailModal({ email, onClose, onMarkRead, onStar, onArchi
     setComposeMode(null)
     setDraftBody("")
     setForwardTo("")
+    setSendError(null)
   }
 
   async function handleSaveDraft() {
@@ -91,26 +106,22 @@ export default function EmailModal({ email, onClose, onMarkRead, onStar, onArchi
 
   async function handleSend() {
     setSending(true)
+    setSendError(null)
     try {
-      const res = await fetch("/api/gmail/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: composeMode === "forward" ? forwardTo : email.fromEmail,
-          subject: composeMode === "forward" ? `Fwd: ${email.subject}` : email.subject,
-          body: draftBody,
-          threadId: email.threadId,
-          inReplyTo: composeMode !== "forward" ? email.inReplyTo : undefined,
-          messageId: composeMode !== "forward" ? email.messageId : undefined,
-        }),
-      })
-      if (!res.ok) throw new Error("Send failed")
-    } finally {
+      await onSend(
+        email,
+        composeMode === "forward" ? "forward" : "reply",
+        draftBody,
+        composeMode === "forward" ? forwardTo : undefined
+      )
+      closeCompose()
+      onClose()
+    } catch (err) {
       setSending(false)
+      setSendError(err instanceof Error ? err.message : "Failed to send email")
     }
-    closeCompose()
-    onClose()
   }
+
 
   async function handleMarkRead() {
     await onMarkRead(email)
@@ -218,6 +229,12 @@ export default function EmailModal({ email, onClose, onMarkRead, onStar, onArchi
               placeholder="Write your reply…"
               autoFocus
             />
+            {sendError && (
+              <div className="px-3 py-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700">
+                <p className="font-medium">Send failed:</p>
+                <p className="mt-0.5">{sendError}</p>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSaveDraft}

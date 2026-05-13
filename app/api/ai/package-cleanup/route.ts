@@ -2,19 +2,21 @@ import { NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { auth } from "@/lib/auth"
 import { searchArchivedMessages } from "@/lib/gmail"
+import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
+import type { AccountId } from "@/lib/types"
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: Request) {
   const session = await auth()
-  if (!session?.access_token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const { deliveredEmailId, orderSender, account }: { deliveredEmailId: string; orderSender: string; account?: AccountId } =
+    await request.json()
+  const accountId = parseAccountId(account)
+  const authz = requireGmailAccess(session, accountId)
+  if (!authz.success) return authz.response
 
   try {
-    const { deliveredEmailId, orderSender }: { deliveredEmailId: string; orderSender: string } = await request.json()
-
-    const candidates = await searchArchivedMessages(session.access_token, orderSender)
+    const candidates = await searchArchivedMessages(authz.accessToken, orderSender)
     console.log("[package-cleanup] orderSender:", orderSender, "candidates found:", candidates.length, candidates.map(c => c.subject))
     if (candidates.length === 0) {
       return NextResponse.json({ emailIds: [] })
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
 
     const prompt = `Sender: ${orderSender}
 
-These are archived Gmail messages from that sender. Return the IDs of all emails that are shipping/delivery notifications (order confirmations, shipping updates, out for delivery, delivered notices, tracking updates). These are safe to delete.
+These are archived Gmail messages from that sender. Return the IDs of all emails that are shipping/delivery notifications (order confirmations, shipping updates, out for delivery, delivered notices, tracking updates, package notifications, shipment updates). These are safe to delete.
 
 ${candidates.map(c => `ID: ${c.id}\nSubject: ${c.subject}`).join("\n---\n")}
 
