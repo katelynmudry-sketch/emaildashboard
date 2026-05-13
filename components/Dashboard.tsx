@@ -955,19 +955,62 @@ export default function Dashboard() {
             </div>
           )}
 
-          {appState === "ready" && (todoEmails.length > 0 || briefingEmails.length > 0) && (
-            <div className="mb-4 flex flex-col lg:flex-row gap-4">
-              {/* TODO box */}
-              {todoEmails.length > 0 && (
-                <div className="lg:w-72 shrink-0 rounded-3xl border-2 border-amber-300 bg-amber-50 p-4 shadow-sm">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div>
-                      <p className="text-sm font-bold text-amber-900">★ TODO</p>
-                      <p className="text-xs text-amber-700">Pinned by you</p>
+          {appState === "ready" && visibleEmails.filter(e => !e.deletable).length === 0 && totalEmailsAtLoad > 0 && (
+            <div className="mb-4 rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-6 text-center shadow-sm">
+              <p className="text-3xl mb-2">🎉</p>
+              <p className="text-sm font-semibold text-emerald-800">Inbox zero!</p>
+              <p className="text-xs text-emerald-600 mt-1">You triaged everything in this batch. Refresh to load more.</p>
+            </div>
+          )}
+
+          {appState === "ready" && categories.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+
+              {/* Daily briefing — spans 2 cols like a wide category block */}
+              {briefingEmails.length > 0 && (
+                <div className="col-span-1 sm:col-span-2 bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm">
+                  <div className="relative flex items-center justify-between px-4 py-3">
+                    <div className="absolute inset-0 -z-0 bg-violet-500 opacity-10 rounded-t-2xl" />
+                    <div className="relative flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                      <h2 className="text-sm font-semibold text-zinc-800">Daily briefing</h2>
                     </div>
-                    <span className="text-xs text-amber-700 font-semibold">{todoEmails.length}</span>
+                    <span className="relative text-xs font-medium bg-white/70 text-zinc-600 rounded-full px-2 py-0.5">{briefingEmails.length}</span>
                   </div>
-                  <div className="space-y-1">
+                  <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
+                    {briefingEmails.map(email => (
+                      <EmailRow
+                        key={email.id}
+                        email={email}
+                        selected={email.id === selectedEmail?.id}
+                        isSelected={false}
+                        selectionMode={false}
+                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
+                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                        onMarkRead={() => { void handleMarkRead(email) }}
+                        onDelete={() => { void handleDelete(email) }}
+                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                        onToggleTodo={() => handleToggleTodo(email)}
+                        onSnooze={() => setSnoozeTarget(email)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TODO — 1 col, same card style as category blocks */}
+              {todoEmails.length > 0 && (
+                <div className="col-span-1 bg-white rounded-2xl border-2 border-amber-300 flex flex-col shadow-sm">
+                  <div className="relative flex items-center justify-between px-4 py-3">
+                    <div className="absolute inset-0 -z-0 bg-amber-400 opacity-10 rounded-t-2xl" />
+                    <div className="relative flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                      <h2 className="text-sm font-semibold text-amber-900">★ TODO</h2>
+                    </div>
+                    <span className="relative text-xs font-medium bg-white/70 text-amber-700 rounded-full px-2 py-0.5">{todoEmails.length}</span>
+                  </div>
+                  <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
                     {todoEmails.map(email => (
                       <EmailRow
                         key={email.id}
@@ -989,50 +1032,6 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Daily briefing box */}
-              {briefingEmails.length > 0 && (
-                <div className="flex-1 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-900">Daily briefing</p>
-                      <p className="text-xs text-zinc-500">Requires a response or is expiring soon.</p>
-                    </div>
-                    <span className="text-xs text-zinc-500">{briefingEmails.length} items</span>
-                  </div>
-                  <div className="space-y-1">
-                    {briefingEmails.map(email => (
-                      <EmailRow
-                        key={email.id}
-                        email={email}
-                        selected={email.id === selectedEmail?.id}
-                        isSelected={false}
-                        selectionMode={false}
-                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
-                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                        onMarkRead={() => { void handleMarkRead(email) }}
-                        onDelete={() => { void handleDelete(email) }}
-                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                        onToggleTodo={() => handleToggleTodo(email)}
-                        onSnooze={() => setSnoozeTarget(email)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {appState === "ready" && visibleEmails.filter(e => !e.deletable).length === 0 && totalEmailsAtLoad > 0 && (
-            <div className="mb-4 rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-6 text-center shadow-sm">
-              <p className="text-3xl mb-2">🎉</p>
-              <p className="text-sm font-semibold text-emerald-800">Inbox zero!</p>
-              <p className="text-xs text-emerald-600 mt-1">You triaged everything in this batch. Refresh to load more.</p>
-            </div>
-          )}
-
-          {appState === "ready" && categories.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {categories.map(cat => (
                 <CategoryBlock
                   key={cat.id}
