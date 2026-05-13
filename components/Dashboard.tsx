@@ -96,18 +96,18 @@ export default function Dashboard() {
   })
 
   const deletableEmails = visibleEmails.filter(email => email.deletable && !email.todo)
+
+  const todoEmails = visibleEmails.filter(email => email.todo)
+
   const briefingEmails = visibleEmails
-    .filter(email => !email.deletable || email.todo)
+    .filter(email => !email.todo && (!email.deletable || email.todo))
     .filter(email =>
-      email.todo ||
       email.priority !== "fyi" ||
       email.actionFlag === "confirm" ||
       /expire|expir|due|deadline|ends?/i.test(email.summary ?? "")
     )
     .sort((a, b) => {
-      if (a.todo && !b.todo) return -1
-      if (!a.todo && b.todo) return 1
-      const rank = (email: Email) => email.priority === "urgent" ? 0 : email.priority === "today" ? 1 : 2
+      const rank = (e: Email) => e.priority === "urgent" ? 0 : e.priority === "today" ? 1 : 2
       const diff = rank(a) - rank(b)
       return diff !== 0 ? diff : a.internalDate - b.internalDate
     })
@@ -955,53 +955,71 @@ export default function Dashboard() {
             </div>
           )}
 
-          {appState === "ready" && briefingEmails.length > 0 && (
-            <div className="mb-4 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-zinc-900">Daily briefing</p>
-                    <p className="text-xs text-zinc-500">Requires a response or is expiring soon.</p>
+          {appState === "ready" && (todoEmails.length > 0 || briefingEmails.length > 0) && (
+            <div className="mb-4 flex flex-col lg:flex-row gap-4">
+              {/* TODO box */}
+              {todoEmails.length > 0 && (
+                <div className="lg:w-72 shrink-0 rounded-3xl border-2 border-amber-300 bg-amber-50 p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div>
+                      <p className="text-sm font-bold text-amber-900">★ TODO</p>
+                      <p className="text-xs text-amber-700">Pinned by you</p>
+                    </div>
+                    <span className="text-xs text-amber-700 font-semibold">{todoEmails.length}</span>
                   </div>
-                  {briefingEmails.some(e => e.todo) && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-1 text-[11px] font-bold text-amber-800">
-                      ★ {briefingEmails.filter(e => e.todo).length} TODO
-                    </span>
-                  )}
+                  <div className="space-y-1">
+                    {todoEmails.map(email => (
+                      <EmailRow
+                        key={email.id}
+                        email={email}
+                        selected={email.id === selectedEmail?.id}
+                        isSelected={false}
+                        selectionMode={false}
+                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
+                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                        onMarkRead={() => { void handleMarkRead(email) }}
+                        onDelete={() => { void handleDelete(email) }}
+                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                        onToggleTodo={() => handleToggleTodo(email)}
+                        onSnooze={() => setSnoozeTarget(email)}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <span className="text-xs text-zinc-500">{briefingEmails.length} items</span>
-              </div>
-              <div className="mt-2 space-y-1">
-                {briefingEmails.map(email => (
-                  <EmailRow
-                    key={email.id}
-                    email={email}
-                    selected={email.id === selectedEmail?.id}
-                    isSelected={false}
-                    selectionMode={false}
-                    onClick={() => {
-                      setExpandedEmail(email)
-                      setExpandedComposeMode("ai")
-                    }}
-                    onDoubleClick={() => {
-                      setExpandedEmail(email)
-                      setExpandedComposeMode(null)
-                    }}
-                    onMarkRead={() => { void handleMarkRead(email) }}
-                    onDelete={() => { void handleDelete(email) }}
-                    onReply={() => {
-                      setExpandedEmail(email)
-                      setExpandedComposeMode("reply")
-                    }}
-                    onForward={() => {
-                      setExpandedEmail(email)
-                      setExpandedComposeMode("forward")
-                    }}
-                    onToggleTodo={() => handleToggleTodo(email)}
-                    onSnooze={() => setSnoozeTarget(email)}
-                  />
-                ))}
-              </div>
+              )}
+
+              {/* Daily briefing box */}
+              {briefingEmails.length > 0 && (
+                <div className="flex-1 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-900">Daily briefing</p>
+                      <p className="text-xs text-zinc-500">Requires a response or is expiring soon.</p>
+                    </div>
+                    <span className="text-xs text-zinc-500">{briefingEmails.length} items</span>
+                  </div>
+                  <div className="space-y-1">
+                    {briefingEmails.map(email => (
+                      <EmailRow
+                        key={email.id}
+                        email={email}
+                        selected={email.id === selectedEmail?.id}
+                        isSelected={false}
+                        selectionMode={false}
+                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
+                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                        onMarkRead={() => { void handleMarkRead(email) }}
+                        onDelete={() => { void handleDelete(email) }}
+                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                        onToggleTodo={() => handleToggleTodo(email)}
+                        onSnooze={() => setSnoozeTarget(email)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

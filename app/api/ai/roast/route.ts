@@ -18,13 +18,23 @@ export async function POST(request: Request) {
       .map(e => `- [${e.priority}] ${e.subject} (from ${e.from})`)
       .join("\n")
 
-    const prompt = `Here is someone's current email inbox. Write a single savage, witty one-liner roasting the vibe of this inbox. Be specific — reference actual senders, subjects, or patterns you see. Keep it under 25 words. No hashtags, no emojis, no quotes around it. Just the roast.
+    const prompt = `You are a brutally funny comedian roasting someone's email inbox. Look at this inbox and write ONE savage, specific joke about it.
+
+Rules:
+- Must reference something actually IN the inbox (a real sender, subject line, or obvious pattern)
+- Punch down on the emails, not the person — mock the newsletters, the promotional spam, the ignored bills
+- Dry wit preferred over loud humor. Think: late-night monologue writer, not Twitter stan
+- Under 30 words
+- No hashtags, no emojis, no quotes around it, no "Your inbox is..." opener
+- Just the roast. No preamble.
 
 Inbox:
-${snapshot}`
+${snapshot}
+
+Remember: be specific, be mean to the emails, make it actually funny.`
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 100,
       messages: [{ role: "user", content: prompt }],
     })

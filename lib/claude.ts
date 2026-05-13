@@ -100,7 +100,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
 `.trim()
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 512,
     system: [{ type: "text", text: CLINIC_CONTEXT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
@@ -172,7 +172,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
 `.trim()
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 16000,
     system: [{ type: "text", text: CLINIC_CONTEXT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
@@ -238,7 +238,7 @@ Subject: ${sanitizeUtf8(email.subject)}
 Message: ${sanitizeUtf8(email.body.slice(0, 1000))}`
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 500,
     system: [{ type: "text", text: CLINIC_CONTEXT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
