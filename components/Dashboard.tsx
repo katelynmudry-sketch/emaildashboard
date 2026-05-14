@@ -750,6 +750,38 @@ export default function Dashboard() {
                       </div>
                     )}
                   </div>
+
+                  {todoEmails.length > 0 && (
+                    <div className="bg-white rounded-2xl border-2 border-amber-300 shadow-sm overflow-hidden max-w-xl">
+                      <div className="relative flex items-center justify-between px-4 py-2.5">
+                        <div className="absolute inset-0 bg-amber-400 opacity-10" />
+                        <div className="relative flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                          <span className="text-sm font-semibold text-amber-900">★ TODO</span>
+                        </div>
+                        <span className="relative text-xs font-medium bg-white/70 text-amber-700 rounded-full px-2 py-0.5">{todoEmails.length}</span>
+                      </div>
+                      <div className="px-2 pb-2 space-y-0.5">
+                        {todoEmails.map(email => (
+                          <EmailRow
+                            key={email.id}
+                            email={email}
+                            selected={email.id === selectedEmail?.id}
+                            isSelected={false}
+                            selectionMode={false}
+                            onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
+                            onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                            onMarkRead={() => { void handleMarkRead(email) }}
+                            onDelete={() => { void handleDelete(email) }}
+                            onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                            onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                            onToggleTodo={() => handleToggleTodo(email)}
+                            onSnooze={() => setSnoozeTarget(email)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1014,39 +1046,6 @@ export default function Dashboard() {
 
           {appState === "ready" && categories.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-
-              {/* TODO card — first in grid, same style as category blocks */}
-              {todoEmails.length > 0 && (
-                <div className="bg-white rounded-2xl border-2 border-amber-300 flex flex-col shadow-sm">
-                  <div className="relative flex items-center justify-between px-4 py-3">
-                    <div className="absolute inset-0 -z-0 bg-amber-400 opacity-10 rounded-t-2xl" />
-                    <div className="relative flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                      <h2 className="text-sm font-semibold text-amber-900">★ TODO</h2>
-                    </div>
-                    <span className="relative text-xs font-medium bg-white/70 text-amber-700 rounded-full px-2 py-0.5">{todoEmails.length}</span>
-                  </div>
-                  <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
-                    {todoEmails.map(email => (
-                      <EmailRow
-                        key={email.id}
-                        email={email}
-                        selected={email.id === selectedEmail?.id}
-                        isSelected={false}
-                        selectionMode={false}
-                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
-                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                        onMarkRead={() => { void handleMarkRead(email) }}
-                        onDelete={() => { void handleDelete(email) }}
-                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                        onToggleTodo={() => handleToggleTodo(email)}
-                        onSnooze={() => setSnoozeTarget(email)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {categories.map(cat => (
                 <CategoryBlock
