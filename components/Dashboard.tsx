@@ -707,7 +707,7 @@ export default function Dashboard() {
               </div>
               {appState === "ready" && (
                 <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-2 rounded-full border border-[#ddd5ea] bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm">
                       <span className="h-2.5 w-2.5 rounded-full bg-violet-600" />
                       ~{totalUnreadInbox} unread in Gmail
@@ -726,6 +726,33 @@ export default function Dashboard() {
                       <span className={`h-2.5 w-2.5 rounded-full ${unreadLeftApprox > 0 ? "bg-amber-500" : "bg-zinc-300"}`} />
                       ~{unreadLeftApprox} left to load
                     </span>
+                    <AccountToggle
+                      active={activeAccount}
+                      onChange={handleAccountSwitch}
+                      loading={isLoading}
+                    />
+                    {!workNeedsLink && (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Per refresh</span>
+                        <div className="flex rounded-full border border-zinc-200 bg-zinc-50 p-0.5 shadow-sm">
+                          {IMPORT_BATCH_OPTIONS.map(n => (
+                            <button
+                              key={n}
+                              type="button"
+                              disabled={isLoading}
+                              onClick={() => updateImportBatchSize(n)}
+                              className={`min-w-[2.25rem] px-2 py-1 text-xs font-semibold rounded-full transition-colors disabled:opacity-50 ${
+                                importBatchSize === n
+                                  ? "bg-white text-violet-700 shadow-sm"
+                                  : "text-zinc-600 hover:text-zinc-900"
+                              }`}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-zinc-500 max-w-xl leading-relaxed">
                     Estimates come from Gmail. This workspace only holds the current batch (up to {importBatchSize} per refresh).
@@ -744,113 +771,92 @@ export default function Dashboard() {
                       {roasting ? "Roasting…" : "🔥 Roast my inbox"}
                     </button>
                     {roast && (
-                      <div className="flex items-center gap-2 bg-zinc-900 text-zinc-100 text-xs px-3 py-1.5 rounded-full max-w-lg">
-                        <span className="italic">"{roast}"</span>
-                        <button onClick={() => setRoast(null)} className="text-zinc-400 hover:text-zinc-200 leading-none ml-1">×</button>
-                      </div>
+                      <span className="flex items-center gap-1.5 text-xs max-w-lg">
+                        <span className="italic text-rose-600">&ldquo;{roast}&rdquo;</span>
+                        <button onClick={() => setRoast(null)} className="text-zinc-400 hover:text-zinc-600 leading-none">×</button>
+                      </span>
                     )}
                   </div>
 
-                  {todoEmails.length > 0 && (
-                    <div className="bg-white rounded-2xl border-2 border-amber-300 shadow-sm overflow-hidden max-w-xl">
-                      <div className="relative flex items-center justify-between px-4 py-2.5">
-                        <div className="absolute inset-0 bg-amber-400 opacity-10" />
-                        <div className="relative flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                          <span className="text-sm font-semibold text-amber-900">★ TODO</span>
-                        </div>
-                        <span className="relative text-xs font-medium bg-white/70 text-amber-700 rounded-full px-2 py-0.5">{todoEmails.length}</span>
-                      </div>
-                      <div className="px-2 pb-2 space-y-0.5">
-                        {todoEmails.map(email => (
-                          <EmailRow
-                            key={email.id}
-                            email={email}
-                            selected={email.id === selectedEmail?.id}
-                            isSelected={false}
-                            selectionMode={false}
-                            onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
-                            onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                            onMarkRead={() => { void handleMarkRead(email) }}
-                            onDelete={() => { void handleDelete(email) }}
-                            onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                            onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                            onToggleTodo={() => handleToggleTodo(email)}
-                            onSnooze={() => setSnoozeTarget(email)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
 
-            <div className="flex items-center flex-wrap gap-3 justify-end">
-              {!workNeedsLink && (
-                <div className="flex flex-col items-end gap-1 mr-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Per refresh</span>
-                  <div className="flex rounded-full border border-zinc-200 bg-zinc-50 p-0.5 shadow-sm">
-                    {IMPORT_BATCH_OPTIONS.map(n => (
-                      <button
-                        key={n}
-                        type="button"
-                        disabled={isLoading}
-                        onClick={() => updateImportBatchSize(n)}
-                        className={`min-w-[2.25rem] px-2 py-1 text-xs font-semibold rounded-full transition-colors disabled:opacity-50 ${
-                          importBatchSize === n
-                            ? "bg-white text-violet-700 shadow-sm"
-                            : "text-zinc-600 hover:text-zinc-900"
-                        }`}
-                      >
-                        {n}
-                      </button>
+            {/* Compose/Refresh + TODO cell — equal height siblings */}
+            <div className="flex items-stretch gap-3">
+              {/* Action buttons cell */}
+              <div className="flex items-center flex-wrap gap-3 justify-end px-4 py-3">
+                {workNeedsLink && activeAccountConfig.email && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      signIn(
+                        "google",
+                        { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
+                        {
+                          login_hint: activeAccountConfig.email,
+                          prompt: "select_account consent",
+                        },
+                      )
+                    }
+                    className="border border-amber-300 bg-amber-50 text-amber-900 text-sm font-medium px-4 py-2 rounded-full hover:bg-amber-100 transition-colors"
+                  >
+                    Connect work Gmail
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setComposeOpen(true)}
+                  disabled={workNeedsLink}
+                  className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 text-sm font-medium px-4 py-2 rounded-full transition-colors shadow-sm disabled:opacity-50"
+                >
+                  Compose
+                </button>
+                <button
+                  onClick={loadInbox}
+                  disabled={isLoading || workNeedsLink}
+                  className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors"
+                >
+                  {appState === "fetching" ? "Fetching…"
+                    : appState === "proposing" ? "Analyzing…"
+                    : appState === "categorizing" ? "Sorting…"
+                    : appState === "ready" ? "Refresh"
+                    : "Load inbox"}
+                </button>
+              </div>
+
+              {/* TODO cell — sticky to top-right */}
+              {appState === "ready" && todoEmails.length > 0 && (
+                <div className="sticky top-4 self-start bg-white rounded-2xl border-2 border-amber-300 shadow-sm overflow-hidden flex flex-col min-w-[220px] max-w-xs">
+                  <div className="relative flex items-center justify-between px-4 py-2.5 shrink-0">
+                    <div className="absolute inset-0 bg-amber-400 opacity-10" />
+                    <div className="relative flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                      <span className="text-sm font-semibold text-amber-900">★ TODO</span>
+                    </div>
+                    <span className="relative text-xs font-medium bg-white/70 text-amber-700 rounded-full px-2 py-0.5">{todoEmails.length}</span>
+                  </div>
+                  <div className="px-2 py-1 space-y-0.5 overflow-y-auto flex-1">
+                    {todoEmails.map(email => (
+                      <EmailRow
+                        key={email.id}
+                        email={email}
+                        selected={email.id === selectedEmail?.id}
+                        isSelected={false}
+                        selectionMode={false}
+                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
+                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                        onMarkRead={() => { void handleMarkRead(email) }}
+                        onDelete={() => { void handleDelete(email) }}
+                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                        onToggleTodo={() => handleToggleTodo(email)}
+                        onSnooze={() => setSnoozeTarget(email)}
+                      />
                     ))}
                   </div>
                 </div>
               )}
-              <AccountToggle
-                active={activeAccount}
-                onChange={handleAccountSwitch}
-                loading={isLoading}
-              />
-              {workNeedsLink && activeAccountConfig.email && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    signIn(
-                      "google",
-                      { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
-                      {
-                        login_hint: activeAccountConfig.email,
-                        prompt: "select_account consent",
-                      },
-                    )
-                  }
-                  className="border border-amber-300 bg-amber-50 text-amber-900 text-sm font-medium px-4 py-2 rounded-full hover:bg-amber-100 transition-colors"
-                >
-                  Connect work Gmail
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setComposeOpen(true)}
-                disabled={workNeedsLink}
-                className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 text-sm font-medium px-4 py-2 rounded-full transition-colors shadow-sm disabled:opacity-50"
-              >
-                Compose
-              </button>
-              <button
-                onClick={loadInbox}
-                disabled={isLoading || workNeedsLink}
-                className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors"
-              >
-                {appState === "fetching" ? "Fetching…"
-                  : appState === "proposing" ? "Analyzing…"
-                  : appState === "categorizing" ? "Sorting…"
-                  : appState === "ready" ? "Refresh"
-                  : "Load inbox"}
-              </button>
             </div>
           </div>
         </header>
