@@ -9,9 +9,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { email } = await request.json()
+    const { email, partialDraft } = await request.json()
     const account = session.user?.email ?? ""
-    const draft = await generateDraftReply(email, account)
+    const draft = await generateDraftReply(email, account, partialDraft ?? "")
     return NextResponse.json({ draft })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Draft generation failed" }, { status: 500 })

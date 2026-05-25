@@ -7,6 +7,7 @@ import DetailPanel from "./DetailPanel"
 
 interface Props {
   category: Category
+  categories: Category[]
   emails: Email[]
   selectedEmail: Email | null
   onSelect: (email: Email) => void
@@ -18,10 +19,14 @@ interface Props {
   onSend: (email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) => Promise<void>
   onStar: (email: Email) => Promise<void>
   onDelete: (email: Email) => Promise<void>
+  onRecategorize: (email: Email, newCategory: string, teachClaude: boolean) => Promise<void>
+  onMarkReplied: (email: Email) => void
+  onMarkDeletable: (email: Email) => void
+  onNewCategory: (name: string, color: string) => Promise<string>
   gmailAccount: AccountId
 }
 
-export default function CategoryBlock({ category, emails, selectedEmail, onSelect, onExpand, onClose, onMarkRead, onArchive, onSaveDraft, onSend, onStar, onDelete, gmailAccount }: Props) {
+export default function CategoryBlock({ category, categories, emails, selectedEmail, onSelect, onExpand, onClose, onMarkRead, onArchive, onSaveDraft, onSend, onStar, onDelete, onRecategorize, onMarkReplied, onMarkDeletable, onNewCategory, gmailAccount }: Props) {
   const sorted = [...emails].sort((a, b) => a.internalDate - b.internalDate)
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
 
@@ -139,6 +144,7 @@ export default function CategoryBlock({ category, emails, selectedEmail, onSelec
                   <DetailPanel
                     email={selectedEmail}
                     gmailAccount={gmailAccount}
+                    categories={categories}
                     onClose={onClose}
                     onArchive={onArchive}
                     onMarkRead={onMarkRead}
@@ -146,6 +152,10 @@ export default function CategoryBlock({ category, emails, selectedEmail, onSelec
                     onSend={onSend}
                     onStar={onStar}
                     onDelete={onDelete}
+                    onRecategorize={onRecategorize}
+                    onMarkReplied={onMarkReplied}
+                    onMarkDeletable={onMarkDeletable}
+                    onNewCategory={onNewCategory}
                   />
                 </div>
               )}

@@ -11,6 +11,7 @@ import { snoozeEmail } from "@/lib/todo-snooze"
 import AccountToggle from "./AccountToggle"
 import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
+import DetailPanel from "./DetailPanel"
 import EmailModal from "./EmailModal"
 import EmailRow from "./EmailRow"
 import PlantHeader from "./PlantHeader"
@@ -652,6 +653,73 @@ export default function Dashboard() {
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
   }
 
+  function handleMarkDeletable(email: Email) {
+    setEmails(prev => {
+      const updated = prev.map(e => e.id === email.id ? { ...e, deletable: true } : e)
+      writeInboxCache(updated, categories)
+      return updated
+    })
+    if (selectedEmail?.id === email.id) setSelectedEmail(null)
+  }
+
+  async function handleNewCategory(name: string, color: string): Promise<string> {
+    const res = await fetch("/api/gmail/ensure-label", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, account: activeAccount }),
+    })
+    const { id } = await res.json() as { id: string }
+    const newCat: Category = { id, name, color, gmailLabelId: id }
+    const updated = [...categories, newCat]
+    setCategories(updated)
+    saveCategories(activeAccountConfig.email, updated)
+    return id
+  }
+
+  function handleMarkReplied(email: Email) {
+    setEmails(prev => {
+      const updated = prev.map(e => e.id === email.id ? { ...e, replied: true } : e)
+      writeInboxCache(updated, categories)
+      return updated
+    })
+    if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, replied: true } : null)
+  }
+
+  async function handleRecategorize(email: Email, newCategory: string, teachClaude: boolean) {
+    // Find the Gmail label ID for the new category
+    const cat = categories.find(c => c.name === newCategory)
+    // Optimistic UI update
+    setEmails(prev => {
+      const updated = prev.map(e => e.id === email.id ? { ...e, category: newCategory } : e)
+      writeInboxCache(updated, categories)
+      return updated
+    })
+    if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, category: newCategory } : null)
+    // Apply Gmail label if we have one
+    if (cat?.gmailLabelId) {
+      await fetch("/api/gmail/label", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: email.id, gmailLabelId: cat.gmailLabelId, account: activeAccount }),
+      }).catch(() => {})
+    }
+    // Teach Claude by saving a rule (skip for untagged)
+    if (teachClaude && newCategory) {
+      const rule = {
+        id: `${email.fromEmail}->${newCategory}`.toLowerCase().replace(/[^a-z0-9@.\-_>]/g, "-"),
+        description: `${email.from} → ${newCategory}`,
+        fromPattern: email.fromEmail,
+        category: newCategory,
+        createdAt: new Date().toISOString(),
+      }
+      await fetch("/api/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(rule),
+      }).catch(() => {})
+    }
+  }
+
   async function handleRoast() {
     if (roasting || emails.length === 0) return
     setRoasting(true)
@@ -1030,21 +1098,42 @@ export default function Dashboard() {
               </div>
               <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
                 {briefingEmails.map(email => (
-                  <EmailRow
-                    key={email.id}
-                    email={email}
-                    selected={email.id === selectedEmail?.id}
-                    isSelected={false}
-                    selectionMode={false}
-                    onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
-                    onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                    onMarkRead={() => { void handleMarkRead(email) }}
-                    onDelete={() => { void handleDelete(email) }}
-                    onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                    onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                    onToggleTodo={() => handleToggleTodo(email)}
-                    onSnooze={() => setSnoozeTarget(email)}
-                  />
+                  <div key={email.id}>
+                    <EmailRow
+                      email={email}
+                      selected={email.id === selectedEmail?.id}
+                      isSelected={false}
+                      selectionMode={false}
+                      onClick={() => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                      onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                      onMarkRead={() => { void handleMarkRead(email) }}
+                      onDelete={() => { void handleDelete(email) }}
+                      onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                      onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                      onToggleTodo={() => handleToggleTodo(email)}
+                      onSnooze={() => setSnoozeTarget(email)}
+                    />
+                    {email.id === selectedEmail?.id && (
+                      <div className="mt-1 mb-2">
+                        <DetailPanel
+                          email={selectedEmail}
+                          gmailAccount={activeAccount}
+                          categories={categories}
+                          onClose={() => setSelectedEmail(null)}
+                          onArchive={handleArchive}
+                          onMarkRead={handleMarkRead}
+                          onSaveDraft={handleSaveDraft}
+                          onSend={handleSendMessage}
+                          onStar={handleStar}
+                          onDelete={handleDelete}
+                          onRecategorize={handleRecategorize}
+                          onMarkReplied={handleMarkReplied}
+                          onMarkDeletable={handleMarkDeletable}
+                          onNewCategory={handleNewCategory}
+                        />
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -1057,6 +1146,7 @@ export default function Dashboard() {
                 <CategoryBlock
                   key={cat.id}
                   category={cat}
+                  categories={categories}
                   emails={emails.filter(e => e.category === cat.name)}
                   selectedEmail={selectedEmail?.category === cat.name ? selectedEmail : null}
                   onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
@@ -1071,6 +1161,10 @@ export default function Dashboard() {
                   onSend={handleSendMessage}
                   onStar={handleStar}
                   onDelete={handleDelete}
+                  onRecategorize={handleRecategorize}
+                  onMarkReplied={handleMarkReplied}
+                  onMarkDeletable={handleMarkDeletable}
+                  onNewCategory={handleNewCategory}
                   gmailAccount={activeAccount}
                 />
               ))}

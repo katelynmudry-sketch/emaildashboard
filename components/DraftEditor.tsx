@@ -27,6 +27,25 @@ export default function DraftEditor({ email, mode = "reply", initialBody, onSave
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [aiCompleting, setAiCompleting] = useState(false)
+
+  async function handleAiComplete() {
+    setAiCompleting(true)
+    try {
+      const res = await fetch("/api/ai/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
+          partialDraft: body,
+        }),
+      })
+      const data = await res.json()
+      if (data.draft) setBody(data.draft)
+    } finally {
+      setAiCompleting(false)
+    }
+  }
 
   const to = mode === "forward" ? forwardTo : email.fromEmail
   const subject = mode === "forward" ? `Fwd: ${email.subject}` : email.subject
@@ -91,7 +110,16 @@ export default function DraftEditor({ email, mode = "reply", initialBody, onSave
       {sendError && (
         <p className="text-xs text-rose-600">{sendError}</p>
       )}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
+        {mode === "reply" && (
+          <button
+            onClick={handleAiComplete}
+            disabled={aiCompleting}
+            className={`${btnBase} text-violet-700 border-violet-300 bg-violet-50 hover:bg-violet-100 disabled:opacity-50`}
+          >
+            {aiCompleting ? "Writing…" : body.trim() ? "AI complete" : "AI draft"}
+          </button>
+        )}
         <button
           onClick={handleSaveDraft}
           disabled={saving || !body.trim() || (mode === "forward" && !forwardTo.trim())}

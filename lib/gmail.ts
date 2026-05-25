@@ -361,7 +361,8 @@ export async function sendEmail(
   body: string,
   threadId?: string,
   inReplyTo?: string,
-  messageId?: string
+  messageId?: string,
+  from?: string
 ): Promise<void> {
   const gmail = getGmailService(accessToken)
 
@@ -378,6 +379,7 @@ export async function sendEmail(
     : messageId ?? inReplyTo
 
   const mimeLines = [
+    from ? `From: ${from}` : null,
     `To: ${to}`,
     `Subject: ${mimeSubject}`,
     `Content-Type: text/plain; charset=UTF-8`,

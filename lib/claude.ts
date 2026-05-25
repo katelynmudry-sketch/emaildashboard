@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { RawEmail, Email, Category, ProposeResponse } from "./types"
+import { loadRules, formatRulesForPrompt } from "./rules"
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -126,9 +127,11 @@ export async function categorizeInbox(
 
   const categoryList = categories.map(c => c.name).join(", ")
   const isWork = account.includes("drkmudry")
+  const rulesSection = formatRulesForPrompt(loadRules())
 
   const prompt = `
 Categorize each of these ${emails.length} emails into one of these categories: ${categoryList}
+${rulesSection}
 
 Also assign:
 - priority: "urgent" (needs reply today/time-sensitive), "today" (action needed soon), or "fyi" (informational, no action needed)
@@ -221,21 +224,27 @@ Return ONLY valid JSON array. No markdown, no explanation.
 
 export async function generateDraftReply(
   email: { from: string; fromEmail: string; subject: string; body: string },
-  account: string
+  account: string,
+  partialDraft: string = ""
 ): Promise<string> {
   const isWork = account.includes("drkmudry")
+  const hasPartial = partialDraft.trim().length > 0
+
+  const partialSection = hasPartial
+    ? `\n\nThe user has already started writing this reply — continue it naturally, keeping their tone and completing their thought. Do not restart or rewrite what they wrote; seamlessly extend it:\n<partial_draft>\n${partialDraft.trim()}\n</partial_draft>`
+    : ""
 
   const prompt = isWork
-    ? `Write a warm, casual reply to this email in Dr. K's voice (naturopathic doctor). 2-4 sentences. Address the sender by first name. Sign off "Best, Dr. K". Never say "I hope this email finds you well". Return only the reply text.
+    ? `${hasPartial ? "Complete this in-progress reply" : "Write a warm, casual reply to this email"} in Dr. K's voice (naturopathic doctor). ${hasPartial ? "Match the tone already established." : "2-4 sentences. Address the sender by first name."} Sign off "Best, Dr. K". Never say "I hope this email finds you well". Return only the ${hasPartial ? "full completed reply text (including what was already written)" : "reply text"}.
 
 From: ${sanitizeUtf8(email.from)} <${sanitizeUtf8(email.fromEmail)}>
 Subject: ${sanitizeUtf8(email.subject)}
-Message: ${sanitizeUtf8(email.body.slice(0, 1000))}`
-    : `Write a friendly, concise reply to this email. 2-4 sentences. Return only the reply text.
+Message: ${sanitizeUtf8(email.body.slice(0, 1000))}${partialSection}`
+    : `${hasPartial ? "Complete this in-progress reply" : "Write a friendly, concise reply to this email"}. ${hasPartial ? "Keep the user's tone and seamlessly extend what they've written." : "2-4 sentences."} Return only the ${hasPartial ? "full completed reply text (including what was already written)" : "reply text"}.
 
 From: ${sanitizeUtf8(email.from)}
 Subject: ${sanitizeUtf8(email.subject)}
-Message: ${sanitizeUtf8(email.body.slice(0, 1000))}`
+Message: ${sanitizeUtf8(email.body.slice(0, 1000))}${partialSection}`
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
