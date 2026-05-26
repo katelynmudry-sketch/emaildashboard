@@ -1,9 +1,19 @@
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
+import { Abril_Fatface, DM_Sans } from "next/font/google"
 import { SessionProvider } from "next-auth/react"
 import "./globals.css"
 
-const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
+const abrilFatface = Abril_Fatface({
+  weight: "400",
+  variable: "--font-display",
+  subsets: ["latin"],
+})
+
+const dmSans = DM_Sans({
+  variable: "--font-body",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+})
 
 export const metadata: Metadata = {
   title: "Inbox AI",
@@ -12,8 +22,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geist.variable} h-full antialiased`}>
-      <body className="h-full">
+    <html lang="en" className={`${abrilFatface.variable} ${dmSans.variable} h-full antialiased`}>
+      <body className="h-full" style={{ fontFamily: "var(--font-body, 'DM Sans', sans-serif)" }}>
         <SessionProvider>
           {children}
         </SessionProvider>

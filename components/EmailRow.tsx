@@ -22,13 +22,27 @@ interface Props {
   onSnooze?: () => void
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  urgent: "bg-rose-500",
-  today:  "bg-amber-400",
-  fyi:    "bg-emerald-400",
+const PRIORITY_COLOR: Record<string, string> = {
+  urgent: "#FF1F6E",
+  today:  "#FFD000",
+  fyi:    "#00E5C4",
 }
 
-export default function EmailRow({ email, selected, isSelected, selectionMode, onClick, onDoubleClick, onMarkRead, onDelete, onReply, onForward, onToggleTodo, onSnooze }: Props) {
+export default function EmailRow({
+  email, selected, isSelected, selectionMode,
+  onClick, onDoubleClick, onMarkRead, onDelete,
+  onReply, onForward, onToggleTodo, onSnooze,
+}: Props) {
+  const priorityColor = PRIORITY_COLOR[email.priority ?? "fyi"] ?? "#00E5C4"
+
+  const bgColor = isSelected
+    ? "rgba(255,208,0,0.10)"
+    : selected
+    ? "rgba(0,229,196,0.08)"
+    : email.deletable
+    ? "rgba(255,245,224,0.03)"
+    : "transparent"
+
   return (
     <div
       role="button"
@@ -36,158 +50,140 @@ export default function EmailRow({ email, selected, isSelected, selectionMode, o
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick() }}
-      className={`w-full text-left px-3 py-2 rounded-lg transition-colors duration-100 group cursor-pointer ${
-        isSelected
-          ? "bg-violet-50 border border-violet-300"
-          : selected
-          ? "bg-violet-50 border border-violet-200"
-          : email.deletable
-          ? "bg-zinc-50 border border-zinc-200 hover:bg-zinc-100"
-          : "hover:bg-zinc-50 border border-transparent"
-      }`}
+      className="w-full text-left cursor-pointer group transition-all duration-100"
+      style={{
+        borderRadius: 7,
+        borderLeft: `3px solid ${priorityColor}`,
+        paddingLeft: 10,
+        paddingRight: 8,
+        paddingTop: 6,
+        paddingBottom: 6,
+        background: bgColor,
+      }}
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex items-center justify-center shrink-0">
-          {selectionMode ? (
-            <button
-              type="button"
-              onClick={e => {
-                e.stopPropagation()
-                onClick()
-              }}
-              className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${
-                isSelected ? "bg-violet-500 border-violet-500" : "border-zinc-300 bg-white"
-              }`}
-              aria-pressed={isSelected}
+      <div className="flex items-center gap-2.5 min-w-0">
+
+        {/* Selection checkbox */}
+        {selectionMode && (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onClick() }}
+            className="shrink-0 flex items-center justify-center rounded-full border-2 transition-colors"
+            style={{
+              width: 16, height: 16,
+              borderColor: isSelected ? "#FFD000" : "rgba(255,245,224,0.25)",
+              background: isSelected ? "#FFD000" : "transparent",
+            }}
+          >
+            {isSelected && (
+              <span style={{ fontSize: 9, color: "#0D0821", fontWeight: 700, lineHeight: 1 }}>✓</span>
+            )}
+          </button>
+        )}
+
+        {/* Main content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span
+              className="font-semibold shrink-0 truncate"
+              style={{ fontSize: "0.75rem", color: "#FFF5E0", maxWidth: 120 }}
             >
-              {isSelected ? (
-                <svg viewBox="0 0 8 8" fill="none" className="w-2.5 h-2.5">
-                  <path d="M1.5 4L3.5 6L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              ) : null}
-            </button>
-          ) : (
-            <span className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[email.priority] ?? "bg-zinc-300"}`} />
+              {(email.from?.split("<")[0] ?? email.from ?? "").trim()}
+            </span>
+            <span
+              className="truncate flex-1 min-w-0"
+              style={{ fontSize: "0.72rem", color: "rgba(255,245,224,0.55)" }}
+            >
+              {email.subject}
+            </span>
+          </div>
+          {email.microSummary && (
+            <p
+              className="truncate mt-0.5"
+              style={{ fontSize: "0.65rem", color: "rgba(255,245,224,0.32)", margin: "2px 0 0" }}
+            >
+              {email.microSummary}
+            </p>
           )}
         </div>
 
-        <div className="text-xs min-w-0 flex-1">
-          <div className="font-semibold text-zinc-800 truncate">{email.subject}</div>
-          <div className="flex flex-wrap items-center gap-2 mt-0.5">
-            {email.todo && (
-              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
-                ★ TODO
-              </span>
-            )}
-            {email.snoozedUntil && (
-              <span className="text-[10px] font-semibold text-violet-700 bg-violet-100 rounded-full px-2 py-0.5">
-                💤 {email.snoozedUntil}
-              </span>
-            )}
-            {email.replied && (
-              <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5">
-                Replied
-              </span>
-            )}
-            {email.forwarded && (
-              <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">
-                Forwarded
-              </span>
-            )}
-          </div>
-          <div className="text-zinc-500 flex items-center gap-1 truncate">
-            <span className="truncate">{email.from}</span>
-            <span className="text-zinc-400">·</span>
-            <span className="truncate">{email.microSummary}</span>
-          </div>
-        </div>
+        {/* Right side */}
+        <div className="flex items-center gap-1 shrink-0">
+          {email.todo && (
+            <span style={{ fontSize: "0.6rem", color: "#FFD000" }}>★</span>
+          )}
+          {email.replied && (
+            <span style={{ fontSize: "0.62rem", color: "rgba(255,245,224,0.28)" }}>↩</span>
+          )}
+          <span style={{ fontSize: "0.62rem", color: "rgba(255,245,224,0.28)" }}>
+            {email.date ? formatEmailDate(email.date) : ""}
+          </span>
 
-        <div className="flex items-center gap-2 shrink-0">
+          {/* Hover actions */}
           {!selectionMode && (
-            <div className="hidden items-center gap-1 shrink-0 group-hover:flex transition-all duration-150">
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
               <button
-                onClick={e => {
-                  e.stopPropagation()
-                  onMarkRead()
+                type="button"
+                title="Mark read"
+                onClick={e => { e.stopPropagation(); onMarkRead() }}
+                style={{
+                  padding: "2px 6px", borderRadius: 5,
+                  background: "rgba(255,245,224,0.09)",
+                  color: "rgba(255,245,224,0.65)",
+                  fontSize: "0.6rem", border: "none", cursor: "pointer",
                 }}
-                title="Mark as read"
-                className="shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold text-zinc-600 border border-zinc-200 hover:bg-zinc-100"
               >
-                Read
+                ✓
               </button>
-              {onReply && (
+              {onDelete && (
                 <button
-                  onClick={e => {
-                    e.stopPropagation()
-                    onReply()
+                  type="button"
+                  title="Delete"
+                  onClick={e => { e.stopPropagation(); onDelete() }}
+                  style={{
+                    padding: "2px 6px", borderRadius: 5,
+                    background: "rgba(255,31,110,0.12)",
+                    color: "#FF1F6E",
+                    fontSize: "0.6rem", border: "none", cursor: "pointer",
                   }}
-                  title="Reply"
-                  className="shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold text-blue-600 border border-blue-200 hover:bg-blue-50"
                 >
-                  Reply
-                </button>
-              )}
-              {onForward && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation()
-                    onForward()
-                  }}
-                  title="Forward"
-                  className="shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold text-zinc-600 border border-zinc-200 hover:bg-zinc-100"
-                >
-                  Fwd
+                  ✕
                 </button>
               )}
               {onToggleTodo && (
                 <button
-                  onClick={e => {
-                    e.stopPropagation()
-                    onToggleTodo()
+                  type="button"
+                  title={email.todo ? "Remove TODO" : "Add TODO"}
+                  onClick={e => { e.stopPropagation(); onToggleTodo() }}
+                  style={{
+                    padding: "2px 6px", borderRadius: 5,
+                    background: email.todo ? "rgba(255,208,0,0.18)" : "rgba(255,245,224,0.07)",
+                    color: email.todo ? "#FFD000" : "rgba(255,245,224,0.38)",
+                    fontSize: "0.6rem", border: "none", cursor: "pointer",
                   }}
-                  title={email.todo ? "Remove TODO" : "Mark as TODO"}
-                  className={`shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold border transition-colors ${
-                    email.todo
-                      ? "text-amber-800 bg-amber-100 border-amber-300 hover:bg-amber-200"
-                      : "text-zinc-600 border-zinc-200 hover:bg-zinc-100"
-                  }`}
                 >
-                  {email.todo ? "★" : "☆"}
+                  ★
                 </button>
               )}
               {onSnooze && (
                 <button
-                  onClick={e => {
-                    e.stopPropagation()
-                    onSnooze()
-                  }}
+                  type="button"
                   title="Snooze"
-                  className="shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold text-violet-600 border border-violet-200 hover:bg-violet-50"
+                  onClick={e => { e.stopPropagation(); onSnooze() }}
+                  style={{
+                    padding: "2px 6px", borderRadius: 5,
+                    background: "rgba(255,245,224,0.07)",
+                    color: "rgba(255,245,224,0.38)",
+                    fontSize: "0.6rem", border: "none", cursor: "pointer",
+                  }}
                 >
                   💤
                 </button>
               )}
-              {onDelete && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation()
-                    onDelete()
-                  }}
-                  title="Delete email"
-                  className="shrink-0 min-w-[38px] h-7 px-2 flex items-center justify-center rounded-full text-[10px] font-semibold text-rose-600 border border-rose-200 hover:bg-rose-50"
-                >
-                  Del
-                </button>
-              )}
             </div>
           )}
-
-          <div className="flex items-center gap-1 shrink-0 text-[10px] text-zinc-400 uppercase tracking-[0.02em] whitespace-nowrap">
-            <span className="whitespace-nowrap">{formatEmailDate(email.date)}</span>
-          </div>
         </div>
       </div>
-
     </div>
   )
 }

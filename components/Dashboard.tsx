@@ -46,6 +46,48 @@ function formatFetchedAt(iso: string): string {
   return d.toLocaleDateString("en-CA", { month: "short", day: "numeric" })
 }
 
+// ── Festival stat sub-components ────────────────────────────────────────────
+
+function StatTicket({ value, label, color }: { value: string; label: string; color: string }) {
+  return (
+    <div style={{
+      border: `1px solid ${color}55`,
+      borderRadius: 10,
+      padding: "8px 16px",
+      background: `${color}14`,
+      minWidth: 72,
+    }}>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color }}>
+        {value}
+      </div>
+      <div style={{ fontSize: "0.56rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(255,245,224,0.40)", marginTop: 3 }}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
+function MiniStat({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <div style={{
+      border: `1px solid ${color}44`,
+      borderRadius: 8,
+      padding: "5px 10px",
+      background: `${color}14`,
+      textAlign: "center",
+    }}>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem", lineHeight: 1, color }}>
+        {value}
+      </div>
+      <div style={{ fontSize: "0.53rem", textTransform: "uppercase", letterSpacing: "0.09em", color: "rgba(255,245,224,0.36)", marginTop: 1 }}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
+// ── Main dashboard component ─────────────────────────────────────────────────
+
 export default function Dashboard() {
   const { data: session } = useSession()
   const [activeAccount, setActiveAccount] = useState<AccountId>("personal")
@@ -115,17 +157,13 @@ export default function Dashboard() {
     })
 
   const urgentCount = emails.filter(email => email.priority === "urgent").length
-  const todayCount = emails.filter(email => email.priority === "today").length
-  const fyiCount = emails.filter(email => email.priority === "fyi").length
+  const todayCount  = emails.filter(email => email.priority === "today").length
+  const fyiCount    = emails.filter(email => email.priority === "fyi").length
   const unreadLeftApprox = Math.max(0, totalUnreadInbox - emails.length)
 
   function updateImportBatchSize(n: ImportBatchSize) {
     setImportBatchSize(n)
-    try {
-      localStorage.setItem(BATCH_PREF_KEY, String(n))
-    } catch {
-      // ignore
-    }
+    try { localStorage.setItem(BATCH_PREF_KEY, String(n)) } catch { /* ignore */ }
   }
 
   // ── Restore cached data ──────────────────────────────────────────────────────
@@ -139,18 +177,16 @@ export default function Dashboard() {
   }
 
   function restoreCache(accountEmail: string) {
-    // Check in-memory session cache first (faster)
-    const session = sessionCache.current.get(accountEmail)
-    if (session) {
-      setEmails(rehydrateEmails(session.emails))
-      setCategories(session.categories)
-      setFetchedAt(session.fetchedAt)
-      setTotalEmailsAtLoad(session.emails.length)
-      setTotalUnreadInbox(session.totalUnreadEstimate ?? session.emails.length)
+    const sess = sessionCache.current.get(accountEmail)
+    if (sess) {
+      setEmails(rehydrateEmails(sess.emails))
+      setCategories(sess.categories)
+      setFetchedAt(sess.fetchedAt)
+      setTotalEmailsAtLoad(sess.emails.length)
+      setTotalUnreadInbox(sess.totalUnreadEstimate ?? sess.emails.length)
       setAppState("ready")
       return true
     }
-    // Fall back to localStorage
     const stored = getCachedInbox(accountEmail)
     if (stored) {
       setEmails(rehydrateEmails(stored.emails))
@@ -215,7 +251,7 @@ export default function Dashboard() {
         const j = (await msgRes.json()) as { code?: string }
         if (j.code === "ACCOUNT_NOT_LINKED") {
           throw new Error(
-            `This inbox is not connected yet. Use “Connect work Gmail” in the header, sign in with your work Google account, then click Refresh.`,
+            `This inbox is not connected yet. Use "Connect work Gmail" in the header, sign in with your work Google account, then click Refresh.`,
           )
         }
       }
@@ -311,7 +347,6 @@ export default function Dashboard() {
     setAppState("categorizing")
     setCategories(cats)
 
-    // Strip htmlBody before sending to API — it's large and not needed for categorization
     const emailsForApi = rawEmails.map(({ htmlBody: _, ...rest }) => rest)
     const catRes = await fetch("/api/ai/categorize", {
       method: "POST",
@@ -332,16 +367,14 @@ export default function Dashboard() {
     }
     const categorized: Email[] = await catRes.json()
 
-    // Reattach htmlBody from original rawEmails and mark TODO from Gmail label
     const htmlBodyMap = new Map(rawEmails.map(e => [e.id, e.htmlBody]))
-    const labelIdMap = new Map(rawEmails.map(e => [e.id, e.labelIds]))
+    const labelIdMap  = new Map(rawEmails.map(e => [e.id, e.labelIds]))
     categorized.forEach(email => {
       email.htmlBody = htmlBodyMap.get(email.id)
       const labelIds = labelIdMap.get(email.id) ?? []
       if (todoLabelId && labelIds.includes(todoLabelId)) email.todo = true
     })
 
-    // Apply Gmail labels in the background
     categorized.forEach(email => {
       const cat = cats.find(c => c.name === email.category)
       if (cat?.gmailLabelId) {
@@ -359,7 +392,6 @@ export default function Dashboard() {
     setFetchedAt(now)
     setAppState("ready")
 
-    // Persist to both caches
     const cache: InboxCache = {
       account: activeAccountConfig.email,
       emails: categorized,
@@ -375,11 +407,9 @@ export default function Dashboard() {
       importBatchSize: fetchMeta.importBatchSize,
     })
 
-    // Debug: log parcel-related emails
     const parcelEmails = categorized.filter(e => e.category === "Orders" || e.packageDelivered || /parcel|ship|deliver|tracking/i.test(e.subject + " " + e.microSummary))
     console.log("[inbox-ai] parcel candidates:", parcelEmails.map(e => ({ from: e.from, subject: e.subject, microSummary: e.microSummary, packageDelivered: e.packageDelivered, orderSender: e.orderSender, actionFlag: e.actionFlag })))
 
-    // Check unread inbox for delivery confirmations
     const deliveredFromInbox = categorized.find(e => e.packageDelivered && e.orderSender)
     if (deliveredFromInbox?.orderSender) {
       const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
@@ -408,7 +438,6 @@ export default function Dashboard() {
       }
     }
 
-    // Also check for recent deliveries that may already be read
     fetch(`/api/gmail/recent-deliveries?${gmailAccountQuery}`)
       .then(r => r.json())
       .then((deliveries: { id: string; subject: string; from: string; sender: string }[]) => {
@@ -436,13 +465,12 @@ export default function Dashboard() {
   const writeInboxCache = useCallback((next: Email[], cats: Category[], opt?: { totalUnreadEstimate?: number }) => {
     const sess = sessionCache.current.get(activeAccountConfig.email)
     const ft = fetchedAt ?? sess?.fetchedAt ?? new Date().toISOString()
-    const totalUnreadEstimate =
-      opt?.totalUnreadEstimate !== undefined ? opt.totalUnreadEstimate : sess?.totalUnreadEstimate
-    const importBatchSize = sess?.importBatchSize
+    const totalUnreadEstimate = opt?.totalUnreadEstimate !== undefined ? opt.totalUnreadEstimate : sess?.totalUnreadEstimate
+    const ib = sess?.importBatchSize
     saveCachedInbox(activeAccountConfig.email, next, cats, {
       fetchedAt: ft,
       ...(totalUnreadEstimate !== undefined && { totalUnreadEstimate }),
-      ...(importBatchSize !== undefined && { importBatchSize }),
+      ...(ib !== undefined && { importBatchSize: ib }),
     })
     sessionCache.current.set(activeAccountConfig.email, {
       account: activeAccountConfig.email,
@@ -450,7 +478,7 @@ export default function Dashboard() {
       categories: cats,
       fetchedAt: ft,
       totalUnreadEstimate,
-      importBatchSize,
+      importBatchSize: ib,
     })
   }, [activeAccountConfig.email, fetchedAt])
 
@@ -531,22 +559,12 @@ export default function Dashboard() {
     recordAction("saveDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
   }
 
-  async function handleSendMessage(
-    email: Email,
-    mode: "reply" | "forward",
-    body: string,
-    forwardTo?: string
-  ) {
+  async function handleSendMessage(email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) {
     const to = mode === "forward" ? forwardTo?.trim() ?? "" : email.fromEmail
-    if (mode === "forward" && !to) {
-      throw new Error("Forward recipient is required")
-    }
-    if (!to) {
-      throw new Error("Recipient email address is missing")
-    }
+    if (mode === "forward" && !to) throw new Error("Forward recipient is required")
+    if (!to) throw new Error("Recipient email address is missing")
 
     const subject = mode === "forward" ? `Fwd: ${email.subject}` : email.subject
-
     const res = await fetch("/api/gmail/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -575,13 +593,7 @@ export default function Dashboard() {
         ? { ...e, replied: mode === "reply" ? true : e.replied, forwarded: mode === "forward" ? true : e.forwarded }
         : e
     ))
-
-    recordAction(mode === "forward" ? "forwardSent" : "replySent", {
-      emailId: email.id,
-      subject: email.subject,
-      mode,
-    })
-
+    recordAction(mode === "forward" ? "forwardSent" : "replySent", { emailId: email.id, subject: email.subject, mode })
     await handleMarkRead(email)
   }
 
@@ -621,24 +633,19 @@ export default function Dashboard() {
 
   function handleToggleTodo(email: Email) {
     const next = !email.todo
-    // Optimistic update immediately
     setEmails(prev => {
       const updated = prev.map(e => e.id === email.id ? { ...e, todo: next } : e)
       writeInboxCache(updated, categories)
       return updated
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, todo: next } : null)
-    // Persist to Gmail label in background
     fetch("/api/gmail/todo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: email.id, value: next, account: activeAccount }),
     })
       .then(r => r.json())
-      .then(data => {
-        // Store the label ID so future refreshes can detect it
-        if (data.labelId) setTodoLabelId(data.labelId)
-      })
+      .then(data => { if (data.labelId) setTodoLabelId(data.labelId) })
       .catch(() => {})
   }
 
@@ -686,16 +693,13 @@ export default function Dashboard() {
   }
 
   async function handleRecategorize(email: Email, newCategory: string, teachClaude: boolean) {
-    // Find the Gmail label ID for the new category
     const cat = categories.find(c => c.name === newCategory)
-    // Optimistic UI update
     setEmails(prev => {
       const updated = prev.map(e => e.id === email.id ? { ...e, category: newCategory } : e)
       writeInboxCache(updated, categories)
       return updated
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, category: newCategory } : null)
-    // Apply Gmail label if we have one
     if (cat?.gmailLabelId) {
       await fetch("/api/gmail/label", {
         method: "POST",
@@ -703,7 +707,6 @@ export default function Dashboard() {
         body: JSON.stringify({ messageId: email.id, gmailLabelId: cat.gmailLabelId, account: activeAccount }),
       }).catch(() => {})
     }
-    // Teach Claude by saving a rule (skip for untagged)
     if (teachClaude && newCategory) {
       const rule = {
         id: `${email.fromEmail}->${newCategory}`.toLowerCase().replace(/[^a-z0-9@.\-_>]/g, "-"),
@@ -755,105 +758,173 @@ export default function Dashboard() {
     )
   }
 
-  // ── Main layout ──────────────────────────────────────────────────────────────
+  // ── FESTIVAL RENDER ──────────────────────────────────────────────────────────
 
   return (
-    <div className="relative min-h-screen bg-[#f0ebf8]">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle,rgba(124,77,255,0.055)_1px,transparent_1px)] bg-[length:28px_28px]" />
+    <div className="relative min-h-screen" style={{ background: "#0D0821", color: "#FFF5E0" }}>
+
+      {/* Ambient background glows */}
+      <div
+        className="pointer-events-none fixed inset-0"
+        style={{
+          background: `
+            radial-gradient(ellipse 90% 55% at 8% 0%,   rgba(255,31,110,0.07)  0%, transparent 55%),
+            radial-gradient(ellipse 70% 50% at 92% 100%, rgba(0,229,196,0.05)   0%, transparent 55%),
+            radial-gradient(ellipse 50% 40% at 55% 55%, rgba(255,208,0,0.03)   0%, transparent 60%)
+          `,
+        }}
+      />
+
       <div className="relative z-10 flex flex-col">
-        <header className="px-6 pt-6 pb-4">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-500 to-cyan-500 text-white shadow-[0_18px_40px_rgba(124,77,255,0.22)]">
-                  <span className="text-xl">📬</span>
+
+        {/* ══════════════════ HEADER ══════════════════════════════════════════ */}
+        <header style={{ padding: "24px 28px 20px", borderBottom: "1px solid rgba(255,245,224,0.08)" }}>
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+
+            {/* Left: Logo + stats */}
+            <div className="flex flex-col gap-5">
+
+              {/* Logo row */}
+              <div className="flex items-center gap-4">
+                <div style={{
+                  width: 52, height: 52, flexShrink: 0,
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, #FF1F6E 0%, #FF6B1A 100%)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 26,
+                  boxShadow: "0 8px 32px rgba(255,31,110,0.38)",
+                }}>
+                  ✉️
                 </div>
                 <div>
-                  <h1 className="text-2xl font-semibold text-zinc-950">Inbox AI</h1>
-                  <p className="text-sm text-zinc-500">A gamified AI inbox experience with quick unread insight.</p>
+                  <h1 style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: "clamp(2rem, 5vw, 3.2rem)",
+                    lineHeight: 1,
+                    color: "#FFF5E0",
+                    margin: 0,
+                  }}>
+                    INBOX AI
+                  </h1>
+                  <p style={{
+                    fontSize: "0.6rem",
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                    color: "rgba(255,245,224,0.35)",
+                    margin: "5px 0 0",
+                  }}>
+                    Your AI-Powered Mail Fiesta
+                  </p>
                 </div>
               </div>
+
+              {/* Stats — only when ready */}
               {appState === "ready" && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[#ddd5ea] bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm">
-                      <span className="h-2.5 w-2.5 rounded-full bg-violet-600" />
-                      ~{totalUnreadInbox} unread in Gmail
-                    </span>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-[#f0ecff] px-3 py-2 text-xs font-semibold text-violet-700">
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#7c4dff]" />
-                      {emails.length} imported
-                    </span>
-                    <span
-                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold shadow-sm ${
-                        unreadLeftApprox > 0
-                          ? "border-amber-200 bg-amber-50 text-amber-900"
-                          : "border-[#ddd5ea] bg-white text-zinc-600"
-                      }`}
-                    >
-                      <span className={`h-2.5 w-2.5 rounded-full ${unreadLeftApprox > 0 ? "bg-amber-500" : "bg-zinc-300"}`} />
-                      ~{unreadLeftApprox} left to load
-                    </span>
-                    <AccountToggle
-                      active={activeAccount}
-                      onChange={handleAccountSwitch}
-                      loading={isLoading}
-                    />
-                    {!workNeedsLink && (
+                <div className="flex flex-col gap-3">
+
+                  {/* Ticket stats */}
+                  <div className="flex flex-wrap items-stretch gap-2">
+                    <StatTicket value={`~${totalUnreadInbox}`} label="unread"      color="#FF1F6E" />
+                    <StatTicket value={String(emails.length)}  label="imported"    color="#FFD000" />
+                    {unreadLeftApprox > 0 && (
+                      <StatTicket value={`~${unreadLeftApprox}`} label="left to load" color="#FF6B1A" />
+                    )}
+                    <div className="flex items-stretch gap-1">
+                      <MiniStat value={urgentCount} label="urgent" color="#FF1F6E" />
+                      <MiniStat value={todayCount}  label="today"  color="#FFD000" />
+                      <MiniStat value={fyiCount}    label="fyi"    color="#00E5C4" />
+                    </div>
+                    <div className="flex items-center">
+                      <AccountToggle
+                        active={activeAccount}
+                        onChange={handleAccountSwitch}
+                        loading={isLoading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Controls row */}
+                  {!workNeedsLink && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {/* Batch size picker */}
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Per refresh</span>
-                        <div className="flex rounded-full border border-zinc-200 bg-zinc-50 p-0.5 shadow-sm">
+                        <span style={{ fontSize: "0.54rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(255,245,224,0.32)" }}>
+                          Per refresh
+                        </span>
+                        <div className="flex rounded-full p-0.5" style={{ border: "1px solid rgba(255,245,224,0.10)", background: "rgba(255,245,224,0.03)" }}>
                           {IMPORT_BATCH_OPTIONS.map(n => (
                             <button
                               key={n}
                               type="button"
                               disabled={isLoading}
                               onClick={() => updateImportBatchSize(n)}
-                              className={`min-w-[2.25rem] px-2 py-1 text-xs font-semibold rounded-full transition-colors disabled:opacity-50 ${
-                                importBatchSize === n
-                                  ? "bg-white text-violet-700 shadow-sm"
-                                  : "text-zinc-600 hover:text-zinc-900"
-                              }`}
+                              className="min-w-9 px-2 py-1 rounded-full transition-colors disabled:opacity-40"
+                              style={{
+                                background: importBatchSize === n ? "#FF1F6E" : "transparent",
+                                color: importBatchSize === n ? "#FFF5E0" : "rgba(255,245,224,0.42)",
+                                fontSize: "0.7rem",
+                                fontWeight: 600,
+                                border: "none",
+                                cursor: "pointer",
+                              }}
                             >
                               {n}
                             </button>
                           ))}
                         </div>
                       </div>
-                    )}
-                  </div>
-                  <p className="text-xs text-zinc-500 max-w-xl leading-relaxed">
-                    Estimates come from Gmail. This workspace only holds the current batch (up to {importBatchSize} per refresh).
-                    {unreadLeftApprox > 0
-                      ? " Refresh after you work through these to fetch and analyze the next chunk."
-                      : emails.length >= importBatchSize
-                        ? " You hit the batch cap; refresh to see if more unread are available."
-                        : " No extra unread estimated beyond this import."}
-                  </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={handleRoast}
-                      disabled={roasting || emails.length === 0}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-50 transition-colors"
-                    >
-                      {roasting ? "Roasting…" : "🔥 Roast my inbox"}
-                    </button>
-                    {roast && (
-                      <span className="flex items-center gap-1.5 text-xs max-w-lg">
-                        <span className="italic text-rose-600">&ldquo;{roast}&rdquo;</span>
-                        <button onClick={() => setRoast(null)} className="text-zinc-400 hover:text-zinc-600 leading-none">×</button>
-                      </span>
-                    )}
-                  </div>
 
+                      {/* Roast button */}
+                      <button
+                        onClick={handleRoast}
+                        disabled={roasting || emails.length === 0}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          padding: "6px 14px", borderRadius: 999,
+                          border: "1px solid rgba(255,107,26,0.40)",
+                          background: "rgba(255,107,26,0.09)",
+                          color: "#FF6B1A",
+                          fontSize: "0.72rem", fontWeight: 600,
+                          cursor: "pointer",
+                          opacity: roasting || emails.length === 0 ? 0.4 : 1,
+                        }}
+                      >
+                        {roasting ? "Roasting…" : "🔥 Roast my inbox"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Roast text */}
+                  {roast && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, maxWidth: 500 }}>
+                      <span style={{ fontSize: "0.73rem", fontStyle: "italic", color: "#FF6B1A", flex: 1 }}>
+                        &ldquo;{roast}&rdquo;
+                      </span>
+                      <button
+                        onClick={() => setRoast(null)}
+                        style={{ color: "rgba(255,245,224,0.32)", fontSize: "1rem", background: "none", border: "none", cursor: "pointer", lineHeight: 1, flexShrink: 0, marginTop: 1 }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Muted footnote */}
+                  <p style={{ fontSize: "0.62rem", color: "rgba(255,245,224,0.22)", maxWidth: 480, lineHeight: 1.5, margin: 0 }}>
+                    Gmail estimates. Batch: up to {importBatchSize} per refresh.
+                    {unreadLeftApprox > 0
+                      ? " Refresh after this batch to fetch the next chunk."
+                      : emails.length >= importBatchSize
+                        ? " Hit batch cap — refresh to check for more."
+                        : " No extra unread beyond this import."}
+                  </p>
                 </div>
               )}
             </div>
 
-            {/* Compose/Refresh + TODO cell — equal height siblings */}
-            <div className="flex items-stretch gap-3">
-              {/* Action buttons cell */}
-              <div className="flex items-center flex-wrap gap-3 justify-end px-4 py-3">
+            {/* Right: Action buttons + TODO widget */}
+            <div className="flex items-start gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 {workNeedsLink && activeAccountConfig.email && (
                   <button
                     type="button"
@@ -861,13 +932,17 @@ export default function Dashboard() {
                       signIn(
                         "google",
                         { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
-                        {
-                          login_hint: activeAccountConfig.email,
-                          prompt: "select_account consent",
-                        },
+                        { login_hint: activeAccountConfig.email, prompt: "select_account consent" },
                       )
                     }
-                    className="border border-amber-300 bg-amber-50 text-amber-900 text-sm font-medium px-4 py-2 rounded-full hover:bg-amber-100 transition-colors"
+                    style={{
+                      padding: "9px 20px", borderRadius: 999,
+                      border: "1px solid rgba(255,208,0,0.5)",
+                      background: "rgba(255,208,0,0.10)",
+                      color: "#FFD000",
+                      fontSize: "0.8rem", fontWeight: 600,
+                      cursor: "pointer",
+                    }}
                   >
                     Connect work Gmail
                   </button>
@@ -876,35 +951,70 @@ export default function Dashboard() {
                   type="button"
                   onClick={() => setComposeOpen(true)}
                   disabled={workNeedsLink}
-                  className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 text-sm font-medium px-4 py-2 rounded-full transition-colors shadow-sm disabled:opacity-50"
+                  style={{
+                    padding: "9px 20px", borderRadius: 999,
+                    border: "1px solid rgba(0,229,196,0.40)",
+                    background: "rgba(0,229,196,0.08)",
+                    color: "#00E5C4",
+                    fontSize: "0.8rem", fontWeight: 600,
+                    cursor: "pointer",
+                    opacity: workNeedsLink ? 0.4 : 1,
+                  }}
                 >
                   Compose
                 </button>
                 <button
                   onClick={loadInbox}
                   disabled={isLoading || workNeedsLink}
-                  className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-full transition-colors"
+                  style={{
+                    padding: "9px 24px", borderRadius: 999,
+                    background: isLoading || workNeedsLink ? "rgba(255,31,110,0.3)" : "#FF1F6E",
+                    color: "#FFF5E0",
+                    fontSize: "0.82rem", fontWeight: 700,
+                    letterSpacing: "0.07em",
+                    textTransform: "uppercase",
+                    cursor: isLoading || workNeedsLink ? "not-allowed" : "pointer",
+                    border: "none",
+                    fontFamily: "var(--font-body)",
+                    boxShadow: isLoading || workNeedsLink ? "none" : "0 4px 20px rgba(255,31,110,0.45)",
+                    transition: "all 0.15s ease",
+                  }}
                 >
-                  {appState === "fetching" ? "Fetching…"
-                    : appState === "proposing" ? "Analyzing…"
-                    : appState === "categorizing" ? "Sorting…"
-                    : appState === "ready" ? "Refresh"
-                    : "Load inbox"}
+                  {appState === "fetching"     ? "Fetching…"
+                    : appState === "proposing"   ? "Analyzing…"
+                    : appState === "categorizing"? "Sorting…"
+                    : appState === "ready"       ? "Refresh"
+                    : "Load Inbox"}
                 </button>
               </div>
 
-              {/* TODO cell — sticky to top-right */}
+              {/* TODO widget */}
               {appState === "ready" && todoEmails.length > 0 && (
-                <div className="sticky top-4 self-start bg-white rounded-2xl border-2 border-amber-300 shadow-sm overflow-hidden flex flex-col min-w-[220px] max-w-xs">
-                  <div className="relative flex items-center justify-between px-4 py-2.5 shrink-0">
-                    <div className="absolute inset-0 bg-amber-400 opacity-10" />
-                    <div className="relative flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                      <span className="text-sm font-semibold text-amber-900">★ TODO</span>
-                    </div>
-                    <span className="relative text-xs font-medium bg-white/70 text-amber-700 rounded-full px-2 py-0.5">{todoEmails.length}</span>
+                <div
+                  className="sticky top-4 self-start overflow-hidden"
+                  style={{
+                    background: "#160B30",
+                    border: "1px solid rgba(255,208,0,0.28)",
+                    borderRadius: 14,
+                    boxShadow: "0 4px 24px rgba(255,208,0,0.08)",
+                    minWidth: 220, maxWidth: 290,
+                  }}
+                >
+                  <div
+                    className="flex items-center justify-between px-4 py-2.5"
+                    style={{ background: "rgba(255,208,0,0.08)", borderBottom: "1px solid rgba(255,208,0,0.12)" }}
+                  >
+                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>★ TODO</span>
+                    <span style={{
+                      fontSize: "0.68rem", fontWeight: 700,
+                      background: "rgba(255,208,0,0.18)",
+                      color: "#FFD000",
+                      borderRadius: 99, padding: "1px 8px",
+                    }}>
+                      {todoEmails.length}
+                    </span>
                   </div>
-                  <div className="px-2 py-1 space-y-0.5 overflow-y-auto flex-1">
+                  <div className="px-2 py-1 space-y-0.5 overflow-y-auto" style={{ maxHeight: 240 }}>
                     {todoEmails.map(email => (
                       <EmailRow
                         key={email.id}
@@ -929,177 +1039,367 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div className="px-6 py-2 bg-transparent border-b border-[#e6dff6] text-[11px] text-zinc-500 flex flex-wrap items-center gap-2">
-          <span className="font-semibold text-zinc-700">Legend:</span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-[#e6dff6] bg-white px-2 py-0.5">
-            <span className="w-2 h-2 rounded-full bg-rose-500" /> urgent
+        {/* ══════════════════ LEGEND BAR ══════════════════════════════════════ */}
+        <div
+          className="flex flex-wrap items-center gap-3 px-7 py-2"
+          style={{ borderBottom: "1px solid rgba(255,245,224,0.05)" }}
+        >
+          <span style={{ fontSize: "0.57rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,245,224,0.28)" }}>
+            Priority:
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-[#e6dff6] bg-white px-2 py-0.5">
-            <span className="w-2 h-2 rounded-full bg-amber-400" /> today
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-[#e6dff6] bg-white px-2 py-0.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" /> fyi
-          </span>
+          {[
+            { color: "#FF1F6E", label: "urgent" },
+            { color: "#FFD000", label: "today" },
+            { color: "#00E5C4", label: "fyi" },
+          ].map(({ color, label }) => (
+            <span key={label} className="inline-flex items-center gap-1.5">
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+              <span style={{ fontSize: "0.58rem", color: "rgba(255,245,224,0.28)" }}>{label}</span>
+            </span>
+          ))}
         </div>
 
-      {/* Main area */}
-      <div className="flex">
-        {/* Block grid */}
-        <div className="flex-1 min-w-0 p-5">
-          {appState === "idle" && (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-4xl mb-3">📬</p>
-                <p className="text-zinc-500 text-sm">Click "Load inbox" to fetch and sort your emails.</p>
-              </div>
-            </div>
-          )}
+        {/* ══════════════════ MAIN CONTENT ════════════════════════════════════ */}
+        <div className="flex">
+          <div className="flex-1 min-w-0 p-5">
 
-          {isLoading && (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center space-y-3">
-                <div className="w-8 h-8 border-2 border-violet-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-sm text-zinc-500">
-                  {appState === "fetching" ? "Fetching your inbox…"
-                    : appState === "proposing" ? "Analyzing your email patterns…"
-                    : "Claude is sorting your emails…"}
+            {/* ── Idle ── */}
+            {appState === "idle" && (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-center">
+                  <p style={{ fontSize: "4rem", marginBottom: 14 }}>📬</p>
+                  <p style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", color: "rgba(255,245,224,0.45)", margin: "0 0 10px" }}>
+                    Ready for the fiesta?
+                  </p>
+                  <p style={{ fontSize: "0.78rem", color: "rgba(255,245,224,0.28)", margin: 0 }}>
+                    Hit &ldquo;Load Inbox&rdquo; to fetch and sort your emails.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Loading ── */}
+            {isLoading && (
+              <div className="h-64 flex items-center justify-center">
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
+                  <div className="fiesta-spinner" />
+                  <div style={{ textAlign: "center" }}>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", color: "#FF1F6E", margin: "0 0 6px", letterSpacing: "0.04em" }}>
+                      {appState === "fetching"      ? "FETCHING YOUR MAIL"
+                        : appState === "proposing"  ? "ANALYZING PATTERNS"
+                        : "SORTING THE FIESTA"}
+                    </p>
+                    <p style={{ fontSize: "0.7rem", color: "rgba(255,245,224,0.32)", margin: 0 }}>
+                      {appState === "fetching"      ? "Checking your inbox…"
+                        : appState === "proposing"  ? "Analyzing your email patterns…"
+                        : "Claude is categorizing your emails…"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Error ── */}
+            {appState === "error" && (
+              <div className="h-64 flex items-center justify-center">
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
+                  <p style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", color: "#FF1F6E", margin: 0 }}>
+                    ¡Ay, Caramba!
+                  </p>
+                  <p style={{ fontSize: "0.82rem", color: "rgba(255,245,224,0.48)", margin: 0, maxWidth: 420 }}>{errorMsg}</p>
+                  <button
+                    onClick={loadInbox}
+                    style={{ color: "#FF1F6E", fontSize: "0.8rem", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginTop: 4 }}
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Package cleanup banner ── */}
+            {appState === "ready" && packageCleanup && (
+              <div className="mb-4 overflow-hidden" style={{
+                background: "rgba(255,107,26,0.07)",
+                border: "1px solid rgba(255,107,26,0.28)",
+                borderRadius: 12,
+              }}>
+                <div className="flex items-center gap-3 px-4 py-2.5">
+                  <span style={{ fontSize: "0.8rem", color: "rgba(255,245,224,0.78)" }}>
+                    📦 Package from{" "}
+                    <span style={{ fontWeight: 700, color: "#FF6B1A" }}>{packageCleanup.sender}</span>
+                    {" "}arrived — {packageCleanup.emails.length} shipping email{packageCleanup.emails.length !== 1 ? "s" : ""} found.
+                  </span>
+                  <button
+                    onClick={() => setCleanupExpanded(v => !v)}
+                    style={{
+                      fontSize: "0.67rem", fontWeight: 600,
+                      padding: "3px 10px", borderRadius: 6,
+                      border: "1px solid rgba(255,107,26,0.35)",
+                      background: "rgba(255,107,26,0.12)",
+                      color: "#FF6B1A", cursor: "pointer",
+                    }}
+                  >
+                    {cleanupExpanded ? "▲ Hide" : "▼ Review"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const toDelete = [...cleanupChecked]
+                      await Promise.all(
+                        toDelete.map(id =>
+                          fetch("/api/gmail/delete", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ messageId: id, account: activeAccount }),
+                          }).catch(() => {})
+                        )
+                      )
+                      setEmails(prev => prev.filter(e => !cleanupChecked.has(e.id)))
+                      recordAction("cleanupDelete", { details: `Deleted ${toDelete.length} cleanup email${toDelete.length === 1 ? "" : "s"}` })
+                      setPackageCleanup(null)
+                      setCleanupExpanded(false)
+                    }}
+                    disabled={cleanupChecked.size === 0}
+                    style={{
+                      marginLeft: "auto", flexShrink: 0,
+                      padding: "4px 12px", borderRadius: 6,
+                      background: cleanupChecked.size === 0 ? "rgba(255,107,26,0.2)" : "#FF6B1A",
+                      color: "#FFF5E0",
+                      fontSize: "0.7rem", fontWeight: 700,
+                      border: "none", cursor: "pointer",
+                      opacity: cleanupChecked.size === 0 ? 0.4 : 1,
+                    }}
+                  >
+                    Delete {cleanupChecked.size > 0 ? `${cleanupChecked.size} ` : ""}selected
+                  </button>
+                  <button
+                    onClick={() => {
+                      const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
+                      const deliveredEmail = emails.find(e => e.packageDelivered && e.orderSender === packageCleanup.sender)
+                      if (deliveredEmail) {
+                        localStorage.setItem("inbox-ai:dismissed-cleanups", JSON.stringify([...dismissed, deliveredEmail.id]))
+                        recordAction("cleanupDismiss", { emailId: deliveredEmail.id, subject: deliveredEmail.subject })
+                      }
+                      setPackageCleanup(null)
+                      setCleanupExpanded(false)
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      padding: "4px 12px", borderRadius: 6,
+                      background: "transparent",
+                      color: "rgba(255,245,224,0.4)",
+                      fontSize: "0.7rem", fontWeight: 600,
+                      border: "1px solid rgba(255,245,224,0.10)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                {cleanupExpanded && (
+                  <div className="divide-y max-h-64 overflow-y-auto" style={{ borderTop: "1px solid rgba(255,107,26,0.18)" }}>
+                    {packageCleanup.emails.map(email => {
+                      const trackingMatch = email.snippet.match(
+                        /(?:tracking(?:\s*(?:number|#|no\.?)?)?[\s:]+|order(?:\s*(?:number|#|no\.?)?)?[\s:]+|#)([A-Z0-9][-A-Z0-9]{5,30})/i
+                      )
+                      const trackingInfo = trackingMatch ? trackingMatch[0].trim() : null
+                      return (
+                        <div key={email.id} className="flex items-center gap-3 px-4 py-2" style={{ borderColor: "rgba(255,245,224,0.05)" }}>
+                          <input
+                            type="checkbox"
+                            checked={cleanupChecked.has(email.id)}
+                            onChange={e => {
+                              setCleanupChecked(prev => {
+                                const next = new Set(prev)
+                                if (e.target.checked) next.add(email.id)
+                                else next.delete(email.id)
+                                return next
+                              })
+                            }}
+                            style={{ accentColor: "#FF6B1A", flexShrink: 0 }}
+                          />
+                          <button
+                            onClick={() => {
+                              setCleanupPreview({ id: email.id, subject: email.subject })
+                              setCleanupPreviewHtml(null)
+                              fetch(`/api/gmail/html?id=${encodeURIComponent(email.id)}&${gmailAccountQuery}`)
+                                .then(r => r.json())
+                                .then(d => setCleanupPreviewHtml(d.htmlBody ?? "<p>No content</p>"))
+                                .catch(() => setCleanupPreviewHtml("<p>Failed to load</p>"))
+                            }}
+                            className="flex-1 flex items-center gap-3 text-left min-w-0"
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          >
+                            <span style={{ fontSize: "0.73rem", fontWeight: 600, color: "rgba(255,245,224,0.78)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {email.subject}
+                            </span>
+                            {trackingInfo && (
+                              <span style={{ fontSize: "0.65rem", color: "#FF6B1A", fontFamily: "monospace", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
+                                {trackingInfo}
+                              </span>
+                            )}
+                            {email.date && (
+                              <span style={{ fontSize: "0.65rem", color: "rgba(255,245,224,0.28)", marginLeft: "auto", flexShrink: 0 }}>
+                                {email.date}
+                              </span>
+                            )}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Inbox zero ── */}
+            {appState === "ready" && visibleEmails.filter(e => !e.deletable).length === 0 && totalEmailsAtLoad > 0 && (
+              <div className="mb-4 text-center" style={{
+                background: "linear-gradient(135deg, rgba(0,229,196,0.10), rgba(184,240,0,0.07))",
+                border: "1px solid rgba(0,229,196,0.28)",
+                borderRadius: 20,
+                padding: "36px 24px",
+                boxShadow: "0 4px 40px rgba(0,229,196,0.07)",
+              }}>
+                <p style={{ fontSize: "3.5rem", marginBottom: 14 }}>🎉</p>
+                <p style={{ fontFamily: "var(--font-display)", fontSize: "2.2rem", color: "#00E5C4", margin: "0 0 10px", letterSpacing: "0.04em" }}>
+                  ¡INBOX ZERO!
+                </p>
+                <p style={{ fontSize: "0.78rem", color: "rgba(255,245,224,0.40)", margin: 0 }}>
+                  You triaged everything in this batch. Refresh to load more.
                 </p>
               </div>
-            </div>
-          )}
+            )}
 
-          {appState === "error" && (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center space-y-3">
-                <p className="text-zinc-700 font-medium">Something went wrong</p>
-                <p className="text-sm text-zinc-500">{errorMsg}</p>
-                <button onClick={loadInbox} className="text-sm text-violet-600 hover:underline">
-                  Try again
-                </button>
-              </div>
-            </div>
-          )}
-
-          {appState === "ready" && packageCleanup && (
-            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900 overflow-hidden">
-              <div className="flex items-center gap-3 px-4 py-2.5">
-                <span>📦 Package from <span className="font-medium">{packageCleanup.sender}</span> arrived — {packageCleanup.emails.length} shipping email{packageCleanup.emails.length !== 1 ? "s" : ""} found.</span>
-                <button
-                  onClick={() => setCleanupExpanded(v => !v)}
-                  className="text-amber-700 hover:text-amber-900 text-xs font-medium px-2 py-1 rounded hover:bg-amber-100 transition-colors"
+            {/* ── Daily Briefing ── */}
+            {appState === "ready" && briefingEmails.length > 0 && (
+              <div className="mb-4 flex flex-col overflow-hidden" style={{
+                background: "#160B30",
+                border: "1px solid rgba(255,31,110,0.22)",
+                borderRadius: 16,
+                boxShadow: "0 4px 28px rgba(255,31,110,0.08)",
+              }}>
+                <div
+                  className="flex items-center justify-between px-4 py-3"
+                  style={{ background: "rgba(255,31,110,0.11)", borderBottom: "1px solid rgba(255,31,110,0.13)" }}
                 >
-                  {cleanupExpanded ? "▲ Hide" : "▼ Review"}
-                </button>
-                <button
-                  onClick={async () => {
-                    const toDelete = [...cleanupChecked]
-                    await Promise.all(
-                      toDelete.map(id =>
-                        fetch("/api/gmail/delete", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ messageId: id, account: activeAccount }),
-                        }).catch(() => {})
-                      )
-                    )
-                    setEmails(prev => prev.filter(e => !cleanupChecked.has(e.id)))
-                    recordAction("cleanupDelete", {
-                      details: `Deleted ${toDelete.length} cleanup email${toDelete.length === 1 ? "" : "s"}`,
-                    })
-                    setPackageCleanup(null)
-                    setCleanupExpanded(false)
-                  }}
-                  disabled={cleanupChecked.size === 0}
-                  className="ml-auto shrink-0 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors"
-                >
-                  Delete {cleanupChecked.size > 0 ? `${cleanupChecked.size} ` : ""}selected
-                </button>
-                <button
-                  onClick={() => {
-                    const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
-                    const deliveredEmail = emails.find(e => e.packageDelivered && e.orderSender === packageCleanup.sender)
-                    if (deliveredEmail) {
-                      localStorage.setItem("inbox-ai:dismissed-cleanups", JSON.stringify([...dismissed, deliveredEmail.id]))
-                      recordAction("cleanupDismiss", {
-                        emailId: deliveredEmail.id,
-                        subject: deliveredEmail.subject,
-                      })
-                    }
-                    setPackageCleanup(null)
-                    setCleanupExpanded(false)
-                  }}
-                  className="shrink-0 text-amber-700 hover:text-amber-900 text-xs font-medium px-2 py-1.5 rounded-md hover:bg-amber-100 transition-colors"
-                >
-                  Dismiss
-                </button>
-              </div>
-              {cleanupExpanded && (
-                <div className="border-t border-amber-200 divide-y divide-amber-100 max-h-64 overflow-y-auto">
-                  {packageCleanup.emails.map(email => {
-                    const trackingMatch = email.snippet.match(
-                      /(?:tracking(?:\s*(?:number|#|no\.?)?)?[\s:]+|order(?:\s*(?:number|#|no\.?)?)?[\s:]+|#)([A-Z0-9][-A-Z0-9]{5,30})/i
-                    )
-                    const trackingInfo = trackingMatch ? trackingMatch[0].trim() : null
-                    return (
-                      <div key={email.id} className="flex items-center gap-3 px-4 py-2 hover:bg-amber-100 transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={cleanupChecked.has(email.id)}
-                          onChange={e => {
-                            setCleanupChecked(prev => {
-                              const next = new Set(prev)
-                              if (e.target.checked) next.add(email.id)
-                              else next.delete(email.id)
-                              return next
-                            })
-                          }}
-                          className="accent-amber-600 shrink-0"
-                        />
-                        <button
-                          onClick={() => {
-                            setCleanupPreview({ id: email.id, subject: email.subject })
-                            setCleanupPreviewHtml(null)
-                            fetch(`/api/gmail/html?id=${encodeURIComponent(email.id)}&${gmailAccountQuery}`)
-                              .then(r => r.json())
-                              .then(d => setCleanupPreviewHtml(d.htmlBody ?? "<p>No content</p>"))
-                              .catch(() => setCleanupPreviewHtml("<p>Failed to load</p>"))
-                          }}
-                          className="flex-1 flex items-center gap-3 text-left min-w-0"
-                        >
-                          <span className="text-xs font-medium text-amber-900 truncate">{email.subject}</span>
-                          {trackingInfo && <span className="text-xs text-amber-600 font-mono shrink-0 truncate max-w-[160px]">{trackingInfo}</span>}
-                          {email.date && <span className="text-xs text-amber-400 shrink-0 ml-auto">{email.date}</span>}
-                        </button>
-                      </div>
-                    )
-                  })}
+                  <div className="flex items-center gap-2.5">
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF1F6E", display: "inline-block", boxShadow: "0 0 10px rgba(255,31,110,0.9)", flexShrink: 0 }} />
+                    <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", color: "#FFF5E0", margin: 0, letterSpacing: "0.05em" }}>
+                      DAILY BRIEFING
+                    </h2>
+                  </div>
+                  <span style={{
+                    fontSize: "0.7rem", fontWeight: 700,
+                    background: "rgba(255,31,110,0.20)",
+                    color: "#FF1F6E",
+                    borderRadius: 99, padding: "2px 10px",
+                  }}>
+                    {briefingEmails.length}
+                  </span>
                 </div>
-              )}
-            </div>
-          )}
-
-          {appState === "ready" && visibleEmails.filter(e => !e.deletable).length === 0 && totalEmailsAtLoad > 0 && (
-            <div className="mb-4 rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-6 text-center shadow-sm">
-              <p className="text-3xl mb-2">🎉</p>
-              <p className="text-sm font-semibold text-emerald-800">Inbox zero!</p>
-              <p className="text-xs text-emerald-600 mt-1">You triaged everything in this batch. Refresh to load more.</p>
-            </div>
-          )}
-
-          {appState === "ready" && briefingEmails.length > 0 && (
-            <div className="mb-4 bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm">
-              <div className="relative flex items-center justify-between px-4 py-3">
-                <div className="absolute inset-0 -z-0 bg-violet-500 opacity-10 rounded-t-2xl" />
-                <div className="relative flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                  <h2 className="text-sm font-semibold text-zinc-800">Daily briefing</h2>
+                <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
+                  {briefingEmails.map(email => (
+                    <div key={email.id}>
+                      <EmailRow
+                        email={email}
+                        selected={email.id === selectedEmail?.id}
+                        isSelected={false}
+                        selectionMode={false}
+                        onClick={() => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                        onMarkRead={() => { void handleMarkRead(email) }}
+                        onDelete={() => { void handleDelete(email) }}
+                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                        onToggleTodo={() => handleToggleTodo(email)}
+                        onSnooze={() => setSnoozeTarget(email)}
+                      />
+                      {email.id === selectedEmail?.id && (
+                        <div className="mt-1 mb-2">
+                          <DetailPanel
+                            email={selectedEmail}
+                            gmailAccount={activeAccount}
+                            categories={categories}
+                            onClose={() => setSelectedEmail(null)}
+                            onArchive={handleArchive}
+                            onMarkRead={handleMarkRead}
+                            onSaveDraft={handleSaveDraft}
+                            onSend={handleSendMessage}
+                            onStar={handleStar}
+                            onDelete={handleDelete}
+                            onRecategorize={handleRecategorize}
+                            onMarkReplied={handleMarkReplied}
+                            onMarkDeletable={handleMarkDeletable}
+                            onNewCategory={handleNewCategory}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <span className="relative text-xs font-medium bg-white/70 text-zinc-600 rounded-full px-2 py-0.5">{briefingEmails.length}</span>
               </div>
-              <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
-                {briefingEmails.map(email => (
-                  <div key={email.id}>
+            )}
+
+            {/* ── Category grid ── */}
+            {appState === "ready" && categories.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {categories.map(cat => (
+                  <CategoryBlock
+                    key={cat.id}
+                    category={cat}
+                    categories={categories}
+                    emails={emails.filter(e => e.category === cat.name)}
+                    selectedEmail={selectedEmail?.category === cat.name ? selectedEmail : null}
+                    onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                    onExpand={(email, composeMode) => {
+                      setExpandedEmail(email)
+                      setExpandedComposeMode(composeMode ?? null)
+                    }}
+                    onClose={() => setSelectedEmail(null)}
+                    onMarkRead={handleMarkRead}
+                    onArchive={handleArchive}
+                    onSaveDraft={handleSaveDraft}
+                    onSend={handleSendMessage}
+                    onStar={handleStar}
+                    onDelete={handleDelete}
+                    onRecategorize={handleRecategorize}
+                    onMarkReplied={handleMarkReplied}
+                    onMarkDeletable={handleMarkDeletable}
+                    onNewCategory={handleNewCategory}
+                    gmailAccount={activeAccount}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* ── Delete candidates ── */}
+            {appState === "ready" && deletableEmails.length > 0 && (
+              <div className="mt-4 overflow-hidden" style={{
+                background: "#160B30",
+                border: "1px solid rgba(255,245,224,0.07)",
+                borderRadius: 16,
+              }}>
+                <div
+                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+                  style={{ borderBottom: "1px solid rgba(255,245,224,0.06)" }}
+                >
+                  <div>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: "0.92rem", color: "rgba(255,245,224,0.62)", margin: "0 0 2px", letterSpacing: "0.05em" }}>
+                      DELETE CANDIDATES
+                    </p>
+                    <p style={{ fontSize: "0.64rem", color: "rgba(255,245,224,0.28)", margin: 0 }}>
+                      Old offers, expired links, OTPs, or delivery confirmations.
+                    </p>
+                  </div>
+                  <span style={{ fontSize: "0.66rem", color: "rgba(255,245,224,0.30)" }}>
+                    {deletableEmails.length} emails
+                  </span>
+                </div>
+                <div className="mt-1 space-y-0.5 px-2 pb-2 max-h-72 overflow-y-auto">
+                  {deletableEmails.map(email => (
                     <EmailRow
+                      key={email.id}
                       email={email}
                       selected={email.id === selectedEmail?.id}
                       isSelected={false}
@@ -1110,156 +1410,89 @@ export default function Dashboard() {
                       onDelete={() => { void handleDelete(email) }}
                       onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
                       onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                      onToggleTodo={() => handleToggleTodo(email)}
-                      onSnooze={() => setSnoozeTarget(email)}
                     />
-                    {email.id === selectedEmail?.id && (
-                      <div className="mt-1 mb-2">
-                        <DetailPanel
-                          email={selectedEmail}
-                          gmailAccount={activeAccount}
-                          categories={categories}
-                          onClose={() => setSelectedEmail(null)}
-                          onArchive={handleArchive}
-                          onMarkRead={handleMarkRead}
-                          onSaveDraft={handleSaveDraft}
-                          onSend={handleSendMessage}
-                          onStar={handleStar}
-                          onDelete={handleDelete}
-                          onRecategorize={handleRecategorize}
-                          onMarkReplied={handleMarkReplied}
-                          onMarkDeletable={handleMarkDeletable}
-                          onNewCategory={handleNewCategory}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {appState === "ready" && categories.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-
-              {categories.map(cat => (
-                <CategoryBlock
-                  key={cat.id}
-                  category={cat}
-                  categories={categories}
-                  emails={emails.filter(e => e.category === cat.name)}
-                  selectedEmail={selectedEmail?.category === cat.name ? selectedEmail : null}
-                  onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
-                  onExpand={(email, composeMode) => {
-                    setExpandedEmail(email)
-                    setExpandedComposeMode(composeMode ?? null)
-                  }}
-                  onClose={() => setSelectedEmail(null)}
-                  onMarkRead={handleMarkRead}
-                  onArchive={handleArchive}
-                  onSaveDraft={handleSaveDraft}
-                  onSend={handleSendMessage}
-                  onStar={handleStar}
-                  onDelete={handleDelete}
-                  onRecategorize={handleRecategorize}
-                  onMarkReplied={handleMarkReplied}
-                  onMarkDeletable={handleMarkDeletable}
-                  onNewCategory={handleNewCategory}
-                  gmailAccount={activeAccount}
-                />
-              ))}
-            </div>
-          )}
-
-          {appState === "ready" && deletableEmails.length > 0 && (
-            <div className="mt-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-zinc-200">
-                <div>
-                  <p className="text-sm font-semibold text-zinc-900">Delete candidates</p>
-                  <p className="text-xs text-zinc-500">Emails likely safe to remove — old offers, expired links, OTPs, or delivery confirmations.</p>
+                  ))}
                 </div>
-                <span className="text-xs text-zinc-500">{deletableEmails.length} emails</span>
               </div>
-              <div className="mt-3 space-y-2 max-h-72 overflow-y-auto">
-                {deletableEmails.map(email => (
-                  <EmailRow
-                    key={email.id}
-                    email={email}
-                    selected={email.id === selectedEmail?.id}
-                    isSelected={false}
-                    selectionMode={false}
-                    onClick={() => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
-                    onDoubleClick={() => {
-                      setExpandedEmail(email)
-                      setExpandedComposeMode(null)
-                    }}
-                    onMarkRead={() => { void handleMarkRead(email) }}
-                    onDelete={() => { void handleDelete(email) }}
-                    onReply={() => {
-                      setExpandedEmail(email)
-                      setExpandedComposeMode("reply")
-                    }}
-                    onForward={() => {
-                      setExpandedEmail(email)
-                      setExpandedComposeMode("forward")
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            )}
 
-      </div>
-
-      {expandedEmail && (
-        <EmailModal
-          email={expandedEmail}
-          initialComposeMode={expandedComposeMode}
-          gmailAccount={activeAccount}
-          onClose={() => {
-            setExpandedEmail(null)
-            setExpandedComposeMode(null)
-          }}
-          onMarkRead={handleMarkRead}
-          onStar={handleStar}
-          onArchive={handleArchive}
-          onDelete={handleDelete}
-          onSaveDraft={handleSaveDraft}
-          onSend={handleSendMessage}
-          onToggleTodo={handleToggleTodo}
-          onSnooze={email => setSnoozeTarget(email)}
-        />
-      )}
-
-      <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} gmailAccount={activeAccount} />
-
-      {snoozeTarget && (
-        <SnoozeModal
-          email={snoozeTarget}
-          onSnooze={handleSnooze}
-          onClose={() => setSnoozeTarget(null)}
-        />
-      )}
-
-      {confetti && <ConfettiBlast onDone={() => setConfetti(false)} />}
-
-      {cleanupPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setCleanupPreview(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-[720px] max-w-[95vw] max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200 shrink-0">
-              <span className="text-sm font-medium text-zinc-800 truncate pr-4">{cleanupPreview.subject}</span>
-              <button onClick={() => setCleanupPreview(null)} className="text-zinc-400 hover:text-zinc-600 text-lg leading-none shrink-0">✕</button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              {cleanupPreviewHtml === null
-                ? <div className="flex items-center justify-center h-40 text-sm text-zinc-400">Loading…</div>
-                : <iframe srcDoc={cleanupPreviewHtml} className="w-full h-full border-0" sandbox="allow-same-origin" />
-              }
-            </div>
           </div>
         </div>
-      )}
+
+        {/* ══════════════════ MODALS ══════════════════════════════════════════ */}
+
+        {expandedEmail && (
+          <EmailModal
+            email={expandedEmail}
+            initialComposeMode={expandedComposeMode}
+            gmailAccount={activeAccount}
+            onClose={() => { setExpandedEmail(null); setExpandedComposeMode(null) }}
+            onMarkRead={handleMarkRead}
+            onStar={handleStar}
+            onArchive={handleArchive}
+            onDelete={handleDelete}
+            onSaveDraft={handleSaveDraft}
+            onSend={handleSendMessage}
+            onToggleTodo={handleToggleTodo}
+            onSnooze={email => setSnoozeTarget(email)}
+          />
+        )}
+
+        <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} gmailAccount={activeAccount} />
+
+        {snoozeTarget && (
+          <SnoozeModal
+            email={snoozeTarget}
+            onSnooze={handleSnooze}
+            onClose={() => setSnoozeTarget(null)}
+          />
+        )}
+
+        {confetti && <ConfettiBlast onDone={() => setConfetti(false)} />}
+
+        {/* Cleanup preview modal */}
+        {cleanupPreview && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}
+            onClick={() => setCleanupPreview(null)}
+          >
+            <div
+              className="flex flex-col"
+              style={{
+                background: "#160B30",
+                border: "1px solid rgba(255,245,224,0.10)",
+                borderRadius: 16,
+                boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
+                width: 720, maxWidth: "95vw", maxHeight: "85vh",
+                overflow: "hidden",
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div
+                className="flex items-center justify-between px-5 py-3 shrink-0"
+                style={{ borderBottom: "1px solid rgba(255,245,224,0.08)" }}
+              >
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "rgba(255,245,224,0.82)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: 16 }}>
+                  {cleanupPreview.subject}
+                </span>
+                <button
+                  onClick={() => setCleanupPreview(null)}
+                  style={{ color: "rgba(255,245,224,0.38)", fontSize: "1.2rem", background: "none", border: "none", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                {cleanupPreviewHtml === null
+                  ? <div className="flex items-center justify-center h-40" style={{ fontSize: "0.8rem", color: "rgba(255,245,224,0.28)" }}>Loading…</div>
+                  : <iframe srcDoc={cleanupPreviewHtml} className="w-full h-full border-0" sandbox="allow-same-origin" style={{ background: "white" }} />
+                }
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )

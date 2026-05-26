@@ -26,12 +26,37 @@ interface Props {
   gmailAccount: AccountId
 }
 
-export default function CategoryBlock({ category, categories, emails, selectedEmail, onSelect, onExpand, onClose, onMarkRead, onArchive, onSaveDraft, onSend, onStar, onDelete, onRecategorize, onMarkReplied, onMarkDeletable, onNewCategory, gmailAccount }: Props) {
+/** Deterministic festival accent from category name */
+function getCategoryAccent(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash) + name.charCodeAt(i)
+    hash |= 0
+  }
+  const accents = [
+    { header: "#FF1F6E", text: "#FFF5E0", border: "rgba(255,31,110,0.30)",  glow: "rgba(255,31,110,0.10)" },
+    { header: "#FFD000", text: "#0D0821", border: "rgba(255,208,0,0.30)",   glow: "rgba(255,208,0,0.10)" },
+    { header: "#00E5C4", text: "#0D0821", border: "rgba(0,229,196,0.30)",   glow: "rgba(0,229,196,0.10)" },
+    { header: "#FF6B1A", text: "#FFF5E0", border: "rgba(255,107,26,0.30)",  glow: "rgba(255,107,26,0.10)" },
+    { header: "#C084FC", text: "#0D0821", border: "rgba(192,132,252,0.30)", glow: "rgba(192,132,252,0.10)" },
+    { header: "#B8F000", text: "#0D0821", border: "rgba(184,240,0,0.30)",   glow: "rgba(184,240,0,0.10)" },
+  ]
+  return accents[Math.abs(hash) % accents.length]
+}
+
+export default function CategoryBlock({
+  category, categories, emails, selectedEmail,
+  onSelect, onExpand, onClose,
+  onMarkRead, onArchive, onSaveDraft, onSend,
+  onStar, onDelete, onRecategorize, onMarkReplied,
+  onMarkDeletable, onNewCategory, gmailAccount,
+}: Props) {
   const sorted = [...emails].sort((a, b) => a.internalDate - b.internalDate)
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
 
   const selectionMode = bulkSelected.size > 0
   const allSelected = sorted.length > 0 && bulkSelected.size === sorted.length
+  const accent = getCategoryAccent(category.name)
 
   function toggleSelectAll() {
     setBulkSelected(allSelected ? new Set() : new Set(sorted.map(e => e.id)))
@@ -64,24 +89,58 @@ export default function CategoryBlock({ category, categories, emails, selectedEm
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm">
-      {/* Header */}
-      <div className="relative flex items-center justify-between px-4 py-3">
-        <div className={`absolute inset-0 -z-0 ${category.color} opacity-10 rounded-t-2xl`} />
-        <div className="relative flex items-center gap-2">
-          <span className={`w-2.5 h-2.5 rounded-full ${category.color}`} />
-          <h2 className="text-sm font-semibold text-zinc-800">{category.name}</h2>
-        </div>
-        <div className="relative flex items-center gap-2">
+    <div
+      className="flex flex-col overflow-hidden"
+      style={{
+        background: "#160B30",
+        border: `1px solid ${accent.border}`,
+        borderRadius: 16,
+        boxShadow: `0 4px 28px ${accent.glow}`,
+      }}
+    >
+      {/* ── Header band ──────────────────────────────── */}
+      <div
+        className="flex items-center justify-between px-4 py-2.5"
+        style={{ background: accent.header }}
+      >
+        <h2
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "0.92rem",
+            letterSpacing: "0.06em",
+            color: accent.text,
+            margin: 0,
+          }}
+        >
+          {category.name.toUpperCase()}
+        </h2>
+        <div className="flex items-center gap-2">
           {emails.length > 0 && (
-            <span className="text-xs font-medium bg-white/70 text-zinc-600 rounded-full px-2 py-0.5">
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                background: "rgba(0,0,0,0.22)",
+                color: accent.text,
+                borderRadius: 99,
+                padding: "1px 9px",
+              }}
+            >
               {emails.length}
             </span>
           )}
           {emails.length > 0 && (
             <button
               onClick={toggleSelectAll}
-              className="text-xs text-zinc-400 hover:text-zinc-700 hover:bg-white/80 px-2 py-0.5 rounded-full transition-colors"
+              style={{
+                fontSize: "0.62rem",
+                color: accent.text,
+                opacity: 0.72,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+              }}
             >
               {allSelected ? "Deselect all" : "Select all"}
             </button>
@@ -89,41 +148,61 @@ export default function CategoryBlock({ category, categories, emails, selectedEm
         </div>
       </div>
 
-      {/* Bulk action bar */}
+      {/* ── Bulk action bar ───────────────────────────── */}
       {selectionMode && (
-        <div className="flex items-center gap-1.5 px-3 py-2 bg-zinc-50 border-b border-zinc-100">
-          <span className="text-xs text-zinc-400 mr-1">{bulkSelected.size} selected</span>
-          <button
-            onClick={handleBulkMarkRead}
-            className="text-xs px-2 py-1 rounded border border-zinc-200 text-zinc-600 hover:bg-white transition-colors"
-          >
-            Mark read
-          </button>
-          <button
-            onClick={handleBulkArchive}
-            className="text-xs px-2 py-1 rounded border border-zinc-200 text-zinc-600 hover:bg-white transition-colors"
-          >
-            Archive
-          </button>
-          <button
-            onClick={handleBulkDelete}
-            className="text-xs px-2 py-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors"
-          >
-            Delete
-          </button>
+        <div
+          className="flex items-center gap-1.5 px-3 py-2"
+          style={{
+            background: "rgba(255,245,224,0.04)",
+            borderBottom: "1px solid rgba(255,245,224,0.07)",
+          }}
+        >
+          <span style={{ fontSize: "0.68rem", color: "rgba(255,245,224,0.45)", marginRight: 4 }}>
+            {bulkSelected.size} selected
+          </span>
+          {[
+            { label: "Mark read", handler: handleBulkMarkRead, danger: false },
+            { label: "Archive",   handler: handleBulkArchive,  danger: false },
+            { label: "Delete",    handler: handleBulkDelete,   danger: true  },
+          ].map(({ label, handler, danger }) => (
+            <button
+              key={label}
+              onClick={handler}
+              style={{
+                fontSize: "0.66rem",
+                padding: "2px 8px",
+                borderRadius: 5,
+                border: `1px solid ${danger ? "rgba(255,31,110,0.35)" : "rgba(255,245,224,0.14)"}`,
+                background: danger ? "rgba(255,31,110,0.10)" : "rgba(255,245,224,0.05)",
+                color: danger ? "#FF1F6E" : "rgba(255,245,224,0.58)",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
           <button
             onClick={() => setBulkSelected(new Set())}
-            className="text-xs text-zinc-400 hover:text-zinc-600 ml-auto transition-colors"
+            style={{
+              marginLeft: "auto",
+              fontSize: "0.66rem",
+              color: "rgba(255,245,224,0.32)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
           >
             Cancel
           </button>
         </div>
       )}
 
-      {/* Email list */}
+      {/* ── Email list ────────────────────────────────── */}
       <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
         {sorted.length === 0 ? (
-          <p className="text-xs text-zinc-400 text-center py-4">All clear ✓</p>
+          <p style={{ fontSize: "0.7rem", color: "rgba(255,245,224,0.28)", textAlign: "center", padding: "16px 0", margin: 0 }}>
+            All clear ✓
+          </p>
         ) : (
           sorted.map(email => (
             <div key={email.id}>
