@@ -60,7 +60,7 @@ function StatTicket({ value, label, color }: { value: string; label: string; col
       <div style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color }}>
         {value}
       </div>
-      <div style={{ fontSize: "0.56rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.40)", marginTop: 3 }}>
+      <div style={{ fontSize: "0.56rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.62)", marginTop: 3 }}>
         {label}
       </div>
     </div>
@@ -79,7 +79,7 @@ function MiniStat({ value, label, color }: { value: number; label: string; color
       <div style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem", lineHeight: 1, color }}>
         {value}
       </div>
-      <div style={{ fontSize: "0.53rem", textTransform: "uppercase", letterSpacing: "0.09em", color: "rgba(26,10,53,0.36)", marginTop: 1 }}>
+      <div style={{ fontSize: "0.53rem", textTransform: "uppercase", letterSpacing: "0.09em", color: "rgba(26,10,53,0.60)", marginTop: 1 }}>
         {label}
       </div>
     </div>
@@ -848,7 +848,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-3 flex-wrap">
                       {/* Batch size picker */}
                       <div className="flex flex-col gap-0.5">
-                        <span style={{ fontSize: "0.54rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.32)" }}>
+                        <span style={{ fontSize: "0.54rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.56)" }}>
                           Per refresh
                         </span>
                         <div className="flex rounded-full p-0.5" style={{ border: "1px solid rgba(26,10,53,0.10)", background: "rgba(26,10,53,0.03)" }}>
@@ -902,7 +902,7 @@ export default function Dashboard() {
                       </span>
                       <button
                         onClick={() => setRoast(null)}
-                        style={{ color: "rgba(26,10,53,0.32)", fontSize: "1rem", background: "none", border: "none", cursor: "pointer", lineHeight: 1, flexShrink: 0, marginTop: 1 }}
+                        style={{ color: "rgba(26,10,53,0.56)", fontSize: "1rem", background: "none", border: "none", cursor: "pointer", lineHeight: 1, flexShrink: 0, marginTop: 1 }}
                       >
                         ×
                       </button>
@@ -910,7 +910,7 @@ export default function Dashboard() {
                   )}
 
                   {/* Muted footnote */}
-                  <p style={{ fontSize: "0.62rem", color: "rgba(26,10,53,0.22)", maxWidth: 480, lineHeight: 1.5, margin: 0 }}>
+                  <p style={{ fontSize: "0.62rem", color: "rgba(26,10,53,0.52)", maxWidth: 480, lineHeight: 1.5, margin: 0 }}>
                     Gmail estimates. Batch: up to {importBatchSize} per refresh.
                     {unreadLeftApprox > 0
                       ? " Refresh after this batch to fetch the next chunk."
@@ -1044,7 +1044,7 @@ export default function Dashboard() {
           className="flex flex-wrap items-center gap-3 px-7 py-2"
           style={{ borderBottom: "1px solid rgba(26,10,53,0.05)" }}
         >
-          <span style={{ fontSize: "0.57rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(26,10,53,0.28)" }}>
+          <span style={{ fontSize: "0.57rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(26,10,53,0.60)" }}>
             Priority:
           </span>
           {[
@@ -1054,7 +1054,7 @@ export default function Dashboard() {
           ].map(({ color, label }) => (
             <span key={label} className="inline-flex items-center gap-1.5">
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
-              <span style={{ fontSize: "0.58rem", color: "rgba(26,10,53,0.28)" }}>{label}</span>
+              <span style={{ fontSize: "0.58rem", color: "rgba(26,10,53,0.60)" }}>{label}</span>
             </span>
           ))}
         </div>
@@ -1071,7 +1071,7 @@ export default function Dashboard() {
                   <p style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", color: "rgba(26,10,53,0.45)", margin: "0 0 10px" }}>
                     Ready for the fiesta?
                   </p>
-                  <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.28)", margin: 0 }}>
+                  <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.60)", margin: 0 }}>
                     Hit &ldquo;Load Inbox&rdquo; to fetch and sort your emails.
                   </p>
                 </div>
@@ -1089,7 +1089,7 @@ export default function Dashboard() {
                         : appState === "proposing"  ? "ANALYZING PATTERNS"
                         : "SORTING THE FIESTA"}
                     </p>
-                    <p style={{ fontSize: "0.7rem", color: "rgba(26,10,53,0.32)", margin: 0 }}>
+                    <p style={{ fontSize: "0.7rem", color: "rgba(26,10,53,0.56)", margin: 0 }}>
                       {appState === "fetching"      ? "Checking your inbox…"
                         : appState === "proposing"  ? "Analyzing your email patterns…"
                         : "Claude is categorizing your emails…"}
@@ -1239,7 +1239,7 @@ export default function Dashboard() {
                               </span>
                             )}
                             {email.date && (
-                              <span style={{ fontSize: "0.65rem", color: "rgba(26,10,53,0.28)", marginLeft: "auto", flexShrink: 0 }}>
+                              <span style={{ fontSize: "0.65rem", color: "rgba(26,10,53,0.60)", marginLeft: "auto", flexShrink: 0 }}>
                                 {email.date}
                               </span>
                             )}
@@ -1265,7 +1265,7 @@ export default function Dashboard() {
                 <p style={{ fontFamily: "var(--font-display)", fontSize: "2.2rem", color: "#00E5C4", margin: "0 0 10px", letterSpacing: "0.04em" }}>
                   ¡INBOX ZERO!
                 </p>
-                <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.40)", margin: 0 }}>
+                <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.62)", margin: 0 }}>
                   You triaged everything in this batch. Refresh to load more.
                 </p>
               </div>
@@ -1388,11 +1388,11 @@ export default function Dashboard() {
                     <p style={{ fontFamily: "var(--font-display)", fontSize: "0.92rem", color: "rgba(26,10,53,0.62)", margin: "0 0 2px", letterSpacing: "0.05em" }}>
                       DELETE CANDIDATES
                     </p>
-                    <p style={{ fontSize: "0.64rem", color: "rgba(26,10,53,0.28)", margin: 0 }}>
+                    <p style={{ fontSize: "0.64rem", color: "rgba(26,10,53,0.60)", margin: 0 }}>
                       Old offers, expired links, OTPs, or delivery confirmations.
                     </p>
                   </div>
-                  <span style={{ fontSize: "0.66rem", color: "rgba(26,10,53,0.30)" }}>
+                  <span style={{ fontSize: "0.66rem", color: "rgba(26,10,53,0.55)" }}>
                     {deletableEmails.length} emails
                   </span>
                 </div>
@@ -1485,7 +1485,7 @@ export default function Dashboard() {
               </div>
               <div className="flex-1 overflow-hidden">
                 {cleanupPreviewHtml === null
-                  ? <div className="flex items-center justify-center h-40" style={{ fontSize: "0.8rem", color: "rgba(26,10,53,0.28)" }}>Loading…</div>
+                  ? <div className="flex items-center justify-center h-40" style={{ fontSize: "0.8rem", color: "rgba(26,10,53,0.60)" }}>Loading…</div>
                   : <iframe srcDoc={cleanupPreviewHtml} className="w-full h-full border-0" sandbox="allow-same-origin" style={{ background: "white" }} />
                 }
               </div>
@@ -1497,4 +1497,5 @@ export default function Dashboard() {
     </div>
   )
 }
+
 

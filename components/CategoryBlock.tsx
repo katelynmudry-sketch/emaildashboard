@@ -157,7 +157,7 @@ export default function CategoryBlock({
             borderBottom: "1px solid rgba(26,10,53,0.07)",
           }}
         >
-          <span style={{ fontSize: "0.68rem", color: "rgba(26,10,53,0.45)", marginRight: 4 }}>
+          <span style={{ fontSize: "0.68rem", color: "rgba(26,10,53,0.65)", marginRight: 4 }}>
             {bulkSelected.size} selected
           </span>
           {[
@@ -174,7 +174,7 @@ export default function CategoryBlock({
                 borderRadius: 5,
                 border: `1px solid ${danger ? "rgba(255,31,110,0.35)" : "rgba(26,10,53,0.14)"}`,
                 background: danger ? "rgba(255,31,110,0.10)" : "rgba(26,10,53,0.05)",
-                color: danger ? "#FF1F6E" : "rgba(26,10,53,0.58)",
+                color: danger ? "#FF1F6E" : "rgba(26,10,53,0.72)",
                 cursor: "pointer",
               }}
             >
@@ -186,7 +186,7 @@ export default function CategoryBlock({
             style={{
               marginLeft: "auto",
               fontSize: "0.66rem",
-              color: "rgba(26,10,53,0.32)",
+              color: "rgba(26,10,53,0.56)",
               background: "none",
               border: "none",
               cursor: "pointer",
@@ -200,7 +200,7 @@ export default function CategoryBlock({
       {/* ── Email list ────────────────────────────────── */}
       <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
         {sorted.length === 0 ? (
-          <p style={{ fontSize: "0.7rem", color: "rgba(26,10,53,0.28)", textAlign: "center", padding: "16px 0", margin: 0 }}>
+          <p style={{ fontSize: "0.7rem", color: "rgba(26,10,53,0.72)", textAlign: "center", padding: "16px 0", margin: 0 }}>
             All clear ✓
           </p>
         ) : (
@@ -245,4 +245,5 @@ export default function CategoryBlock({
     </div>
   )
 }
+
 
