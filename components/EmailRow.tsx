@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import type { Email } from "@/lib/types"
 
@@ -40,7 +40,7 @@ export default function EmailRow({
     : selected
     ? "rgba(0,229,196,0.08)"
     : email.deletable
-    ? "rgba(255,245,224,0.03)"
+    ? "rgba(26,10,53,0.03)"
     : "transparent"
 
   return (
@@ -71,7 +71,7 @@ export default function EmailRow({
             className="shrink-0 flex items-center justify-center rounded-full border-2 transition-colors"
             style={{
               width: 16, height: 16,
-              borderColor: isSelected ? "#FFD000" : "rgba(255,245,224,0.25)",
+              borderColor: isSelected ? "#FFD000" : "rgba(26,10,53,0.25)",
               background: isSelected ? "#FFD000" : "transparent",
             }}
           >
@@ -86,13 +86,13 @@ export default function EmailRow({
           <div className="flex items-baseline gap-2 min-w-0">
             <span
               className="font-semibold shrink-0 truncate"
-              style={{ fontSize: "0.75rem", color: "#FFF5E0", maxWidth: 120 }}
+              style={{ fontSize: "0.75rem", color: "#1A0A35", maxWidth: 120 }}
             >
               {(email.from?.split("<")[0] ?? email.from ?? "").trim()}
             </span>
             <span
               className="truncate flex-1 min-w-0"
-              style={{ fontSize: "0.72rem", color: "rgba(255,245,224,0.55)" }}
+              style={{ fontSize: "0.72rem", color: "rgba(26,10,53,0.55)" }}
             >
               {email.subject}
             </span>
@@ -100,7 +100,7 @@ export default function EmailRow({
           {email.microSummary && (
             <p
               className="truncate mt-0.5"
-              style={{ fontSize: "0.65rem", color: "rgba(255,245,224,0.32)", margin: "2px 0 0" }}
+              style={{ fontSize: "0.65rem", color: "rgba(26,10,53,0.32)", margin: "2px 0 0" }}
             >
               {email.microSummary}
             </p>
@@ -113,9 +113,9 @@ export default function EmailRow({
             <span style={{ fontSize: "0.6rem", color: "#FFD000" }}>★</span>
           )}
           {email.replied && (
-            <span style={{ fontSize: "0.62rem", color: "rgba(255,245,224,0.28)" }}>↩</span>
+            <span style={{ fontSize: "0.62rem", color: "rgba(26,10,53,0.28)" }}>↩</span>
           )}
-          <span style={{ fontSize: "0.62rem", color: "rgba(255,245,224,0.28)" }}>
+          <span style={{ fontSize: "0.62rem", color: "rgba(26,10,53,0.28)" }}>
             {email.date ? formatEmailDate(email.date) : ""}
           </span>
 
@@ -128,8 +128,8 @@ export default function EmailRow({
                 onClick={e => { e.stopPropagation(); onMarkRead() }}
                 style={{
                   padding: "2px 6px", borderRadius: 5,
-                  background: "rgba(255,245,224,0.09)",
-                  color: "rgba(255,245,224,0.65)",
+                  background: "rgba(26,10,53,0.09)",
+                  color: "rgba(26,10,53,0.65)",
                   fontSize: "0.6rem", border: "none", cursor: "pointer",
                 }}
               >
@@ -157,8 +157,8 @@ export default function EmailRow({
                   onClick={e => { e.stopPropagation(); onToggleTodo() }}
                   style={{
                     padding: "2px 6px", borderRadius: 5,
-                    background: email.todo ? "rgba(255,208,0,0.18)" : "rgba(255,245,224,0.07)",
-                    color: email.todo ? "#FFD000" : "rgba(255,245,224,0.38)",
+                    background: email.todo ? "rgba(255,208,0,0.18)" : "rgba(26,10,53,0.07)",
+                    color: email.todo ? "#FFD000" : "rgba(26,10,53,0.38)",
                     fontSize: "0.6rem", border: "none", cursor: "pointer",
                   }}
                 >
@@ -172,8 +172,8 @@ export default function EmailRow({
                   onClick={e => { e.stopPropagation(); onSnooze() }}
                   style={{
                     padding: "2px 6px", borderRadius: 5,
-                    background: "rgba(255,245,224,0.07)",
-                    color: "rgba(255,245,224,0.38)",
+                    background: "rgba(26,10,53,0.07)",
+                    color: "rgba(26,10,53,0.38)",
                     fontSize: "0.6rem", border: "none", cursor: "pointer",
                   }}
                 >
@@ -187,3 +187,4 @@ export default function EmailRow({
     </div>
   )
 }
+

@@ -1,25 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  /* ── Festival palette ─────────────────────────── */
-  --bg:       #0D0821;
-  --bg2:      #160B30;
-  --card:     #1A0E38;
-  --border:   rgba(255, 245, 224, 0.10);
+  /* ── Festival palette — light mode ───────────── */
+  --bg:       #EEE4FF;
+  --bg2:      #F5F0FF;
+  --card:     #FFFFFF;
+  --border:   rgba(100, 50, 150, 0.12);
 
   --magenta:  #FF1F6E;
   --gold:     #FFD000;
   --orange:   #FF6B1A;
-  --teal:     #00E5C4;
-  --lime:     #B8F000;
-  --purple:   #C084FC;
+  --teal:     #00C4A7;
+  --lime:     #8FC900;
+  --purple:   #8B3FD8;
 
-  --cream:    #FFF5E0;
-  --muted:    rgba(255, 245, 224, 0.42);
-  --muted2:   rgba(255, 245, 224, 0.18);
+  --ink:      #1A0A35;
+  --muted:    rgba(26, 10, 53, 0.45);
+  --muted2:   rgba(26, 10, 53, 0.20);
 
   --background: var(--bg);
-  --foreground: var(--cream);
+  --foreground: var(--ink);
 }
 
 @theme inline {
@@ -34,15 +34,15 @@
 
 body {
   background: var(--bg);
-  color: var(--cream);
+  color: var(--ink);
   font-family: var(--font-body, 'DM Sans', sans-serif);
 }
 
 /* ── Scrollbar ────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,245,224,0.14); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,245,224,0.28); }
+::-webkit-scrollbar-thumb { background: rgba(26,10,53,0.18); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(26,10,53,0.32); }
 
 /* ── Animations ──────────────────────────────────── */
 @keyframes spin {
@@ -52,11 +52,6 @@ body {
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fiesta-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.55; }
 }
 
 .animate-slide-up {

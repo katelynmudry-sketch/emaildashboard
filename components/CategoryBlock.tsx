@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
 import type { AccountId, Email, Category } from "@/lib/types"
@@ -92,7 +92,7 @@ export default function CategoryBlock({
     <div
       className="flex flex-col overflow-hidden"
       style={{
-        background: "#160B30",
+        background: "#FFFFFF",
         border: `1px solid ${accent.border}`,
         borderRadius: 16,
         boxShadow: `0 4px 28px ${accent.glow}`,
@@ -153,11 +153,11 @@ export default function CategoryBlock({
         <div
           className="flex items-center gap-1.5 px-3 py-2"
           style={{
-            background: "rgba(255,245,224,0.04)",
-            borderBottom: "1px solid rgba(255,245,224,0.07)",
+            background: "rgba(26,10,53,0.04)",
+            borderBottom: "1px solid rgba(26,10,53,0.07)",
           }}
         >
-          <span style={{ fontSize: "0.68rem", color: "rgba(255,245,224,0.45)", marginRight: 4 }}>
+          <span style={{ fontSize: "0.68rem", color: "rgba(26,10,53,0.45)", marginRight: 4 }}>
             {bulkSelected.size} selected
           </span>
           {[
@@ -172,9 +172,9 @@ export default function CategoryBlock({
                 fontSize: "0.66rem",
                 padding: "2px 8px",
                 borderRadius: 5,
-                border: `1px solid ${danger ? "rgba(255,31,110,0.35)" : "rgba(255,245,224,0.14)"}`,
-                background: danger ? "rgba(255,31,110,0.10)" : "rgba(255,245,224,0.05)",
-                color: danger ? "#FF1F6E" : "rgba(255,245,224,0.58)",
+                border: `1px solid ${danger ? "rgba(255,31,110,0.35)" : "rgba(26,10,53,0.14)"}`,
+                background: danger ? "rgba(255,31,110,0.10)" : "rgba(26,10,53,0.05)",
+                color: danger ? "#FF1F6E" : "rgba(26,10,53,0.58)",
                 cursor: "pointer",
               }}
             >
@@ -186,7 +186,7 @@ export default function CategoryBlock({
             style={{
               marginLeft: "auto",
               fontSize: "0.66rem",
-              color: "rgba(255,245,224,0.32)",
+              color: "rgba(26,10,53,0.32)",
               background: "none",
               border: "none",
               cursor: "pointer",
@@ -200,7 +200,7 @@ export default function CategoryBlock({
       {/* ── Email list ────────────────────────────────── */}
       <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
         {sorted.length === 0 ? (
-          <p style={{ fontSize: "0.7rem", color: "rgba(255,245,224,0.28)", textAlign: "center", padding: "16px 0", margin: 0 }}>
+          <p style={{ fontSize: "0.7rem", color: "rgba(26,10,53,0.28)", textAlign: "center", padding: "16px 0", margin: 0 }}>
             All clear ✓
           </p>
         ) : (
@@ -245,3 +245,4 @@ export default function CategoryBlock({
     </div>
   )
 }
+
