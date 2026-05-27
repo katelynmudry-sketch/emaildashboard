@@ -195,6 +195,14 @@ export default function Dashboard() {
 
   const deletableEmails = visibleEmails.filter(email => email.deletable && !email.todo)
 
+  // Synthetic category for the delete tile — appears in the grid when there are deletable emails
+  const DELETE_CATEGORY: Category = {
+    id: "__delete__",
+    name: "🗑️ Delete",
+    color: "#888888",
+    gmailLabelId: "",
+  }
+
   const todoEmails = visibleEmails.filter(email => email.todo)
 
   const isPersonalAccount = activeAccount === "personal"
@@ -1411,13 +1419,22 @@ export default function Dashboard() {
             {/* ── Category grid ── */}
             {appState === "ready" && categories.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {categories.map(cat => (
+                {[
+                  ...categories,
+                  ...(deletableEmails.length > 0 ? [DELETE_CATEGORY] : []),
+                ].map(cat => (
                   <CategoryBlock
                     key={cat.id}
                     category={cat}
                     categories={categories}
-                    emails={emails.filter(e => e.category === cat.name)}
-                    selectedEmail={selectedEmail?.category === cat.name ? selectedEmail : null}
+                    emails={cat.id === "__delete__"
+                      ? deletableEmails
+                      : emails.filter(e => e.category === cat.name)}
+                    selectedEmail={
+                      cat.id === "__delete__"
+                        ? (selectedEmail?.deletable ? selectedEmail : null)
+                        : (selectedEmail?.category === cat.name ? selectedEmail : null)
+                    }
                     onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
                     onExpand={(email, composeMode) => {
                       setExpandedEmail(email)
@@ -1442,48 +1459,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ── Delete candidates ── */}
-            {appState === "ready" && deletableEmails.length > 0 && (
-              <div className="mt-4 overflow-hidden" style={{
-                background: "#FFFFFF",
-                border: "1px solid rgba(26,10,53,0.07)",
-                borderRadius: 16,
-              }}>
-                <div
-                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
-                  style={{ borderBottom: "1px solid rgba(26,10,53,0.06)" }}
-                >
-                  <div>
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "0.92rem", color: "rgba(26,10,53,0.62)", margin: "0 0 2px", letterSpacing: "0.05em" }}>
-                      DELETE CANDIDATES
-                    </p>
-                    <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.60)", margin: 0 }}>
-                      Old offers, expired links, OTPs, or delivery confirmations.
-                    </p>
-                  </div>
-                  <span style={{ fontSize: "0.80rem", color: "rgba(26,10,53,0.55)" }}>
-                    {deletableEmails.length} emails
-                  </span>
-                </div>
-                <div className="mt-1 space-y-0.5 px-2 pb-2 max-h-72 overflow-y-auto">
-                  {deletableEmails.map(email => (
-                    <EmailRow
-                      key={email.id}
-                      email={email}
-                      selected={email.id === selectedEmail?.id}
-                      isSelected={false}
-                      selectionMode={false}
-                      onClick={() => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
-                      onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                      onMarkRead={() => { void handleMarkRead(email) }}
-                      onDelete={() => { void handleDelete(email) }}
-                      onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                      onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
 
           </div>
         </div>
