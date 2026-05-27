@@ -68,6 +68,7 @@ export default function LabelSection({
   className = "",
 }: LabelSectionProps) {
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
+  const [moveToOpen, setMoveToOpen] = useState(false)
 
   const selectionMode = bulkSelected.size > 0
   const allSelected = emails.length > 0 && bulkSelected.size === emails.length
@@ -88,6 +89,13 @@ export default function LabelSection({
     const targets = emails.filter(e => bulkSelected.has(e.id))
     setBulkSelected(new Set())
     await action.handler(targets)
+  }
+
+  async function handleMoveTo(categoryName: string) {
+    const targets = emails.filter(e => bulkSelected.has(e.id))
+    setBulkSelected(new Set())
+    setMoveToOpen(false)
+    for (const email of targets) await onRecategorize(email, categoryName, false)
   }
 
   return (
@@ -147,7 +155,7 @@ export default function LabelSection({
       </div>
 
       {/* ── Bulk action bar ── */}
-      {selectionMode && bulkActions.length > 0 && (
+      {selectionMode && (
         <div
           className="flex items-center gap-1.5 px-3 py-2"
           style={{
@@ -158,6 +166,8 @@ export default function LabelSection({
           <span style={{ fontSize: "0.68rem", color: "rgba(26,10,53,0.65)", marginRight: 4 }}>
             {bulkSelected.size} selected
           </span>
+
+          {/* Configured bulk actions (Mark read, Archive, Delete…) */}
           {bulkActions.map(action => (
             <button
               key={action.label}
@@ -175,8 +185,67 @@ export default function LabelSection({
               {action.label}
             </button>
           ))}
+
+          {/* Move to tag dropdown */}
+          {categories.length > 0 && (
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setMoveToOpen(v => !v)}
+                style={{
+                  fontSize: "0.66rem",
+                  padding: "2px 8px",
+                  borderRadius: 5,
+                  border: "1px solid rgba(139,63,216,0.30)",
+                  background: moveToOpen ? "rgba(139,63,216,0.12)" : "rgba(139,63,216,0.06)",
+                  color: "#8B3FD8",
+                  cursor: "pointer",
+                }}
+              >
+                Move to ▾
+              </button>
+              {moveToOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 4px)",
+                    left: 0,
+                    zIndex: 50,
+                    background: "#FFFFFF",
+                    border: "1px solid rgba(26,10,53,0.12)",
+                    borderRadius: 8,
+                    boxShadow: "0 4px 20px rgba(26,10,53,0.14)",
+                    minWidth: 150,
+                    overflow: "hidden",
+                  }}
+                >
+                  {categories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => handleMoveTo(cat.name)}
+                      className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-black/[0.04] transition-colors"
+                      style={{
+                        fontSize: "0.72rem",
+                        color: "rgba(26,10,53,0.80)",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                      }}
+                    >
+                      <span style={{
+                        width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                        background: cat.color || "#888",
+                      }} />
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <button
-            onClick={() => setBulkSelected(new Set())}
+            onClick={() => { setBulkSelected(new Set()); setMoveToOpen(false) }}
             style={{
               marginLeft: "auto",
               fontSize: "0.66rem",
