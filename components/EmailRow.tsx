@@ -124,6 +124,14 @@ export default function EmailRow({
         <div className="flex items-center gap-1 shrink-0">
           {email.todo && <span style={{ fontSize: "0.75rem", color: "#B8860B" }}>★</span>}
           {email.replied && <span style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.40)" }}>↩</span>}
+          {email.attachments && email.attachments.length > 0 && (
+            <span title={`${email.attachments.length} attachment${email.attachments.length !== 1 ? "s" : ""}`} style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.45)", lineHeight: 1 }}>
+              📎
+              {email.attachments.length > 1 && (
+                <span style={{ fontSize: "0.68rem", marginLeft: 1 }}>{email.attachments.length}</span>
+              )}
+            </span>
+          )}
           <span style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.48)" }}>
             {email.date ? formatEmailDate(email.date) : ""}
           </span>
@@ -153,14 +161,14 @@ export default function EmailRow({
           <button type="button" title="Mark read"
             onClick={e => { e.stopPropagation(); onMarkRead() }}
             style={actionBtn()}>
-            ✓ Read
+            ✓
           </button>
 
           {onReply && (
             <button type="button" title="Reply"
               onClick={e => { e.stopPropagation(); onReply() }}
               style={actionBtn()}>
-              ↩ Reply
+              ↩
             </button>
           )}
 
@@ -168,7 +176,7 @@ export default function EmailRow({
             <button type="button" title="Forward"
               onClick={e => { e.stopPropagation(); onForward() }}
               style={actionBtn()}>
-              ↪ Fwd
+              ↪
             </button>
           )}
 
@@ -179,7 +187,7 @@ export default function EmailRow({
                 email.todo ? "rgba(255,208,0,0.25)" : undefined,
                 email.todo ? "#92660A" : undefined,
               )}>
-              {email.todo ? "★ Un-todo" : "★ TODO"}
+              ★
             </button>
           )}
 
@@ -187,7 +195,7 @@ export default function EmailRow({
             <button type="button" title="Snooze"
               onClick={e => { e.stopPropagation(); onSnooze() }}
               style={actionBtn()}>
-              💤 Snooze
+              💤
             </button>
           )}
 
@@ -195,7 +203,7 @@ export default function EmailRow({
             <button type="button" title="Delete"
               onClick={e => { e.stopPropagation(); onDelete() }}
               style={actionBtn("rgba(255,31,110,0.12)", "#D4005A")}>
-              ✕ Delete
+              ✕
             </button>
           )}
         </div>
