@@ -1,0 +1,11 @@
+{
+  "yearIntention": "",
+  "callingIn": [
+    { "tag": "Abundance", "color": "--gold", "text": "" },
+    { "tag": "Love", "color": "--rose", "text": "" },
+    { "tag": "Health", "color": "--teal", "text": "" },
+    { "tag": "Magic", "color": "--purple", "text": "" }
+  ],
+  "moonPhase": "",
+  "lastUpdated": ""
+}

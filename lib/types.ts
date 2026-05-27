@@ -141,6 +141,13 @@ export interface ReadRequest {
   account?: AccountId
 }
 
+export interface Attachment {
+  filename: string
+  mimeType: string
+  data: string      // raw base64 (no data-URL prefix)
+  size: number      // bytes
+}
+
 export interface DraftRequest {
   to: string
   subject: string
@@ -150,6 +157,7 @@ export interface DraftRequest {
   inReplyTo?: string
   messageId?: string
   account?: AccountId
+  attachments?: Attachment[]
 }
 
 // ── UI state ─────────────────────────────────────────────────────────────────
@@ -164,3 +172,45 @@ export const ACCOUNTS: AccountConfig[] = [
   { id: "personal", email: process.env.NEXT_PUBLIC_OWNER_EMAIL ?? "", label: process.env.NEXT_PUBLIC_OWNER_EMAIL?.split("@")[0] ?? "personal" },
   { id: "work",     email: process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL ?? "", label: process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL?.split("@")[0] ?? "work" },
 ]
+
+// ── Morning Dashboard ─────────────────────────────────────────────────────────
+
+export type DashboardTheme = "morning-altar" | "festival-stage" | "wabi-sabi-studio"
+
+export interface DharmaTeacher {
+  id: string
+  name: string
+  tradition: string
+  description: string
+  quotes: Array<{
+    text: string
+    source?: string
+  }>
+}
+
+export interface ManifestationContent {
+  yearIntention: string
+  callingIn: Array<{
+    tag: string      // e.g. "Abundance", "Love", "Health"
+    color: string    // CSS var name e.g. "--gold"
+    text: string
+  }>
+  moonPhase?: string
+  lastUpdated?: string // ISO date
+}
+
+export interface DashboardPrefs {
+  theme: DashboardTheme
+  dharmaTeacherId: string
+  dashboardOpen: boolean
+}
+
+export interface CalendarEvent {
+  id: string
+  title: string
+  startTime: string   // HH:MM format
+  endTime?: string
+  colorDot: string    // hex color
+  location?: string
+  isNow?: boolean
+}

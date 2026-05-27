@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import { useSession, signIn } from "next-auth/react"
-import type { Email, Category, AccountId, RawEmail } from "@/lib/types"
+import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/types"
 import { ACCOUNTS } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction } from "@/lib/stats"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
 import { snoozeEmail } from "@/lib/todo-snooze"
+import { loadSettings } from "@/lib/settings-storage"
 import AccountToggle from "./AccountToggle"
 import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
@@ -15,9 +16,11 @@ import DetailPanel from "./DetailPanel"
 import EmailModal from "./EmailModal"
 import EmailRow from "./EmailRow"
 import PlantHeader from "./PlantHeader"
+import DashboardPanel from "./dashboard/DashboardPanel"
 import ComposeModal from "./ComposeModal"
 import SnoozeModal from "./SnoozeModal"
 import ConfettiBlast from "./ConfettiBlast"
+import InstructionsPanel from "./InstructionsPanel"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
 
@@ -86,6 +89,56 @@ function MiniStat({ value, label, color }: { value: number; label: string; color
   )
 }
 
+function TallyTicket({ loaded, total }: { loaded: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0
+  const allLoaded = total > 0 && loaded >= total
+
+  return (
+    <div style={{
+      border: "1px solid rgba(255,31,110,0.25)",
+      borderRadius: 10,
+      padding: "8px 16px",
+      background: "rgba(255,31,110,0.07)",
+      minWidth: 160,
+    }}>
+      {/* Number tally */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: "#FF1F6E" }}>
+          {loaded}
+        </span>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "1.1rem", lineHeight: 1, color: "rgba(26,10,53,0.30)" }}>
+          /
+        </span>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: "rgba(26,10,53,0.55)" }}>
+          {total}
+        </span>
+      </div>
+      {/* Label */}
+      <div style={{ fontSize: "0.70rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.55)", marginTop: 3 }}>
+        {allLoaded ? "✓ all loaded" : "emails loaded"}
+      </div>
+      {/* Progress bar */}
+      <div style={{
+        marginTop: 6,
+        height: 3,
+        borderRadius: 99,
+        background: "rgba(26,10,53,0.10)",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          height: "100%",
+          width: `${pct}%`,
+          borderRadius: 99,
+          background: allLoaded
+            ? "linear-gradient(90deg, #00E5C4, #00C4A7)"
+            : "linear-gradient(90deg, #FF1F6E, #FF6B1A)",
+          transition: "width 0.6s cubic-bezier(0.16,1,0.3,1)",
+        }} />
+      </div>
+    </div>
+  )
+}
+
 // ── Main dashboard component ─────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -113,6 +166,7 @@ export default function Dashboard() {
   const [pendingImportMeta, setPendingImportMeta] = useState<InboxFetchMeta | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
   const [snoozeTarget, setSnoozeTarget] = useState<Email | null>(null)
+  const [instructionsOpen, setInstructionsOpen] = useState(false)
   const [roast, setRoast] = useState<string | null>(null)
   const [roasting, setRoasting] = useState(false)
   const [confetti, setConfetti] = useState(false)
@@ -143,13 +197,30 @@ export default function Dashboard() {
 
   const todoEmails = visibleEmails.filter(email => email.todo)
 
+  const isPersonalAccount = activeAccount === "personal"
+
   const briefingEmails = visibleEmails
     .filter(email => !email.todo && (!email.deletable || email.todo))
-    .filter(email =>
-      email.priority !== "fyi" ||
-      email.actionFlag === "confirm" ||
-      /expire|expir|due|deadline|ends?/i.test(email.summary ?? "")
-    )
+    .filter(email => {
+      const isNewsletter = email.actionFlag === "read"
+
+      if (isNewsletter) {
+        // Personal: newsletters never in briefing
+        if (isPersonalAccount) return false
+        // Work: only if has a clear savings offer AND an expiry within the week
+        const text = ((email.summary ?? "") + " " + email.subject).toLowerCase()
+        const hasSavings = /\b(off|save|discount|deal|sale|promo|coupon|savings|\$\d|\d+%)\b/.test(text)
+        const hasExpiry = /\b(expir|ends?\s+\w|until\s+\w|by\s+(mon|tue|wed|thu|fri|today|tomorrow)|this\s+week|last\s+(chance|day)|hours?\s+left|today\s+only)\b/.test(text)
+        return hasSavings && hasExpiry
+      }
+
+      // Non-newsletters: existing logic
+      return (
+        email.priority !== "fyi" ||
+        email.actionFlag === "confirm" ||
+        /expire|expir|due|deadline|ends?/i.test(email.summary ?? "")
+      )
+    })
     .sort((a, b) => {
       const rank = (e: Email) => e.priority === "urgent" ? 0 : e.priority === "today" ? 1 : 2
       const diff = rank(a) - rank(b)
@@ -287,11 +358,18 @@ export default function Dashboard() {
           : []
         setExistingLabelNames(fetchedLabelNames)
 
+        const proposeSettings = loadSettings()
         const proposeRes = await fetch("/api/ai/propose", {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ emails: rawEmails, existingLabelNames: fetchedLabelNames, account: activeAccountConfig.email }),
+          body: JSON.stringify({
+            emails: rawEmails,
+            existingLabelNames: fetchedLabelNames,
+            account: activeAccountConfig.email,
+            customContext: activeAccount === "work" ? proposeSettings.workRules : proposeSettings.personalRules,
+            systemContext: proposeSettings.systemContext || undefined,
+          }),
         })
         if (!proposeRes.ok) {
           const body = await proposeRes.text()
@@ -348,11 +426,18 @@ export default function Dashboard() {
     setCategories(cats)
 
     const emailsForApi = rawEmails.map(({ htmlBody: _, ...rest }) => rest)
+    const catSettings = loadSettings()
     const catRes = await fetch("/api/ai/categorize", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emails: emailsForApi, categories: cats, account: activeAccountConfig.email }),
+      body: JSON.stringify({
+        emails: emailsForApi,
+        categories: cats,
+        account: activeAccountConfig.email,
+        customContext: activeAccount === "work" ? catSettings.workRules : catSettings.personalRules,
+        systemContext: catSettings.systemContext || undefined,
+      }),
     })
     if (!catRes.ok) {
       const body = await catRes.text()
@@ -542,29 +627,35 @@ export default function Dashboard() {
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
   }
 
-  async function handleSaveDraft(email: Email, body: string) {
+  async function handleSaveDraft(email: Email, body: string, attachments: Attachment[], forwardTo?: string) {
+    const isForward = Boolean(forwardTo)
     await fetch("/api/gmail/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        to: email.fromEmail,
-        subject: email.subject,
+        to: isForward ? forwardTo : email.fromEmail,
+        subject: isForward
+          ? (email.subject.toLowerCase().startsWith("fwd:") ? email.subject : `Fwd: ${email.subject}`)
+          : email.subject,
         body,
-        threadId: email.threadId,
-        inReplyTo: email.messageId,
-        messageId: email.messageId,
+        threadId: isForward ? undefined : email.threadId,
+        inReplyTo: isForward ? undefined : email.messageId,
+        messageId: isForward ? undefined : email.messageId,
         account: activeAccount,
+        attachments: attachments.length > 0 ? attachments : undefined,
       }),
     })
-    recordAction("saveDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
+    recordAction("saveDraft", { emailId: email.id, subject: email.subject, mode: isForward ? "forward" : "reply" })
   }
 
-  async function handleSendMessage(email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) {
+  async function handleSendMessage(email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) {
     const to = mode === "forward" ? forwardTo?.trim() ?? "" : email.fromEmail
     if (mode === "forward" && !to) throw new Error("Forward recipient is required")
     if (!to) throw new Error("Recipient email address is missing")
 
-    const subject = mode === "forward" ? `Fwd: ${email.subject}` : email.subject
+    const subject = mode === "forward"
+      ? (email.subject.toLowerCase().startsWith("fwd:") ? email.subject : `Fwd: ${email.subject}`)
+      : email.subject
     const res = await fetch("/api/gmail/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -576,6 +667,7 @@ export default function Dashboard() {
         inReplyTo: mode === "reply" ? email.messageId : undefined,
         messageId: mode === "reply" ? email.messageId : undefined,
         account: activeAccount,
+        attachments: attachments.length > 0 ? attachments : undefined,
       }),
     })
 
@@ -824,11 +916,7 @@ export default function Dashboard() {
 
                   {/* Ticket stats */}
                   <div className="flex flex-wrap items-stretch gap-2">
-                    <StatTicket value={`~${totalUnreadInbox}`} label="unread"      color="#FF1F6E" />
-                    <StatTicket value={String(emails.length)}  label="imported"    color="#FFD000" />
-                    {unreadLeftApprox > 0 && (
-                      <StatTicket value={`~${unreadLeftApprox}`} label="left to load" color="#FF6B1A" />
-                    )}
+                    <TallyTicket loaded={emails.length} total={totalUnreadInbox} />
                     <div className="flex items-stretch gap-1">
                       <MiniStat value={urgentCount} label="urgent" color="#FF1F6E" />
                       <MiniStat value={todayCount}  label="today"  color="#FFD000" />
@@ -911,12 +999,12 @@ export default function Dashboard() {
 
                   {/* Muted footnote */}
                   <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.52)", maxWidth: 480, lineHeight: 1.5, margin: 0 }}>
-                    Gmail estimates. Batch: up to {importBatchSize} per refresh.
+                    Fetching {importBatchSize} at a time.
                     {unreadLeftApprox > 0
-                      ? " Refresh after this batch to fetch the next chunk."
+                      ? ` ~${unreadLeftApprox} more unread waiting — refresh to load the next batch.`
                       : emails.length >= importBatchSize
                         ? " Hit batch cap — refresh to check for more."
-                        : " No extra unread beyond this import."}
+                        : " You're all caught up with this batch!"}
                   </p>
                 </div>
               )}
@@ -947,6 +1035,21 @@ export default function Dashboard() {
                     Connect work Gmail
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setInstructionsOpen(true)}
+                  title="Settings & AI Instructions"
+                  style={{
+                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                    border: "1px solid rgba(139,63,216,0.30)",
+                    background: "rgba(139,63,216,0.08)",
+                    color: "#8B3FD8", fontSize: "1.1rem",
+                    cursor: "pointer", display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  ⚙️
+                </button>
                 <button
                   type="button"
                   onClick={() => setComposeOpen(true)}
@@ -1038,6 +1141,9 @@ export default function Dashboard() {
             </div>
           </div>
         </header>
+
+        {/* ══════════════════ MORNING DASHBOARD ══════════════════════════════ */}
+        <DashboardPanel emails={emails} />
 
         {/* ══════════════════ LEGEND BAR ══════════════════════════════════════ */}
         <div
@@ -1439,6 +1545,8 @@ export default function Dashboard() {
         )}
 
         <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} gmailAccount={activeAccount} />
+
+        <InstructionsPanel open={instructionsOpen} onClose={() => setInstructionsOpen(false)} />
 
         {snoozeTarget && (
           <SnoozeModal
