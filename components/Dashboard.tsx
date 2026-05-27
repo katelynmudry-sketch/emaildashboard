@@ -425,7 +425,8 @@ export default function Dashboard() {
     setAppState("categorizing")
     setCategories(cats)
 
-    const emailsForApi = rawEmails.map(({ htmlBody: _, ...rest }) => rest)
+    // Strip htmlBody and attachments before sending to Claude (not needed for categorization)
+    const emailsForApi = rawEmails.map(({ htmlBody: _, attachments: __, ...rest }) => rest)
     const catSettings = loadSettings()
     const catRes = await fetch("/api/ai/categorize", {
       method: "POST",
@@ -452,10 +453,12 @@ export default function Dashboard() {
     }
     const categorized: Email[] = await catRes.json()
 
-    const htmlBodyMap = new Map(rawEmails.map(e => [e.id, e.htmlBody]))
-    const labelIdMap  = new Map(rawEmails.map(e => [e.id, e.labelIds]))
+    const htmlBodyMap    = new Map(rawEmails.map(e => [e.id, e.htmlBody]))
+    const attachmentsMap = new Map(rawEmails.map(e => [e.id, e.attachments]))
+    const labelIdMap     = new Map(rawEmails.map(e => [e.id, e.labelIds]))
     categorized.forEach(email => {
-      email.htmlBody = htmlBodyMap.get(email.id)
+      email.htmlBody    = htmlBodyMap.get(email.id)
+      email.attachments = attachmentsMap.get(email.id)
       const labelIds = labelIdMap.get(email.id) ?? []
       if (todoLabelId && labelIds.includes(todoLabelId)) email.todo = true
     })
@@ -1473,6 +1476,8 @@ export default function Dashboard() {
                     onMarkReplied={handleMarkReplied}
                     onMarkDeletable={handleMarkDeletable}
                     onNewCategory={handleNewCategory}
+                    onToggleTodo={handleToggleTodo}
+                    onSnooze={email => setSnoozeTarget(email)}
                     gmailAccount={activeAccount}
                   />
                 ))}
