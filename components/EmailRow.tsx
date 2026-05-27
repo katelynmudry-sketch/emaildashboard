@@ -33,12 +33,13 @@ function actionBtn(bg?: string, color?: string): React.CSSProperties {
     padding: "3px 8px",
     borderRadius: 5,
     background: bg ?? "rgba(26,10,53,0.08)",
-    color: color ?? "rgba(26,10,53,0.68)",
+    color: color ?? "rgba(26,10,53,0.70)",
     fontSize: "0.72rem",
     fontWeight: 500,
     border: "none",
     cursor: "pointer",
     whiteSpace: "nowrap" as const,
+    lineHeight: 1.4,
   }
 }
 
@@ -66,6 +67,7 @@ export default function EmailRow({
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick() }}
       className="w-full text-left cursor-pointer group transition-all duration-100 hover:bg-black/[0.03]"
       style={{
+        position: "relative",
         borderRadius: 7,
         borderLeft: `3px solid ${priorityColor}`,
         paddingLeft: 10,
@@ -75,9 +77,9 @@ export default function EmailRow({
         background: bgColor,
       }}
     >
+      {/* ── Main row content — always full width ── */}
       <div className="flex items-center gap-2.5 min-w-0">
 
-        {/* Selection checkbox */}
         {selectionMode && (
           <button
             type="button"
@@ -95,7 +97,7 @@ export default function EmailRow({
           </button>
         )}
 
-        {/* Main content */}
+        {/* Text content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 min-w-0">
             <span
@@ -112,84 +114,92 @@ export default function EmailRow({
             </span>
           </div>
           {email.microSummary && (
-            <p
-              className="truncate"
-              style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.50)", margin: "2px 0 0" }}
-            >
+            <p className="truncate" style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.50)", margin: "2px 0 0" }}>
               {email.microSummary}
             </p>
           )}
         </div>
 
-        {/* Right: badges + date + hover actions */}
+        {/* Badges + date — always visible, never pushed */}
         <div className="flex items-center gap-1 shrink-0">
-          {email.todo && (
-            <span style={{ fontSize: "0.75rem", color: "#B8860B" }}>★</span>
-          )}
-          {email.replied && (
-            <span style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.40)" }}>↩</span>
-          )}
+          {email.todo && <span style={{ fontSize: "0.75rem", color: "#B8860B" }}>★</span>}
+          {email.replied && <span style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.40)" }}>↩</span>}
           <span style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.48)" }}>
             {email.date ? formatEmailDate(email.date) : ""}
           </span>
-
-          {/* Full hover action bar */}
-          {!selectionMode && (
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-
-              <button type="button" title="Mark read"
-                onClick={e => { e.stopPropagation(); onMarkRead() }}
-                style={actionBtn()}>
-                ✓ Read
-              </button>
-
-              {onReply && (
-                <button type="button" title="Reply"
-                  onClick={e => { e.stopPropagation(); onReply() }}
-                  style={actionBtn()}>
-                  ↩ Reply
-                </button>
-              )}
-
-              {onForward && (
-                <button type="button" title="Forward"
-                  onClick={e => { e.stopPropagation(); onForward() }}
-                  style={actionBtn()}>
-                  ↪ Fwd
-                </button>
-              )}
-
-              {onToggleTodo && (
-                <button type="button" title={email.todo ? "Remove TODO" : "Add TODO"}
-                  onClick={e => { e.stopPropagation(); onToggleTodo() }}
-                  style={actionBtn(
-                    email.todo ? "rgba(255,208,0,0.22)" : undefined,
-                    email.todo ? "#92660A" : undefined
-                  )}>
-                  {email.todo ? "★ Un-todo" : "★ TODO"}
-                </button>
-              )}
-
-              {onSnooze && (
-                <button type="button" title="Snooze"
-                  onClick={e => { e.stopPropagation(); onSnooze() }}
-                  style={actionBtn()}>
-                  💤 Snooze
-                </button>
-              )}
-
-              {onDelete && (
-                <button type="button" title="Delete"
-                  onClick={e => { e.stopPropagation(); onDelete() }}
-                  style={actionBtn("rgba(255,31,110,0.12)", "#D4005A")}>
-                  ✕ Delete
-                </button>
-              )}
-
-            </div>
-          )}
         </div>
       </div>
+
+      {/* ── Hover action pill — absolutely overlays the row ── */}
+      {!selectionMode && (
+        <div
+          className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto"
+          style={{
+            position: "absolute",
+            right: 8,
+            top: "50%",
+            transform: "translateY(-50%)",
+            display: "flex",
+            alignItems: "center",
+            gap: 3,
+            background: "rgba(242,236,255,0.97)",
+            backdropFilter: "blur(6px)",
+            borderRadius: 8,
+            padding: "3px 5px",
+            boxShadow: "0 2px 12px rgba(26,10,53,0.14), 0 0 0 1px rgba(26,10,53,0.07)",
+            zIndex: 10,
+          }}
+        >
+          <button type="button" title="Mark read"
+            onClick={e => { e.stopPropagation(); onMarkRead() }}
+            style={actionBtn()}>
+            ✓ Read
+          </button>
+
+          {onReply && (
+            <button type="button" title="Reply"
+              onClick={e => { e.stopPropagation(); onReply() }}
+              style={actionBtn()}>
+              ↩ Reply
+            </button>
+          )}
+
+          {onForward && (
+            <button type="button" title="Forward"
+              onClick={e => { e.stopPropagation(); onForward() }}
+              style={actionBtn()}>
+              ↪ Fwd
+            </button>
+          )}
+
+          {onToggleTodo && (
+            <button type="button" title={email.todo ? "Remove TODO" : "Add TODO"}
+              onClick={e => { e.stopPropagation(); onToggleTodo() }}
+              style={actionBtn(
+                email.todo ? "rgba(255,208,0,0.25)" : undefined,
+                email.todo ? "#92660A" : undefined,
+              )}>
+              {email.todo ? "★ Un-todo" : "★ TODO"}
+            </button>
+          )}
+
+          {onSnooze && (
+            <button type="button" title="Snooze"
+              onClick={e => { e.stopPropagation(); onSnooze() }}
+              style={actionBtn()}>
+              💤 Snooze
+            </button>
+          )}
+
+          {onDelete && (
+            <button type="button" title="Delete"
+              onClick={e => { e.stopPropagation(); onDelete() }}
+              style={actionBtn("rgba(255,31,110,0.12)", "#D4005A")}>
+              ✕ Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
