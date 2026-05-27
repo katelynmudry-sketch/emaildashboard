@@ -10,9 +10,9 @@ import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-ca
 import { snoozeEmail } from "@/lib/todo-snooze"
 import { loadSettings } from "@/lib/settings-storage"
 import AccountToggle from "./AccountToggle"
+import BriefingSection from "./BriefingSection"
 import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
-import DetailPanel from "./DetailPanel"
 import EmailModal from "./EmailModal"
 import EmailRow from "./EmailRow"
 import PlantHeader from "./PlantHeader"
@@ -1382,72 +1382,30 @@ export default function Dashboard() {
 
             {/* ── Daily Briefing ── */}
             {appState === "ready" && briefingEmails.length > 0 && (
-              <div className="mb-4 flex flex-col overflow-hidden" style={{
-                background: "#FFFFFF",
-                border: "1px solid rgba(255,31,110,0.22)",
-                borderRadius: 16,
-                boxShadow: "0 4px 28px rgba(255,31,110,0.08)",
-              }}>
-                <div
-                  className="flex items-center justify-between px-4 py-3"
-                  style={{ background: "rgba(255,31,110,0.11)", borderBottom: "1px solid rgba(255,31,110,0.13)" }}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF1F6E", display: "inline-block", boxShadow: "0 0 10px rgba(255,31,110,0.9)", flexShrink: 0 }} />
-                    <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", color: "#1A0A35", margin: 0, letterSpacing: "0.05em" }}>
-                      DAILY BRIEFING
-                    </h2>
-                  </div>
-                  <span style={{
-                    fontSize: "0.84rem", fontWeight: 700,
-                    background: "rgba(255,31,110,0.20)",
-                    color: "#FF1F6E",
-                    borderRadius: 99, padding: "2px 10px",
-                  }}>
-                    {briefingEmails.length}
-                  </span>
-                </div>
-                <div className="px-2 py-2 space-y-0.5 min-h-[80px]">
-                  {briefingEmails.map(email => (
-                    <div key={email.id}>
-                      <EmailRow
-                        email={email}
-                        selected={email.id === selectedEmail?.id}
-                        isSelected={false}
-                        selectionMode={false}
-                        onClick={() => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
-                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                        onMarkRead={() => { void handleMarkRead(email) }}
-                        onDelete={() => { void handleDelete(email) }}
-                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                        onToggleTodo={() => handleToggleTodo(email)}
-                        onSnooze={() => setSnoozeTarget(email)}
-                      />
-                      {email.id === selectedEmail?.id && (
-                        <div className="mt-1 mb-2">
-                          <DetailPanel
-                            email={selectedEmail}
-                            gmailAccount={activeAccount}
-                            categories={categories}
-                            onClose={() => setSelectedEmail(null)}
-                            onArchive={handleArchive}
-                            onMarkRead={handleMarkRead}
-                            onSaveDraft={handleSaveDraft}
-                            onSend={handleSendMessage}
-                            onStar={handleStar}
-                            onDelete={handleDelete}
-                            onRecategorize={handleRecategorize}
-                            onMarkReplied={handleMarkReplied}
-                            onMarkDeletable={handleMarkDeletable}
-                            onNewCategory={handleNewCategory}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <BriefingSection
+                emails={briefingEmails}
+                categories={categories}
+                selectedEmail={selectedEmail}
+                onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                onExpand={(email, composeMode) => {
+                  setExpandedEmail(email)
+                  setExpandedComposeMode(composeMode ?? null)
+                }}
+                onClose={() => setSelectedEmail(null)}
+                onMarkRead={handleMarkRead}
+                onArchive={handleArchive}
+                onSaveDraft={handleSaveDraft}
+                onSend={handleSendMessage}
+                onStar={handleStar}
+                onDelete={handleDelete}
+                onRecategorize={handleRecategorize}
+                onMarkReplied={handleMarkReplied}
+                onMarkDeletable={handleMarkDeletable}
+                onNewCategory={handleNewCategory}
+                onToggleTodo={handleToggleTodo}
+                onSnooze={email => setSnoozeTarget(email)}
+                gmailAccount={activeAccount}
+              />
             )}
 
             {/* ── Category grid ── */}
