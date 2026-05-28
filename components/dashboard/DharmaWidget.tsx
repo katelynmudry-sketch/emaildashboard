@@ -22,15 +22,13 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
   const [selectedTeacher, setSelectedTeacher] = useState<string>("")
   const [showTeachers, setShowTeachers] = useState(false)
 
-  // Load teachers list
   useEffect(() => {
     fetch("/api/dashboard/dharma/teachers")
       .then(r => r.json())
       .then(d => setTeachers(d.teachers ?? []))
-      .catch(err => console.error("[DharmaWidget] teachers load failed:", err))
+      .catch(err => console.error("[DharmaWidget] teachers:", err))
   }, [])
 
-  // Load dharma data (cache-first)
   useEffect(() => {
     const prefs = getDashboardPrefs()
     const teacherId = prefs.dharmaTeacherId
@@ -63,7 +61,6 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
       .catch(err => {
         if (err.name !== "AbortError") {
           console.error("[DharmaWidget]", err)
-          // Show fallback
           setData({
             date: new Date().toISOString().slice(0, 10),
             teacher: teacherId,
@@ -89,6 +86,8 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
   }
 
   const currentTeacher = teachers.find(t => t.id === selectedTeacher)
+  const isAltar = theme.id === "morning-altar"
+  const isFestival = theme.id === "festival-stage"
 
   return (
     <div style={{
@@ -96,33 +95,52 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
       border: theme.cardBorder,
       borderRadius: theme.cardRadius,
       boxShadow: theme.cardShadow,
-      padding: "20px",
+      padding: theme.cardPadding,
       minHeight: "220px",
       display: "flex",
       flexDirection: "column",
       position: "relative",
     }}>
       {/* Header row */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        marginBottom: "14px",
+        paddingBottom: "12px",
+        borderBottom: theme.sectionDivider,
+      }}>
         <div>
-          <div style={{ ...theme.labelStyle, marginBottom: "2px" }}>Dharma</div>
+          <div style={{ ...theme.labelStyle, marginBottom: "4px" }}>
+            {isFestival ? "DHARMA" : "Dharma"}
+          </div>
           {currentTeacher && (
-            <div style={{ fontSize: "0.78rem", color: "#1A0A35", opacity: 0.55 }}>{currentTeacher.tradition}</div>
+            <div style={{
+              fontFamily: theme.bodyFont,
+              fontSize: "0.76rem",
+              color: "#1A0A35",
+              opacity: 0.5,
+              fontStyle: isAltar ? "italic" : "normal",
+            }}>
+              {currentTeacher.tradition}
+            </div>
           )}
         </div>
-        {/* Teacher selector */}
+
+        {/* Teacher picker */}
         <div style={{ position: "relative" }}>
           <button
             onClick={() => setShowTeachers(v => !v)}
             style={{
               background: "transparent",
-              border: `1px solid ${theme.accentColor}40`,
-              borderRadius: "20px",
+              border: `1px solid ${theme.accentColor}50`,
+              borderRadius: isFestival ? "4px" : "20px",
               padding: "3px 10px",
-              fontSize: "0.72rem",
+              fontSize: isFestival ? "0.75rem" : "0.72rem",
               cursor: "pointer",
               color: theme.accentColor,
-              fontFamily: "inherit",
+              fontFamily: isFestival ? "'Bebas Neue', sans-serif" : theme.bodyFont,
+              letterSpacing: isFestival ? "0.1em" : undefined,
             }}
           >
             {currentTeacher?.name.split(" ").pop() ?? "Teacher"} ▾
@@ -130,11 +148,11 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
           {showTeachers && (
             <div style={{
               position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50,
-              background: "#FFFEF9",
-              border: "1px solid rgba(0,0,0,0.12)",
-              borderRadius: "12px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
-              minWidth: "180px",
+              background: theme.cardBg,
+              border: theme.cardBorder,
+              borderRadius: theme.cardRadius,
+              boxShadow: isFestival ? "4px 4px 0 #1A0A35" : "0 4px 24px rgba(0,0,0,0.10)",
+              minWidth: "190px",
               overflow: "hidden",
             }}>
               {teachers.map(t => (
@@ -143,18 +161,18 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
                   onClick={() => handleTeacherChange(t.id)}
                   style={{
                     display: "block", width: "100%", textAlign: "left",
-                    padding: "9px 14px",
+                    padding: isFestival ? "8px 14px" : "10px 14px",
                     background: t.id === selectedTeacher ? `${theme.accentColor}12` : "transparent",
                     border: "none",
+                    borderBottom: theme.sectionDivider,
                     cursor: "pointer",
                     fontSize: "0.82rem",
                     color: "#1A0A35",
-                    fontFamily: "inherit",
-                    borderBottom: "1px solid rgba(0,0,0,0.05)",
+                    fontFamily: theme.bodyFont,
                   }}
                 >
-                  <div style={{ fontWeight: 600 }}>{t.name}</div>
-                  <div style={{ opacity: 0.5, fontSize: "0.72rem" }}>{t.tradition}</div>
+                  <div style={{ fontWeight: 600, fontSize: isFestival ? "0.78rem" : "0.82rem" }}>{t.name}</div>
+                  <div style={{ opacity: 0.45, fontSize: "0.7rem" }}>{t.tradition}</div>
                 </button>
               ))}
             </div>
@@ -162,57 +180,75 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
         </div>
       </div>
 
-      {/* Quote */}
+      {/* Content */}
       {loading && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
-          {[1, 2, 3].map(i => (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "9px" }}>
+          {[100, 100, 70].map((w, i) => (
             <div key={i} style={{
-              height: "16px", borderRadius: "6px",
-              background: "linear-gradient(90deg, rgba(0,0,0,0.06) 25%, rgba(0,0,0,0.03) 50%, rgba(0,0,0,0.06) 75%)",
+              height: "14px", borderRadius: "6px", width: `${w}%`,
+              background: "linear-gradient(90deg, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.025) 50%, rgba(0,0,0,0.05) 75%)",
               backgroundSize: "200% 100%",
-              animation: "shimmer 1.4s infinite",
-              width: i === 3 ? "60%" : "100%",
+              animation: "db-shimmer 1.4s infinite",
             }} />
           ))}
         </div>
       )}
+
       {!loading && data && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "12px" }}>
+          {/* Quote */}
           <blockquote style={{
             margin: 0,
             fontFamily: theme.titleFont,
-            fontSize: "1.05rem",
-            fontStyle: "italic",
-            lineHeight: 1.55,
+            fontSize: theme.quoteFontSize,
+            fontStyle: isAltar ? "italic" : isFestival ? "normal" : "italic",
+            fontWeight: isAltar ? 300 : isFestival ? 400 : 400,
+            lineHeight: isAltar ? 1.65 : 1.5,
             color: "#1A0A35",
-            borderLeft: `3px solid ${theme.accentColor}`,
+            borderLeft: isFestival
+              ? `3px solid ${theme.accentColor}`
+              : `2px solid ${theme.accentColor}60`,
             paddingLeft: "14px",
+            letterSpacing: isFestival ? "0.01em" : undefined,
           }}>
-            "{data.quote}"
+            {isAltar ? `"${data.quote}"` : data.quote}
           </blockquote>
+
+          {/* Attribution */}
           {data.source && (
-            <div style={{ fontSize: "0.73rem", color: "#1A0A35", opacity: 0.5, marginTop: "8px", paddingLeft: "17px" }}>
-              — {data.teacherName}, {data.source}
+            <div style={{
+              fontFamily: theme.bodyFont,
+              fontSize: "0.72rem",
+              color: "#1A0A35",
+              opacity: 0.45,
+              paddingLeft: "17px",
+              fontStyle: isAltar ? "italic" : "normal",
+            }}>
+              {isFestival ? `— ${data.teacherName.toUpperCase()} / ${data.source.toUpperCase()}` : `— ${data.teacherName}, ${data.source}`}
             </div>
           )}
-          {/* Reflection */}
+
+          {/* Reflection prompt */}
           <div style={{
-            marginTop: "14px",
-            padding: "10px 12px",
-            background: `${theme.accentColor}0D`,
-            borderRadius: "10px",
-            fontSize: "0.83rem",
+            marginTop: "4px",
+            padding: isAltar ? "12px 14px" : "9px 12px",
+            background: `${theme.accentColor}0E`,
+            borderRadius: isAltar ? "12px" : isFestival ? "6px" : "10px",
+            border: isFestival ? `1px dashed ${theme.accentColor}50` : undefined,
+            fontSize: isAltar ? "0.9rem" : "0.82rem",
+            fontFamily: theme.bodyFont,
+            fontStyle: isAltar ? "italic" : "normal",
             color: "#1A0A35",
-            fontStyle: "italic",
+            lineHeight: 1.45,
           }}>
-            🌿 {data.reflection}
+            {isAltar ? `✦ ${data.reflection}` : isFestival ? `▸ ${data.reflection}` : `· ${data.reflection}`}
           </div>
         </div>
       )}
 
       <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
+        @keyframes db-shimmer {
+          0%   { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
       `}</style>

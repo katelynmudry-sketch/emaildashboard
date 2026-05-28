@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings Panel Prototype — Inbox AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEE4FF; --ink: #1A0A35;
+    --magenta: #FF1F6E; --gold: #FFD000; --orange: #FF6B1A;
+    --teal: #00E5C4; --purple: #8B3FD8;
+    --font-display: 'Abril Fatface', serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-body); background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+  /* ── Mock dashboard shell ── */
+  .dashboard {
+    position: relative;
+    min-height: 100vh;
+    padding: 24px 28px 20px;
+  }
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+  .logo { font-family: var(--font-display); font-size: 2.8rem; color: var(--ink); line-height: 1; }
+  .tagline { font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(26,10,53,0.35); margin-top: 5px; }
+
+  /* ── Settings gear button ── */
+  .settings-btn {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    border: 1px solid rgba(139,63,216,0.30);
+    background: rgba(139,63,216,0.08);
+    color: #8B3FD8;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .settings-btn:hover { background: rgba(139,63,216,0.16); }
+
+  /* ── Backdrop ── */
+  .backdrop {
+    display: none;
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(26,10,53,0.35);
+    backdrop-filter: blur(4px);
+  }
+  .backdrop.open { display: block; }
+
+  /* ── Panel ── */
+  .panel {
+    position: fixed;
+    top: 0; right: -620px; bottom: 0;
+    width: min(600px, 96vw);
+    z-index: 201;
+    background: #fff;
+    box-shadow: -8px 0 40px rgba(26,10,53,0.18);
+    display: flex; flex-direction: column;
+    transition: right 0.35s cubic-bezier(0.16,1,0.3,1);
+  }
+  .panel.open { right: 0; }
+
+  /* Panel header */
+  .panel-header {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid rgba(26,10,53,0.08);
+    background: linear-gradient(135deg, #8B3FD8 0%, #FF1F6E 100%);
+    flex-shrink: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .panel-title { font-family: var(--font-display); font-size: 1.5rem; color: #FFF5E0; line-height: 1; }
+  .panel-sub { font-size: 0.72rem; color: rgba(255,245,224,0.70); margin-top: 5px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .close-btn {
+    background: rgba(255,245,224,0.18); border: none; border-radius: 8px;
+    color: #FFF5E0; width: 32px; height: 32px; cursor: pointer;
+    font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid rgba(26,10,53,0.08); flex-shrink: 0; }
+  .tab {
+    flex: 1; padding: 10px 6px;
+    font-size: 0.74rem; font-weight: 600; letter-spacing: 0.04em;
+    border: none; cursor: pointer;
+    background: rgba(26,10,53,0.03);
+    color: rgba(26,10,53,0.55);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    font-family: var(--font-body);
+  }
+  .tab.active {
+    background: #fff;
+    color: #8B3FD8;
+    border-bottom-color: #8B3FD8;
+  }
+
+  /* Panel body */
+  .panel-body { flex: 1; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 18px; }
+  .tab-content { display: none; flex-direction: column; gap: 18px; }
+  .tab-content.active { display: flex; }
+
+  /* Section label */
+  .section-label {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.10em;
+    text-transform: uppercase; margin-bottom: 6px; display: block;
+  }
+  .label-personal { color: #FF1F6E; }
+  .label-work { color: #FF6B1A; }
+  .label-context { color: #8B3FD8; }
+
+  .hint { font-size: 0.78rem; color: rgba(26,10,53,0.55); line-height: 1.6; }
+  code { background: rgba(26,10,53,0.06); padding: 1px 5px; border-radius: 4px; font-size: 0.75rem; font-family: monospace; }
+
+  textarea, .code-block {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid rgba(26,10,53,0.14);
+    background: rgba(26,10,53,0.03);
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    line-height: 1.65;
+    color: var(--ink);
+    font-family: var(--font-body);
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { border-color: rgba(139,63,216,0.40); }
+  .code-block {
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    font-size: 0.76rem;
+    color: rgba(26,10,53,0.75);
+    white-space: pre-wrap;
+    max-height: 340px;
+    overflow-y: auto;
+    min-height: 80px;
+    user-select: all;
+  }
+
+  /* ── Action buttons ── */
+  .btn-primary {
+    padding: 9px 24px; border-radius: 999px;
+    background: #8B3FD8; color: #FFF5E0;
+    border: none; font-size: 0.82rem; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    cursor: pointer; font-family: var(--font-body);
+    box-shadow: 0 4px 16px rgba(139,63,216,0.35);
+    transition: all 0.15s;
+  }
+  .btn-primary:hover { background: #7B2FCA; }
+
+  .save-ok { font-size: 0.78rem; color: #00C4A7; font-weight: 600; }
+
+  /* ── Chat editor ── */
+  .chat-section {
+    border-radius: 12px;
+    border: 1px solid rgba(139,63,216,0.20);
+    background: rgba(139,63,216,0.04);
+    overflow: hidden;
+  }
+  .chat-label {
+    padding: 10px 14px 8px;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    color: #8B3FD8;
+    border-bottom: 1px solid rgba(139,63,216,0.12);
+    background: rgba(139,63,216,0.06);
+  }
+  .chat-label span { font-weight: 400; color: rgba(26,10,53,0.55); text-transform: none; letter-spacing: 0; margin-left: 6px; font-size: 0.76rem; }
+  .chat-history {
+    padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    min-height: 80px; max-height: 240px; overflow-y: auto;
+  }
+  .msg { display: flex; gap: 8px; align-items: flex-start; }
+  .msg-avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 700;
+  }
+  .msg-user .msg-avatar { background: rgba(255,208,0,0.25); color: #92660A; }
+  .msg-claude .msg-avatar { background: rgba(139,63,216,0.20); color: #8B3FD8; }
+  .msg-bubble {
+    padding: 7px 10px; border-radius: 8px;
+    font-size: 0.80rem; line-height: 1.55;
+    max-width: calc(100% - 38px);
+  }
+  .msg-user .msg-bubble { background: rgba(255,208,0,0.14); color: var(--ink); border-radius: 8px 8px 8px 2px; }
+  .msg-claude .msg-bubble { background: rgba(139,63,216,0.10); color: var(--ink); border-radius: 8px 8px 2px 8px; }
+
+  /* Suggested change diff */
+  .diff-box {
+    margin: 4px 0;
+    border-radius: 6px;
+    border: 1px solid rgba(0,196,167,0.30);
+    background: rgba(0,196,167,0.06);
+    overflow: hidden;
+  }
+  .diff-header { padding: 5px 10px; font-size: 0.70rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #00C4A7; background: rgba(0,196,167,0.10); }
+  .diff-body { padding: 8px 10px; font-size: 0.76rem; font-family: monospace; white-space: pre-wrap; color: rgba(26,10,53,0.80); line-height: 1.6; }
+  .diff-added { color: #007A5E; background: rgba(0,196,167,0.12); border-radius: 2px; }
+  .diff-removed { color: #B0003A; background: rgba(255,31,110,0.10); text-decoration: line-through; border-radius: 2px; opacity: 0.75; }
+  .diff-actions { padding: 8px 10px; display: flex; gap: 6px; border-top: 1px solid rgba(0,196,167,0.15); }
+  .btn-apply { padding: 5px 14px; border-radius: 99px; background: #00C4A7; color: #fff; border: none; font-size: 0.74rem; font-weight: 700; cursor: pointer; font-family: var(--font-body); }
+  .btn-discard { padding: 5px 14px; border-radius: 99px; background: rgba(26,10,53,0.07); color: rgba(26,10,53,0.65); border: none; font-size: 0.74rem; font-weight: 600; cursor: pointer; font-family: var(--font-body); }
+
+  /* Chat input row */
+  .chat-input-row {
+    display: flex; gap: 6px; padding: 8px 10px;
+    border-top: 1px solid rgba(139,63,216,0.12);
+    background: rgba(26,10,53,0.02);
+  }
+  .chat-input {
+    flex: 1; border: 1px solid rgba(26,10,53,0.14);
+    border-radius: 8px; padding: 7px 10px;
+    font-size: 0.80rem; color: var(--ink);
+    background: #fff; font-family: var(--font-body);
+    outline: none; resize: none; min-height: 36px; max-height: 90px;
+  }
+  .chat-input:focus { border-color: rgba(139,63,216,0.40); }
+  .chat-send {
+    padding: 7px 14px; border-radius: 8px;
+    background: #8B3FD8; color: #FFF5E0; border: none;
+    font-size: 0.78rem; font-weight: 700; cursor: pointer;
+    font-family: var(--font-body); align-self: flex-end;
+    transition: background 0.15s;
+  }
+  .chat-send:hover { background: #7B2FCA; }
+  .chat-send:disabled { background: rgba(139,63,216,0.35); cursor: not-allowed; }
+
+  /* Typing indicator */
+  .typing { display: flex; gap: 3px; align-items: center; padding: 4px 0; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(139,63,216,0.5); animation: bounce 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-5px); } }
+
+  /* Vercel note */
+  .vercel-note {
+    background: rgba(0,229,196,0.08); border: 1px solid rgba(0,229,196,0.25);
+    border-radius: 8px; padding: 10px 12px;
+    font-size: 0.76rem; color: rgba(26,10,53,0.72); line-height: 1.6;
+  }
+  .vercel-note strong { color: #00A88A; }
+
+  /* Placeholder emails */
+  .email-list { display: flex; flex-direction: column; gap: 4px; }
+  .email-row {
+    padding: 8px 10px; background: #fff; border-radius: 7px;
+    border-left: 3px solid #00E5C4;
+    display: flex; justify-content: space-between;
+    font-size: 0.82rem; color: rgba(26,10,53,0.70);
+  }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+
+  <!-- Header with settings gear in upper right -->
+  <div class="header-row">
+    <div>
+      <div class="logo">INBOX AI</div>
+      <div class="tagline">Your AI-Powered Mail Fiesta</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+      <button style="padding:9px 20px;border-radius:999px;border:1px solid rgba(0,229,196,0.40);background:rgba(0,229,196,0.08);color:#00C4A7;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font-body);">Compose</button>
+      <button style="padding:9px 24px;border-radius:999px;background:#FF1F6E;color:#1A0A35;font-size:0.82rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;border:none;cursor:pointer;font-family:var(--font-body);">Refresh</button>
+      <button class="settings-btn" onclick="openPanel()" title="Settings & AI Instructions">⚙️</button>
+    </div>
+  </div>
+
+  <!-- Mock email list -->
+  <div class="email-list">
+    <div class="email-row"><span>Astrology Hub Newsletter</span><span style="color:rgba(26,10,53,0.40);font-size:0.75rem">May 27</span></div>
+    <div class="email-row" style="border-left-color:#FF1F6E"><span>Patient inquiry — Dr. K</span><span style="color:rgba(26,10,53,0.40);font-size:0.75rem">May 27</span></div>
+    <div class="email-row" style="border-left-color:#FFD000"><span>Lab results ready</span><span style="color:rgba(26,10,53,0.40);font-size:0.75rem">May 26</span></div>
+  </div>
+
+  <p style="font-size:0.72rem;color:rgba(26,10,53,0.40);margin-top:16px;text-align:center">(mock dashboard — open ⚙️ to preview the settings panel)</p>
+</div>
+
+<!-- Backdrop -->
+<div class="backdrop" id="backdrop" onclick="closePanel()"></div>
+
+<!-- Settings Panel -->
+<div class="panel" id="panel">
+
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">SETTINGS</div>
+      <div class="panel-sub">AI instructions &amp; account rules</div>
+    </div>
+    <button class="close-btn" onclick="closePanel()">×</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('custom', this)">✏️ Custom Rules</button>
+    <button class="tab" onclick="switchTab('context', this)">🧠 AI Context</button>
+    <button class="tab" onclick="switchTab('chat', this)">💬 Chat Editor</button>
+    <button class="tab" onclick="switchTab('raw', this)">📋 Full Prompt</button>
+  </div>
+
+  <div class="panel-body">
+
+    <!-- Tab: Custom Rules -->
+    <div class="tab-content active" id="tab-custom">
+      <p class="hint">Short rules injected into Claude's prompt on every refresh. Great for quick preferences like "ignore newsletters" or "always flag patient replies as urgent".</p>
+
+      <div>
+        <span class="section-label label-personal">Personal inbox rules</span>
+        <textarea rows="4">Do not include newsletters or promotional emails in the daily briefing. If an email has actionFlag 'read' and is from a newsletter or mailing list, mark its priority as 'fyi' and do not flag it for action.</textarea>
+      </div>
+      <div>
+        <span class="section-label label-work">Work inbox rules</span>
+        <textarea rows="4">Newsletters and promotional emails should only appear in the daily briefing if they contain a clear savings offer (discount, %, sale price) AND an expiry or deadline within the next 7 days. Otherwise treat them as 'fyi' read-only.</textarea>
+      </div>
+
+      <div class="vercel-note">
+        <strong>✓ Works on Vercel &amp; local:</strong> Rules are saved in your browser (localStorage) and sent with each refresh request — no server writes needed.
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn-primary" onclick="showSaveOk()">Save Rules</button>
+        <span class="save-ok" id="save-ok" style="display:none">✓ Saved! Applies on next refresh.</span>
+      </div>
+    </div>
+
+    <!-- Tab: AI Context (editable CLINIC_CONTEXT) -->
+    <div class="tab-content" id="tab-context">
+      <p class="hint">This is the full system prompt Claude receives — the "personality" layer. It controls summary style, tone, and group logic. Edit it here or ask Claude to change it in the <strong>Chat Editor</strong> tab.</p>
+
+      <span class="section-label label-context">System prompt (CLINIC_CONTEXT)</span>
+      <textarea rows="14">You are an AI assistant helping the user triage their email.
+
+## Summary rules
+Only generate a summary if the email body is longer than ~150 words or contains a special offer/promotion. Otherwise set summary to null.
+
+## Concise summary style
+- Keep summaries extremely short and action-oriented.
+- Mention the sender/brand/person only once, and only if it adds clarity.
+- Prefer this structure: [topic/action] + [deadline/date/time] + [status or amount].
+- Use no more than 2-3 short phrases.
+
+## Group logic
+- If multiple emails are clearly part of the same series or thread, focus on the most recent action or deadline.
+- Do not repeat names that already appear in the subject line.</textarea>
+
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn-primary" onclick="showSaveOk()">Save Context</button>
+        <span class="save-ok" id="save-ok2" style="display:none">✓ Saved! Applies on next refresh.</span>
+      </div>
+    </div>
+
+    <!-- Tab: Chat Editor -->
+    <div class="tab-content" id="tab-chat">
+      <p class="hint">Describe what you want changed in plain English. Claude will suggest the exact edit — you approve or discard it before anything is saved.</p>
+
+      <div class="chat-section">
+        <div class="chat-label">💬 Claude <span>Ask me to change any instruction</span></div>
+
+        <div class="chat-history" id="chat-history">
+          <!-- Example pre-populated conversation -->
+          <div class="msg msg-user">
+            <div class="msg-avatar">K</div>
+            <div class="msg-bubble">Don't put newsletters in the personal briefing, but for work keep them if there's a deal expiring this week</div>
+          </div>
+          <div class="msg msg-claude">
+            <div class="msg-avatar">AI</div>
+            <div class="msg-bubble">
+              Got it. Here's what I'd update in your <strong>Custom Rules</strong>:
+              <div class="diff-box">
+                <div class="diff-header">Suggested change — Personal rules</div>
+                <div class="diff-body"><span class="diff-added">Do not include newsletters or promotional emails in the daily briefing. If an email has actionFlag 'read' and is from a newsletter or mailing list, mark its priority as 'fyi' and do not flag it for action.</span></div>
+                <div class="diff-actions">
+                  <button class="btn-apply" onclick="applyDiff(this)">✓ Apply</button>
+                  <button class="btn-discard" onclick="discardDiff(this)">✕ Discard</button>
+                </div>
+              </div>
+              <div class="diff-box" style="margin-top:8px">
+                <div class="diff-header">Suggested change — Work rules</div>
+                <div class="diff-body"><span class="diff-added">Newsletters and promotional emails should only appear in the daily briefing if they contain a clear savings offer (discount, %, sale price) AND an expiry or deadline within the next 7 days.</span></div>
+                <div class="diff-actions">
+                  <button class="btn-apply" onclick="applyDiff(this)">✓ Apply</button>
+                  <button class="btn-discard" onclick="discardDiff(this)">✕ Discard</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="chat-input" placeholder="e.g. Add a rule to always flag Dr. Aishwarya's emails as urgent…" rows="2" onkeydown="handleKey(event)"></textarea>
+          <button class="chat-send" id="chat-send" onclick="sendMessage()">Send →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Full Prompt (read-only) -->
+    <div class="tab-content" id="tab-raw">
+      <p class="hint">The complete prompt Claude receives, assembled from your system context + custom rules + the email list. Read-only — use <strong>AI Context</strong> or <strong>Chat Editor</strong> to make changes.</p>
+
+      <span class="section-label label-context">Assembled prompt (preview)</span>
+      <div class="code-block">You are an AI assistant helping the user triage their email.
+
+## Summary rules
+Only generate a summary if the email body is longer than ~150 words...
+
+## Concise summary style
+- Keep summaries extremely short and action-oriented...
+
+## Custom instructions for this account
+Do not include newsletters or promotional emails in the daily briefing...
+
+## Categorization
+Assigns each email to one of: Newsletters, Patient Inquiries, Admin, Orders...
+
+Emails to process:
+ID: 18f3a...
+From: Astrology Hub
+Subject: 🔥 Flash sale — 48 hours only
+Body: Hey there! We're running our biggest sale of the year...
+---
+ID: 18f3b...
+From: Dr. Aishwarya
+Subject: Re: patient update
+...</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function openPanel() {
+    document.getElementById('panel').classList.add('open')
+    document.getElementById('backdrop').classList.add('open')
+  }
+  function closePanel() {
+    document.getElementById('panel').classList.remove('open')
+    document.getElementById('backdrop').classList.remove('open')
+  }
+  function switchTab(id, btn) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'))
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'))
+    document.getElementById('tab-' + id).classList.add('active')
+    btn.classList.add('active')
+  }
+  function showSaveOk() {
+    const els = document.querySelectorAll('.save-ok')
+    const active = document.querySelector('.tab-content.active .save-ok') || els[0]
+    if (active) { active.style.display = 'inline'; setTimeout(() => active.style.display = 'none', 2500) }
+  }
+  function applyDiff(btn) {
+    const box = btn.closest('.diff-box')
+    box.style.borderColor = 'rgba(0,196,167,0.50)'
+    box.style.background = 'rgba(0,196,167,0.12)'
+    btn.textContent = '✓ Applied'
+    btn.disabled = true
+    btn.nextElementSibling.style.display = 'none'
+  }
+  function discardDiff(btn) {
+    btn.closest('.diff-box').style.opacity = '0.4'
+    btn.disabled = true
+    btn.previousElementSibling.style.display = 'none'
+  }
+
+  let sending = false
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  }
+  function sendMessage() {
+    if (sending) return
+    const input = document.getElementById('chat-input')
+    const text = input.value.trim()
+    if (!text) return
+    sending = true
+    document.getElementById('chat-send').disabled = true
+
+    const history = document.getElementById('chat-history')
+    // User message
+    history.innerHTML += `<div class="msg msg-user"><div class="msg-avatar">K</div><div class="msg-bubble">${text}</div></div>`
+    input.value = ''
+
+    // Typing indicator
+    history.innerHTML += `<div class="msg msg-claude" id="typing-indicator"><div class="msg-avatar">AI</div><div class="msg-bubble"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div></div>`
+    history.scrollTop = history.scrollHeight
+
+    setTimeout(() => {
+      document.getElementById('typing-indicator')?.remove()
+      history.innerHTML += `<div class="msg msg-claude"><div class="msg-avatar">AI</div><div class="msg-bubble">
+        I can update that. Here's the suggested change:
+        <div class="diff-box" style="margin-top:6px">
+          <div class="diff-header">Suggested change</div>
+          <div class="diff-body"><span class="diff-added">[Updated instruction based on: "${text}"]</span></div>
+          <div class="diff-actions">
+            <button class="btn-apply" onclick="applyDiff(this)">✓ Apply</button>
+            <button class="btn-discard" onclick="discardDiff(this)">✕ Discard</button>
+          </div>
+        </div>
+      </div></div>`
+      history.scrollTop = history.scrollHeight
+      sending = false
+      document.getElementById('chat-send').disabled = false
+    }, 1600)
+  }
+</script>
+</body>
+</html>

@@ -1,5 +1,65 @@
 import { google } from "googleapis"
-import type { RawEmail } from "./types"
+import type { RawEmail, Attachment, EmailAttachment } from "./types"
+
+// ── MIME message builder ──────────────────────────────────────────────────────
+
+function buildMimeMessage(opts: {
+  from?: string
+  to: string
+  subject: string
+  body: string
+  inReplyTo?: string
+  referencesHeader?: string
+  attachments?: Attachment[]
+}): string {
+  if (!opts.attachments?.length) {
+    // Plain-text path — identical to existing behaviour
+    return [
+      opts.from ? `From: ${opts.from}` : null,
+      `To: ${opts.to}`,
+      `Subject: ${opts.subject}`,
+      `Content-Type: text/plain; charset=UTF-8`,
+      `MIME-Version: 1.0`,
+      opts.inReplyTo ? `In-Reply-To: ${opts.inReplyTo}` : null,
+      opts.referencesHeader ? `References: ${opts.referencesHeader}` : null,
+      "",
+      opts.body,
+    ].filter(Boolean).join("\r\n")
+  }
+
+  // Multipart/mixed path
+  const boundary = `inbox_ai_${Date.now()}_${Math.random().toString(36).slice(2)}`
+  const parts: string[] = [
+    `--${boundary}`,
+    `Content-Type: text/plain; charset=UTF-8`,
+    `Content-Transfer-Encoding: 7bit`,
+    "",
+    opts.body,
+  ]
+  for (const att of opts.attachments) {
+    parts.push(
+      `--${boundary}`,
+      `Content-Type: ${att.mimeType}; name="${att.filename}"`,
+      `Content-Transfer-Encoding: base64`,
+      `Content-Disposition: attachment; filename="${att.filename}"`,
+      "",
+      att.data,
+    )
+  }
+  parts.push(`--${boundary}--`)
+
+  return [
+    opts.from ? `From: ${opts.from}` : null,
+    `To: ${opts.to}`,
+    `Subject: ${opts.subject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    opts.inReplyTo ? `In-Reply-To: ${opts.inReplyTo}` : null,
+    opts.referencesHeader ? `References: ${opts.referencesHeader}` : null,
+    "",
+    ...parts,
+  ].filter(Boolean).join("\r\n")
+}
 
 export function getGmailService(accessToken: string) {
   const oauth2 = new google.auth.OAuth2()
@@ -71,10 +131,43 @@ export function extractHtmlBody(payload: any): string {
   return ""
 }
 
+export function extractAttachments(payload: any): EmailAttachment[] {
+  const results: EmailAttachment[] = []
+  if (!payload) return results
+
+  function walk(part: any) {
+    if (!part) return
+
+    // An attachment has an attachmentId (stored externally) AND a real filename.
+    // Inline parts (e.g. tracking pixels) typically have no filename or only a
+    // generated one — we only want user-facing files.
+    const attachmentId = part.body?.attachmentId as string | undefined
+    const filename = (part.filename as string | undefined)?.trim() ?? ""
+
+    if (attachmentId && filename) {
+      results.push({
+        filename,
+        mimeType: (part.mimeType as string | undefined) ?? "application/octet-stream",
+        attachmentId,
+        size: (part.body?.size as number | undefined) ?? 0,
+      })
+    }
+
+    // Recurse into nested MIME parts
+    if (Array.isArray(part.parts)) {
+      for (const child of part.parts) walk(child)
+    }
+  }
+
+  walk(payload)
+  return results
+}
+
 export function parseMessage(msg: any): RawEmail {
   const headers: { name?: string | null; value?: string | null }[] = msg.payload?.headers ?? []
   const body = extractPlainText(msg.payload).slice(0, 2000)
   const htmlBody = extractHtmlBody(msg.payload)
+  const attachments = extractAttachments(msg.payload)
   const fromRaw = getHeader(headers, "from")
   // Extract display name vs email
   const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/)
@@ -96,6 +189,7 @@ export function parseMessage(msg: any): RawEmail {
     inReplyTo: getHeader(headers, "in-reply-to") || undefined,
     messageId: getHeader(headers, "message-id") || undefined,
     labelIds: msg.labelIds ?? [],
+    attachments: attachments.length > 0 ? attachments : undefined,
   }
 }
 
@@ -109,13 +203,19 @@ export interface InboxFetchResult {
 export async function fetchInboxMessages(accessToken: string, maxResults = 30): Promise<InboxFetchResult> {
   const gmail = getGmailService(accessToken)
 
-  const list = await gmail.users.messages.list({
-    userId: "me",
-    q: "is:unread in:inbox",
-    maxResults,
-  })
+  // Fetch accurate unread count from INBOX label + message list in parallel.
+  // labels.get('INBOX').messagesUnread is the true count; resultSizeEstimate is unreliable.
+  const [inboxLabel, list] = await Promise.all([
+    gmail.users.labels.get({ userId: "me", id: "INBOX" }).catch(() => null),
+    gmail.users.messages.list({
+      userId: "me",
+      q: "is:unread in:inbox",
+      maxResults,
+    }),
+  ])
 
-  const totalUnread = list.data.resultSizeEstimate ?? 0
+  const totalUnread =
+    (inboxLabel?.data.messagesUnread ?? list.data.resultSizeEstimate) ?? 0
   const messages = list.data.messages ?? []
   if (messages.length === 0) return { emails: [], totalUnread }
 
@@ -316,7 +416,8 @@ export async function createDraft(
   body: string,
   threadId?: string,
   inReplyTo?: string,
-  messageId?: string
+  messageId?: string,
+  attachments?: Attachment[]
 ): Promise<string> {
   const gmail = getGmailService(accessToken)
 
@@ -328,19 +429,16 @@ export async function createDraft(
     ? `${inReplyTo} ${messageId}`
     : messageId ?? inReplyTo
 
-  const mimeLines = [
-    `To: ${to}`,
-    `Subject: ${mimeSubject}`,
-    inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
-    referencesHeader ? `References: ${referencesHeader}` : null,
-    "Content-Type: text/plain; charset=UTF-8",
-    "MIME-Version: 1.0",
-    "",
+  const mimeLines = buildMimeMessage({
+    to,
+    subject: mimeSubject,
     body,
-  ].filter(Boolean).join("\r\n")
+    inReplyTo,
+    referencesHeader,
+    attachments,
+  })
 
-  const raw = Buffer.from(mimeLines).toString("base64url")
-
+  const raw = Buffer.from(mimeLines, "utf8").toString("base64url")
   const message: { raw: string; threadId?: string } = { raw }
   if (threadId) message.threadId = threadId
 
@@ -362,7 +460,8 @@ export async function sendEmail(
   threadId?: string,
   inReplyTo?: string,
   messageId?: string,
-  from?: string
+  from?: string,
+  attachments?: Attachment[]
 ): Promise<void> {
   const gmail = getGmailService(accessToken)
 
@@ -378,20 +477,17 @@ export async function sendEmail(
     ? `${inReplyTo} ${messageId}`
     : messageId ?? inReplyTo
 
-  const mimeLines = [
-    from ? `From: ${from}` : null,
-    `To: ${to}`,
-    `Subject: ${mimeSubject}`,
-    `Content-Type: text/plain; charset=UTF-8`,
-    `MIME-Version: 1.0`,
-    inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
-    referencesHeader ? `References: ${referencesHeader}` : null,
-    "",
+  const mimeLines = buildMimeMessage({
+    from,
+    to,
+    subject: mimeSubject,
     body,
-  ].filter(Boolean).join("\r\n")
+    inReplyTo,
+    referencesHeader,
+    attachments,
+  })
 
   const raw = Buffer.from(mimeLines, "utf8").toString("base64url")
-
   const requestBody: { raw: string; threadId?: string } = { raw }
   if (threadId) requestBody.threadId = threadId
 

@@ -34,10 +34,7 @@ export default function DashboardPanel({ emails }: DashboardPanelProps) {
     if (!mounted) return
     const config = THEMES[theme]
     if (!config.fontImport) return
-
-    if (fontLinkRef.current) {
-      fontLinkRef.current.remove()
-    }
+    if (fontLinkRef.current) fontLinkRef.current.remove()
     const link = document.createElement("link")
     link.rel = "stylesheet"
     link.href = config.fontImport
@@ -56,88 +53,114 @@ export default function DashboardPanel({ emails }: DashboardPanelProps) {
     setTheme(t)
   }
 
-  const tc = THEMES[theme]
-
-  // Don't render until client prefs are loaded (avoids SSR mismatch)
   if (!mounted) return null
 
+  const tc = THEMES[theme]
+  const isFestival = theme === "festival-stage"
+
   return (
-    <div style={{ width: "100%", borderBottom: "1px solid rgba(26,10,53,0.08)" }}>
-      {/* Toggle bar */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "10px 20px",
-        background: "rgba(238,228,255,0.6)",
-        backdropFilter: "blur(4px)",
-        borderBottom: open ? "1px solid rgba(26,10,53,0.06)" : "none",
-        cursor: "pointer",
-      }}>
-        <button
-          onClick={handleToggle}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            color: "#1A0A35",
-            fontFamily: "var(--font-body, DM Sans, sans-serif)",
-            fontSize: "0.82rem",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-            padding: 0,
-          }}
-        >
-          <span style={{
-            display: "inline-block",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.25s ease",
-            fontSize: "0.7rem",
-            opacity: 0.5,
-          }}>▼</span>
-          ✨ Morning Dashboard
-        </button>
-        <ThemeSelector current={theme} onChange={handleThemeChange} />
-      </div>
+    <>
+      <style>{`
+        .db-grid-top {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 16px;
+        }
+        .db-grid-bottom {
+          display: grid;
+          grid-template-columns: 220px 1fr;
+          gap: 16px;
+        }
+        @media (max-width: 900px) {
+          .db-grid-top {
+            grid-template-columns: 1fr;
+          }
+          .db-grid-bottom {
+            grid-template-columns: 1fr;
+          }
+        }
+        @media (min-width: 901px) and (max-width: 1200px) {
+          .db-grid-top {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+      `}</style>
 
-      {/* Collapsible panel */}
-      <div style={{
-        overflow: "hidden",
-        maxHeight: open ? "1400px" : "0",
-        transition: "max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-      }}>
+      <div style={{ width: "100%", borderBottom: "1px solid rgba(26,10,53,0.08)" }}>
+
+        {/* ── Toggle bar — fully themed ── */}
         <div style={{
-          padding: "20px",
-          background: tc.panelBg,
           display: "flex",
-          flexDirection: "column",
-          gap: "16px",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: isFestival ? "8px 20px" : "10px 20px",
+          background: tc.toggleBarBg,
+          borderBottom: tc.toggleBarBorderBottom,
+          // Festival gets a hot-pink top accent line
+          borderTop: isFestival ? "3px solid #FF1F6E" : undefined,
         }}>
-          {/* Top row — 3 equal columns */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "16px",
-          }}>
-            <CalendarWidget theme={tc} onEventsLoaded={setCalendarEvents} />
-            <DharmaWidget theme={tc} />
-            <ManifestationWidget theme={tc} />
-          </div>
+          <button
+            onClick={handleToggle}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              color: tc.toggleBarTextColor,
+              fontFamily: isFestival
+                ? "'Bebas Neue', sans-serif"
+                : "var(--font-body, DM Sans, sans-serif)",
+              fontSize: isFestival ? "1.15rem" : "0.82rem",
+              fontWeight: isFestival ? 400 : 600,
+              letterSpacing: isFestival ? "0.12em" : "0.06em",
+              padding: 0,
+            }}
+          >
+            <span style={{
+              display: "inline-block",
+              transform: open ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.25s ease",
+              fontSize: isFestival ? "0.8rem" : "0.7rem",
+              opacity: isFestival ? 1 : 0.5,
+              color: isFestival ? "#FF1F6E" : undefined,
+            }}>▼</span>
+            {isFestival ? "MORNING DASHBOARD" : "✨ Morning Dashboard"}
+          </button>
+          <ThemeSelector current={theme} onChange={handleThemeChange} isFestival={isFestival} />
+        </div>
 
-          {/* Bottom row — breathwork (narrow) + insight charts (wide) */}
+        {/* ── Collapsible panel ── */}
+        <div style={{
+          overflow: "hidden",
+          maxHeight: open ? "1600px" : "0",
+          transition: "max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+        }}>
           <div style={{
-            display: "grid",
-            gridTemplateColumns: "220px 1fr",
+            padding: `${tc.panelPaddingTop} 20px 20px`,
+            paddingTop: `calc(${tc.panelPaddingTop} + 20px)`,
+            background: tc.panelBg,
+            display: "flex",
+            flexDirection: "column",
             gap: "16px",
           }}>
-            <BreathworkWidget theme={tc} />
-            <InsightWidget emails={emails} calendarEvents={calendarEvents} theme={tc} />
+            {/* Top row — Calendar | Dharma | Manifestation */}
+            <div className="db-grid-top">
+              <CalendarWidget theme={tc} onEventsLoaded={setCalendarEvents} />
+              <DharmaWidget theme={tc} />
+              <ManifestationWidget theme={tc} />
+            </div>
+
+            {/* Bottom row — Breathwork | Insight charts */}
+            <div className="db-grid-bottom">
+              <BreathworkWidget theme={tc} />
+              <InsightWidget emails={emails} calendarEvents={calendarEvents} theme={tc} />
+            </div>
           </div>
         </div>
+
       </div>
-    </div>
+    </>
   )
 }

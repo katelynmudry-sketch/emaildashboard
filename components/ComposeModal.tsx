@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { recordAction } from "@/lib/stats"
-import type { AccountId } from "@/lib/types"
+import type { AccountId, Attachment } from "@/lib/types"
+import ComposeArea from "./ComposeArea"
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   open: boolean
@@ -10,97 +13,80 @@ interface Props {
   gmailAccount: AccountId
 }
 
+// ── Shared styles ─────────────────────────────────────────────────────────────
+
 const btnBase =
   "text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75"
 
 const inputClass =
   "w-full text-sm text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent"
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function ComposeModal({ open, onClose, gmailAccount }: Props) {
   const [to, setTo] = useState("")
   const [subject, setSubject] = useState("")
-  const [body, setBody] = useState("")
-  const [saving, setSaving] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<"sent" | "draft" | null>(null)
+  // Key forces ComposeArea to remount (reset its body/attachments) each time the modal opens
+  const [composeKey, setComposeKey] = useState(0)
 
   useEffect(() => {
     if (!open) return
     setTo("")
     setSubject("")
-    setBody("")
-    setError(null)
     setDone(null)
+    setComposeKey(k => k + 1)
   }, [open])
 
   useEffect(() => {
     if (!open) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose()
-    }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose() }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
   if (!open) return null
 
-  const canSubmit = to.trim() && body.trim()
-
-  async function handleSaveDraft() {
-    if (!canSubmit) return
-    setSaving(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/gmail/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: to.trim(),
-          subject: subject.trim() || "(no subject)",
-          body,
-          account: gmailAccount,
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(typeof data.error === "string" ? data.error : await res.text())
-      }
-      recordAction("saveDraft", { subject: subject.trim() || "(no subject)" })
-      setDone("draft")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save draft")
-    } finally {
-      setSaving(false)
+  async function handleSend(body: string, attachments: Attachment[]) {
+    if (!to.trim()) throw new Error("Recipient email address is required")
+    const res = await fetch("/api/gmail/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: to.trim(),
+        subject: subject.trim() || "(no subject)",
+        body,
+        account: gmailAccount,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(typeof data.error === "string" ? data.error : `Send failed: ${res.status}`)
     }
+    recordAction("composeSent", { subject: subject.trim() || "(no subject)", details: "new message" })
+    setDone("sent")
   }
 
-  async function handleSend() {
-    if (!canSubmit) return
-    setSending(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/gmail/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: to.trim(),
-          subject: subject.trim() || "(no subject)",
-          body,
-          account: gmailAccount,
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(typeof data.error === "string" ? data.error : await res.text())
-      }
-      recordAction("composeSent", { subject: subject.trim() || "(no subject)", details: "new message" })
-      setDone("sent")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send")
-    } finally {
-      setSending(false)
+  async function handleSaveDraft(body: string, attachments: Attachment[]) {
+    if (!to.trim()) throw new Error("Recipient email address is required")
+    const res = await fetch("/api/gmail/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: to.trim(),
+        subject: subject.trim() || "(no subject)",
+        body,
+        account: gmailAccount,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(typeof data.error === "string" ? data.error : `Draft save failed: ${res.status}`)
     }
+    recordAction("saveDraft", { subject: subject.trim() || "(no subject)" })
+    setDone("draft")
   }
 
   return (
@@ -115,6 +101,7 @@ export default function ComposeModal({ open, onClose, gmailAccount }: Props) {
         role="dialog"
         aria-labelledby="compose-title"
       >
+        {/* Modal header */}
         <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3">
           <h2 id="compose-title" className="text-sm font-semibold text-zinc-900">
             New message
@@ -130,6 +117,7 @@ export default function ComposeModal({ open, onClose, gmailAccount }: Props) {
         </div>
 
         <div className="p-5 space-y-3">
+          {/* Success states */}
           {done === "sent" && (
             <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
               Message sent.
@@ -143,6 +131,7 @@ export default function ComposeModal({ open, onClose, gmailAccount }: Props) {
 
           {done === null && (
             <>
+              {/* To / Subject fields */}
               <input
                 type="email"
                 value={to}
@@ -158,47 +147,28 @@ export default function ComposeModal({ open, onClose, gmailAccount }: Props) {
                 placeholder="Subject"
                 className={inputClass}
               />
-              <textarea
-                value={body}
-                onChange={e => setBody(e.target.value)}
-                rows={8}
-                placeholder="Message"
-                className={`${inputClass} resize-none py-3`}
+
+              {/* Shared compose area (body + attachments + buttons) */}
+              <ComposeArea
+                key={composeKey}
+                mode="compose"
+                onSend={handleSend}
+                onSaveDraft={handleSaveDraft}
+                onCancel={onClose}
+                sendLabel="Send"
+                cancelLabel="Cancel"
               />
             </>
           )}
 
-          {error && <p className="text-xs text-rose-600">{error}</p>}
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            {done === null ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleSend()}
-                  disabled={sending || !canSubmit}
-                  className={`${btnBase} disabled:opacity-50`}
-                >
-                  {sending ? "Sending…" : "Send"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveDraft()}
-                  disabled={saving || !canSubmit}
-                  className={`${btnBase} disabled:opacity-50`}
-                >
-                  {saving ? "Saving…" : "Save draft"}
-                </button>
-                <button type="button" onClick={onClose} className={btnBase}>
-                  Cancel
-                </button>
-              </>
-            ) : (
+          {/* Close button after success */}
+          {done !== null && (
+            <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className={btnBase}>
                 Close
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

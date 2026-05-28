@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComposeArea Prototype — inbox-ai</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #EEE4FF;
+    color: #1A0A35;
+    padding: 32px 20px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
+       color: rgba(26,10,53,.45); margin-bottom: 6px; }
+  h2 { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .12em;
+       color: rgba(26,10,53,.35); margin: 28px 0 10px; }
+
+  /* ── Surfaces ── */
+  .surface { display: flex; flex-direction: column; gap: 24px; max-width: 900px; margin: 0 auto; }
+
+  .card {
+    background: #fff;
+    border: 1px solid rgba(26,10,53,.09);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(26,10,53,.06);
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(26,10,53,.07);
+  }
+  .card-title { font-size: .82rem; font-weight: 600; color: #1A0A35; }
+  .card-subtitle { font-size: .72rem; color: rgba(26,10,53,.45); margin-top: 1px; }
+  .close-btn { font-size: 1.1rem; color: rgba(26,10,53,.38); cursor: pointer; background: none; border: none; }
+
+  /* ── ComposeArea shared styles ── */
+  .compose-area { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .compose-label {
+    font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .10em;
+    color: rgba(26,10,53,.40);
+  }
+
+  .input-field {
+    width: 100%; font-size: .84rem; color: #1A0A35;
+    background: rgba(26,10,53,.03); border: 1px solid rgba(26,10,53,.13);
+    border-radius: 10px; padding: 8px 12px;
+    outline: none; transition: border-color .15s, box-shadow .15s;
+    font-family: inherit;
+  }
+  .input-field:focus { border-color: #C084FC; box-shadow: 0 0 0 3px rgba(192,132,252,.18); }
+  .input-field::placeholder { color: rgba(26,10,53,.32); }
+
+  textarea.input-field { resize: none; line-height: 1.5; }
+
+  /* ── Attachment strip ── */
+  .attach-strip {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 10px;
+    background: rgba(26,10,53,.025);
+    border: 1px solid rgba(26,10,53,.08);
+    border-radius: 10px;
+    min-height: 40px;
+  }
+  .attach-strip.empty { border-style: dashed; }
+
+  .attach-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: .75rem; font-weight: 600; color: rgba(26,10,53,.55);
+    background: none; border: none; cursor: pointer; padding: 3px 4px;
+    border-radius: 6px; transition: color .12s, background .12s;
+    white-space: nowrap;
+  }
+  .attach-btn:hover { color: #8B3FD8; background: rgba(139,63,216,.07); }
+  .attach-btn svg { flex-shrink: 0; }
+
+  .attach-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: .72rem; font-weight: 500; color: #1A0A35;
+    background: rgba(139,63,216,.08); border: 1px solid rgba(139,63,216,.22);
+    border-radius: 20px; padding: 3px 10px 3px 8px;
+  }
+  .attach-chip .chip-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attach-chip .chip-size { font-size: .66rem; color: rgba(26,10,53,.40); }
+  .attach-chip .chip-remove {
+    font-size: .8rem; color: rgba(26,10,53,.35); cursor: pointer;
+    background: none; border: none; padding: 0 0 0 2px; line-height: 1;
+  }
+  .attach-chip .chip-remove:hover { color: #FF1F6E; }
+
+  .attach-divider { width: 1px; height: 18px; background: rgba(26,10,53,.12); flex-shrink: 0; }
+
+  /* ── Action row ── */
+  .action-row { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+
+  .btn {
+    font-size: .75rem; font-weight: 600;
+    padding: 6px 14px; border-radius: 8px;
+    border: 1px solid rgba(26,10,53,.20);
+    background: #fff; color: #1A0A35;
+    box-shadow: 0 2px 0 0 rgba(26,10,53,.10);
+    cursor: pointer; transition: all .08s; white-space: nowrap;
+  }
+  .btn:hover { box-shadow: 0 1px 0 0 rgba(26,10,53,.10); transform: translateY(1px); }
+  .btn:active { box-shadow: none; transform: translateY(2px); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .btn-primary { background: #FF1F6E; border-color: #FF1F6E; color: #fff; box-shadow: 0 2px 0 0 #c4155a; }
+  .btn-primary:hover { box-shadow: 0 1px 0 0 #c4155a; }
+
+  .btn-ai { background: rgba(139,63,216,.09); border-color: rgba(139,63,216,.30); color: #8B3FD8; box-shadow: none; }
+  .btn-ai:hover { background: rgba(139,63,216,.14); box-shadow: none; transform: none; }
+
+  .btn-ghost { background: none; border-color: transparent; box-shadow: none; color: rgba(26,10,53,.45); }
+  .btn-ghost:hover { background: rgba(26,10,53,.04); box-shadow: none; transform: none; }
+
+  /* ── Forward-to header ── */
+  .forward-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255,208,0,.07); border-radius: 8px;
+    border: 1px solid rgba(255,208,0,.22);
+    font-size: .78rem; color: rgba(26,10,53,.60);
+  }
+  .forward-header strong { color: #1A0A35; font-weight: 600; }
+
+  /* ── Mode label pill ── */
+  .mode-pill {
+    display: inline-block; font-size: .62rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em;
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .mode-reply  { background: rgba(0,229,196,.12); color: #00897B; }
+  .mode-forward { background: rgba(255,208,0,.15); color: #9A7800; }
+  .mode-compose { background: rgba(139,63,216,.12); color: #7928CA; }
+
+  /* ── Size indicator ── */
+  .size-indicator {
+    font-size: .68rem; color: rgba(26,10,53,.38); margin-left: auto;
+  }
+  .size-indicator.warn { color: #FF6B1A; }
+  .size-indicator.error { color: #FF1F6E; }
+
+  /* ── Annotation callouts ── */
+  .annotation {
+    display: flex; gap: 10px; align-items: flex-start;
+    margin-top: 8px;
+    padding: 10px 14px;
+    background: rgba(255,208,0,.10); border-left: 3px solid #FFD000;
+    border-radius: 0 8px 8px 0;
+    font-size: .78rem; color: rgba(26,10,53,.70); line-height: 1.5;
+  }
+  .annotation strong { color: #1A0A35; }
+
+  /* ── Layout demo grid ── */
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 680px) { .demo-grid { grid-template-columns: 1fr; } }
+
+  /* ── Compose modal mock ── */
+  .modal-backdrop {
+    position: relative; background: rgba(26,10,53,.45);
+    border-radius: 12px; padding: 40px 24px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-card {
+    background: #fff; border-radius: 16px;
+    width: 100%; max-width: 440px;
+    box-shadow: 0 24px 80px rgba(26,10,53,.35);
+    overflow: hidden;
+  }
+</style>
+</head>
+<body>
+
+<div class="surface">
+
+  <div>
+    <h1>inbox-ai · ComposeArea Prototype</h1>
+    <p style="font-size:.80rem;color:rgba(26,10,53,.52);margin-top:4px;line-height:1.6;">
+      Shared <code style="background:rgba(26,10,53,.08);padding:1px 5px;border-radius:4px;">ComposeArea</code> component used across all 3 compose surfaces.
+      The same attachment UX appears in every context — only the wrapper changes.
+    </p>
+  </div>
+
+  <!-- ── Architecture diagram ── -->
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Component Architecture</div>
+      <div class="card-subtitle">How the 3 surfaces share one ComposeArea</div></div>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:8px;font-size:.78rem;line-height:1.6;">
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+        <div style="background:rgba(139,63,216,.08);border:1px solid rgba(139,63,216,.22);border-radius:10px;padding:10px 14px;min-width:140px;">
+          <div style="font-weight:700;color:#7928CA;margin-bottom:4px;">ComposeModal</div>
+          <div style="color:rgba(26,10,53,.55);font-size:.72rem;">New message<br>Full screen modal</div>
+        </div>
+        <div style="background:rgba(0,229,196,.08);border:1px solid rgba(0,229,196,.22);border-radius:10px;padding:10px 14px;min-width:140px;">
+          <div style="font-weight:700;color:#00897B;margin-bottom:4px;">DraftEditor</div>
+          <div style="color:rgba(26,10,53,.55);font-size:.72rem;">Inline reply/forward<br>In DetailPanel</div>
+        </div>
+        <div style="background:rgba(255,208,0,.10);border:1px solid rgba(255,208,0,.28);border-radius:10px;padding:10px 14px;min-width:140px;">
+          <div style="font-weight:700;color:#9A7800;margin-bottom:4px;">EmailModal</div>
+          <div style="color:rgba(26,10,53,.55);font-size:.72rem;">Full email view<br>Own compose area</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;padding:0 14px;">
+        <div style="flex:1;height:1px;background:rgba(26,10,53,.12)"></div>
+        <span style="font-size:.68rem;color:rgba(26,10,53,.35)">all use</span>
+        <div style="flex:1;height:1px;background:rgba(26,10,53,.12)"></div>
+      </div>
+      <div style="background:linear-gradient(135deg,rgba(255,31,110,.07),rgba(139,63,216,.07));border:1px solid rgba(255,31,110,.22);border-radius:10px;padding:12px 16px;text-align:center;">
+        <div style="font-weight:700;color:#FF1F6E;font-size:.88rem;">ComposeArea</div>
+        <div style="color:rgba(26,10,53,.55);font-size:.72rem;margin-top:3px;">textarea · attach button · file chips · action buttons · size meter</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Surface 1: Inline reply (DraftEditor context) ── -->
+  <h2>Surface 1 — Inline Reply (DraftEditor in DetailPanel / CategoryBlock)</h2>
+  <div class="card">
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(26,10,53,.07);display:flex;align-items:center;gap:8px;">
+      <span class="mode-pill mode-reply">Reply</span>
+      <span style="font-size:.8rem;color:rgba(26,10,53,.55);">Re: Your order has shipped</span>
+    </div>
+    <div class="compose-area" id="reply-compose">
+      <textarea class="input-field" rows="5" placeholder="Write your reply…">Thanks for the update! I'll keep an eye out for the package.</textarea>
+      <!-- Attachment strip -->
+      <div class="attach-strip" id="reply-strip">
+        <button class="attach-btn" onclick="triggerAttach('reply')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+          Attach file
+        </button>
+        <span id="reply-chips"></span>
+        <span class="size-indicator" id="reply-size" style="display:none"></span>
+      </div>
+      <!-- Actions -->
+      <div class="action-row">
+        <button class="btn btn-ai">✦ AI draft</button>
+        <button class="btn btn-primary">Send</button>
+        <button class="btn">Save to Drafts</button>
+        <button class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+    <input type="file" id="reply-file" multiple style="display:none" onchange="addFiles('reply', this)">
+  </div>
+  <div class="annotation">
+    <span>📍</span>
+    <span><strong>DraftEditor:</strong> The attachment strip sits between the textarea and the action buttons. The "Attach file" label disappears once chips are present — a paperclip icon button replaces it.</span>
+  </div>
+
+  <!-- ── Surface 2: Forward mode ── -->
+  <h2>Surface 2 — Inline Forward (DraftEditor, forward mode)</h2>
+  <div class="card">
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(26,10,53,.07);display:flex;align-items:center;gap:8px;">
+      <span class="mode-pill mode-forward">Forward</span>
+      <span style="font-size:.8rem;color:rgba(26,10,53,.55);">Fwd: Your order has shipped</span>
+    </div>
+    <div class="compose-area">
+      <!-- Forward-to -->
+      <input class="input-field" type="email" placeholder="To: email address" />
+      <!-- Forwarded body (pre-filled, editable) -->
+      <textarea class="input-field" rows="6" style="font-size:.78rem;color:rgba(26,10,53,.60);">
+---------- Forwarded message ----------
+From: Amazon &lt;no-reply@amazon.com&gt;
+Subject: Your order has shipped
+
+Hi there, your package is on its way...</textarea>
+      <!-- Attachment strip with one pre-attached file example -->
+      <div class="attach-strip" id="fwd-strip">
+        <button class="attach-btn" onclick="triggerAttach('fwd')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+          Attach file
+        </button>
+        <span id="fwd-chips"></span>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-primary">Send</button>
+        <button class="btn">Save to Drafts</button>
+        <button class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+    <input type="file" id="fwd-file" multiple style="display:none" onchange="addFiles('fwd', this)">
+  </div>
+
+  <!-- ── Surface 3: EmailModal (full view) ── -->
+  <h2>Surface 3 — EmailModal (full email view, own compose area)</h2>
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Amazon · Your order has shipped</div>
+      <div class="card-subtitle">no-reply@amazon.com</div></div>
+      <button class="close-btn">×</button>
+    </div>
+    <!-- Action bar (abbreviated) -->
+    <div style="display:flex;gap:7px;padding:10px 16px;border-bottom:1px solid rgba(26,10,53,.07);flex-wrap:wrap;">
+      <button class="btn" style="font-size:.72rem">Mark read</button>
+      <button class="btn" style="font-size:.72rem">Archive</button>
+      <button class="btn" style="font-size:.72rem">Star</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ai" style="font-size:.72rem">✦ AI Draft</button>
+      <button class="btn" style="font-size:.72rem" onclick="showModalCompose('reply-modal')">Reply</button>
+      <button class="btn" style="font-size:.72rem" onclick="showModalCompose('fwd-modal')">Forward</button>
+    </div>
+    <!-- Email body preview -->
+    <div style="padding:16px;font-size:.84rem;color:rgba(26,10,53,.72);line-height:1.6;min-height:80px;border-bottom:1px solid rgba(26,10,53,.07);">
+      Hi there, your package is on its way. Expected delivery: Friday May 30.
+    </div>
+    <!-- Compose area (same ComposeArea component, different wrapper) -->
+    <div id="reply-modal" style="display:none;" class="compose-area" style="border-top:1px solid rgba(26,10,53,.07);">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(26,10,53,.40);">Reply</div>
+      <textarea class="input-field" rows="5" placeholder="Write your reply…"></textarea>
+      <div class="attach-strip" id="modal-reply-strip">
+        <button class="attach-btn" onclick="triggerAttach('modal-reply')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+          Attach file
+        </button>
+        <span id="modal-reply-chips"></span>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-primary">Send</button>
+        <button class="btn">Save to Drafts</button>
+        <button class="btn btn-ghost" onclick="hideModalCompose('reply-modal')">Cancel</button>
+      </div>
+    </div>
+    <div id="fwd-modal" style="display:none;" class="compose-area">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(26,10,53,.40);">Forward</div>
+      <input class="input-field" type="email" placeholder="To: email address" />
+      <textarea class="input-field" rows="5" style="font-size:.78rem;color:rgba(26,10,53,.60);">---------- Forwarded message ----------
+From: Amazon &lt;no-reply@amazon.com&gt;
+Subject: Your order has shipped
+
+Hi there, your package is on its way...</textarea>
+      <div class="attach-strip" id="modal-fwd-strip">
+        <button class="attach-btn" onclick="triggerAttach('modal-fwd')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+          Attach file
+        </button>
+        <span id="modal-fwd-chips"></span>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-primary">Send</button>
+        <button class="btn">Save to Drafts</button>
+        <button class="btn btn-ghost" onclick="hideModalCompose('fwd-modal')">Cancel</button>
+      </div>
+    </div>
+    <input type="file" id="modal-reply-file" multiple style="display:none" onchange="addFiles('modal-reply', this)">
+    <input type="file" id="modal-fwd-file" multiple style="display:none" onchange="addFiles('modal-fwd', this)">
+  </div>
+
+  <!-- ── Surface 4: ComposeModal (new message) ── -->
+  <h2>Surface 4 — ComposeModal (new message)</h2>
+  <div class="modal-backdrop">
+    <div class="modal-card">
+      <div class="card-header">
+        <div><div class="card-title">New message</div></div>
+        <button class="close-btn">✕</button>
+      </div>
+      <div class="compose-area">
+        <span class="mode-pill mode-compose" style="align-self:flex-start">Compose</span>
+        <input class="input-field" type="email" placeholder="To" />
+        <input class="input-field" type="text" placeholder="Subject" />
+        <textarea class="input-field" rows="6" placeholder="Message…"></textarea>
+        <!-- Same attach strip -->
+        <div class="attach-strip" id="compose-strip">
+          <button class="attach-btn" onclick="triggerAttach('compose')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+            Attach file
+          </button>
+          <span id="compose-chips"></span>
+          <span class="size-indicator" id="compose-size" style="display:none"></span>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-primary">Send</button>
+          <button class="btn">Save draft</button>
+          <button class="btn btn-ghost">Cancel</button>
+        </div>
+      </div>
+      <input type="file" id="compose-file" multiple style="display:none" onchange="addFiles('compose', this)">
+    </div>
+  </div>
+  <div class="annotation">
+    <span>📍</span>
+    <span><strong>ComposeModal difference:</strong> Has "To" and "Subject" fields that DraftEditor/EmailModal don't need (they derive from the email being replied to). Everything else — attach strip, chips, size meter, action buttons — is the shared <code>ComposeArea</code>.</span>
+  </div>
+
+  <!-- ── Attachment chip states ── -->
+  <h2>Chip States</h2>
+  <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:.75rem;color:rgba(26,10,53,.50);margin-bottom:4px;">All possible attachment chip states:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+      <!-- Normal -->
+      <div class="attach-chip">
+        <span>📄</span>
+        <span class="chip-name">invoice-2026.pdf</span>
+        <span class="chip-size">124 KB</span>
+        <button class="chip-remove">×</button>
+      </div>
+      <!-- Image -->
+      <div class="attach-chip">
+        <span>🖼</span>
+        <span class="chip-name">screenshot.png</span>
+        <span class="chip-size">2.1 MB</span>
+        <button class="chip-remove">×</button>
+      </div>
+      <!-- Large (warning) -->
+      <div class="attach-chip" style="border-color:rgba(255,107,26,.35);background:rgba(255,107,26,.09);">
+        <span>⚠️</span>
+        <span class="chip-name">video-recording.mp4</span>
+        <span class="chip-size" style="color:#FF6B1A">18 MB</span>
+        <button class="chip-remove">×</button>
+      </div>
+      <!-- Too large (error) -->
+      <div class="attach-chip" style="border-color:rgba(255,31,110,.35);background:rgba(255,31,110,.09);">
+        <span>🚫</span>
+        <span class="chip-name">raw-backup.zip</span>
+        <span class="chip-size" style="color:#FF1F6E">28 MB</span>
+        <button class="chip-remove">×</button>
+      </div>
+    </div>
+    <div style="font-size:.72rem;color:rgba(26,10,53,.45);line-height:1.6;">
+      Size thresholds: <strong>normal</strong> &lt;10 MB · <strong>warn</strong> 10–25 MB · <strong>error</strong> &gt;25 MB (Gmail limit)
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const fileStores = {}
+
+  function triggerAttach(id) {
+    document.getElementById(id + '-file').click()
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
+  function getEmoji(file) {
+    if (file.type.startsWith('image/')) return '🖼'
+    if (file.type === 'application/pdf') return '📄'
+    if (file.type.startsWith('video/')) return '🎥'
+    if (file.type.startsWith('audio/')) return '🎵'
+    return '📎'
+  }
+
+  function addFiles(id, input) {
+    if (!fileStores[id]) fileStores[id] = []
+    Array.from(input.files).forEach(f => {
+      if (!fileStores[id].find(x => x.name === f.name)) {
+        fileStores[id].push(f)
+      }
+    })
+    input.value = ''
+    renderChips(id)
+  }
+
+  function removeFile(id, name) {
+    if (fileStores[id]) {
+      fileStores[id] = fileStores[id].filter(f => f.name !== name)
+    }
+    renderChips(id)
+  }
+
+  function renderChips(id) {
+    const files = fileStores[id] || []
+    const chipsEl = document.getElementById(id + '-chips')
+    const stripEl = document.getElementById(id + '-strip')
+    if (!chipsEl) return
+
+    chipsEl.innerHTML = files.map(f => {
+      const mb = f.size / (1024 * 1024)
+      const isWarn = mb > 10 && mb <= 25
+      const isErr = mb > 25
+      const style = isErr
+        ? 'border-color:rgba(255,31,110,.35);background:rgba(255,31,110,.09);'
+        : isWarn
+        ? 'border-color:rgba(255,107,26,.35);background:rgba(255,107,26,.09);'
+        : ''
+      const sizeColor = isErr ? 'color:#FF1F6E' : isWarn ? 'color:#FF6B1A' : ''
+      return `<span class="attach-chip" style="${style}">
+        <span>${isErr ? '🚫' : isWarn ? '⚠️' : getEmoji(f)}</span>
+        <span class="chip-name">${f.name}</span>
+        <span class="chip-size" style="${sizeColor}">${formatSize(f.size)}</span>
+        <button class="chip-remove" onclick="removeFile('${id}', '${f.name.replace(/'/g,"\\'")}')">×</button>
+      </span>`
+    }).join('')
+
+    // Update strip appearance
+    if (files.length > 0 && stripEl) {
+      stripEl.classList.remove('empty')
+    } else if (stripEl) {
+      stripEl.classList.add('empty')
+    }
+
+    // Update size indicator
+    const sizeEl = document.getElementById(id + '-size')
+    if (sizeEl) {
+      const totalMb = files.reduce((s, f) => s + f.size, 0) / (1024 * 1024)
+      if (files.length > 0) {
+        sizeEl.style.display = 'inline'
+        const warn = totalMb > 10
+        sizeEl.textContent = `Total: ${totalMb.toFixed(1)} MB / 25 MB`
+        sizeEl.className = 'size-indicator' + (totalMb > 25 ? ' error' : totalMb > 10 ? ' warn' : '')
+      } else {
+        sizeEl.style.display = 'none'
+      }
+    }
+  }
+
+  function showModalCompose(id) {
+    document.getElementById('reply-modal').style.display = 'none'
+    document.getElementById('fwd-modal').style.display = 'none'
+    document.getElementById(id).style.display = 'flex'
+    document.getElementById(id).style.flexDirection = 'column'
+    document.getElementById(id).style.gap = '10px'
+    document.getElementById(id).style.borderTop = '1px solid rgba(26,10,53,.07)'
+  }
+  function hideModalCompose(id) {
+    document.getElementById(id).style.display = 'none'
+  }
+</script>
+</body>
+</html>

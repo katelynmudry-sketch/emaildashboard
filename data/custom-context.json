@@ -1,0 +1,4 @@
+{
+  "personal": "Do not include newsletters or promotional emails in the daily briefing. If an email has actionFlag 'read' and is from a newsletter or mailing list, mark its priority as 'fyi' and do not flag it for action.",
+  "work": "Newsletters and promotional emails should only appear in the daily briefing if they contain a clear savings offer (discount, %, sale price) AND an expiry or deadline within the next 7 days. Otherwise treat them as 'fyi' read-only and keep them out of the briefing."
+}

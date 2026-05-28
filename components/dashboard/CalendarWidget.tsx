@@ -48,25 +48,49 @@ export default function CalendarWidget({ theme, onEventsLoaded }: CalendarWidget
   const dayName = today.toLocaleDateString("en-US", { weekday: "long" })
   const dateStr = today.toLocaleDateString("en-US", { month: "long", day: "numeric" })
 
+  const isFestival = theme.id === "festival-stage"
+  const isAltar = theme.id === "morning-altar"
+
   return (
     <div style={{
       background: theme.cardBg,
       border: theme.cardBorder,
       borderRadius: theme.cardRadius,
       boxShadow: theme.cardShadow,
-      padding: "20px",
+      padding: theme.cardPadding,
       minHeight: "220px",
       display: "flex",
       flexDirection: "column",
     }}>
       {/* Header */}
-      <div style={{ marginBottom: "12px" }}>
-        <div style={{ ...theme.labelStyle, marginBottom: "4px" }}>Today</div>
-        <div style={{ fontFamily: theme.titleFont, fontSize: "1.5rem", fontWeight: 600, color: "#1A0A35", lineHeight: 1.1 }}>
-          {dayName}
-          <span style={{ color: theme.accentColor }}>,</span>
+      <div style={{
+        marginBottom: "14px",
+        paddingBottom: "12px",
+        borderBottom: theme.sectionDivider,
+      }}>
+        <div style={{ ...theme.labelStyle, marginBottom: "6px" }}>Today</div>
+        <div style={{
+          fontFamily: theme.titleFont,
+          fontSize: theme.dayNameSize,
+          fontWeight: isFestival ? 400 : isAltar ? 300 : 700,
+          fontStyle: isAltar ? "italic" : "normal",
+          color: "#1A0A35",
+          lineHeight: 1.05,
+          letterSpacing: isFestival ? "0.04em" : undefined,
+        }}>
+          {isFestival ? dayName.toUpperCase() : dayName}
+          <span style={{ color: theme.accentColor }}>{isFestival ? " ▸" : ","}</span>
         </div>
-        <div style={{ fontFamily: theme.titleFont, fontSize: "1rem", color: "#1A0A35", opacity: 0.7 }}>{dateStr}</div>
+        <div style={{
+          fontFamily: theme.bodyFont,
+          fontSize: isFestival ? "0.82rem" : "0.9rem",
+          fontStyle: isAltar ? "italic" : "normal",
+          color: "#1A0A35",
+          opacity: 0.55,
+          marginTop: "2px",
+          letterSpacing: isFestival ? "0.08em" : undefined,
+          textTransform: isFestival ? "uppercase" : undefined,
+        }}>{dateStr}</div>
       </div>
 
       {/* Events list */}
@@ -75,52 +99,79 @@ export default function CalendarWidget({ theme, onEventsLoaded }: CalendarWidget
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {[1, 2, 3].map(i => (
               <div key={i} style={{
-                height: "36px", borderRadius: "8px",
-                background: "linear-gradient(90deg, rgba(0,0,0,0.06) 25%, rgba(0,0,0,0.03) 50%, rgba(0,0,0,0.06) 75%)",
+                height: "34px", borderRadius: theme.cardRadius,
+                background: "linear-gradient(90deg, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.025) 50%, rgba(0,0,0,0.05) 75%)",
                 backgroundSize: "200% 100%",
-                animation: "shimmer 1.4s infinite",
+                animation: "db-shimmer 1.4s infinite",
               }} />
             ))}
           </div>
         )}
         {!loading && error && (
-          <p style={{ color: "#1A0A35", opacity: 0.4, fontSize: "0.85rem", fontStyle: "italic" }}>
-            Couldn't load calendar
+          <p style={{ color: "#1A0A35", opacity: 0.35, fontSize: "0.83rem", fontStyle: "italic", margin: 0 }}>
+            Couldn't load calendar — sign out &amp; back in to reconnect
           </p>
         )}
         {!loading && !error && events.length === 0 && (
-          <p style={{ color: "#1A0A35", opacity: 0.4, fontSize: "0.85rem", fontStyle: "italic" }}>
-            No events today ✦ free day!
+          <p style={{
+            color: "#1A0A35", opacity: 0.38,
+            fontSize: isAltar ? "1rem" : "0.83rem",
+            fontStyle: isAltar ? "italic" : "normal",
+            fontFamily: theme.bodyFont,
+            margin: 0,
+          }}>
+            {isAltar ? "✦ A clear day opens before you" : "No events — free day!"}
           </p>
         )}
-        {!loading && events.map(event => (
+        {!loading && events.map((event, idx) => (
           <div key={event.id} style={{
             display: "flex",
             alignItems: "flex-start",
             gap: "10px",
-            padding: "6px 0",
-            borderBottom: "1px solid rgba(0,0,0,0.05)",
+            padding: "7px 0",
+            borderBottom: idx < events.length - 1 ? theme.sectionDivider : "none",
           }}>
+            {/* Color dot */}
             <div style={{
-              width: "8px", height: "8px", borderRadius: "50%",
+              width: isFestival ? "10px" : "8px",
+              height: isFestival ? "10px" : "8px",
+              borderRadius: isFestival ? "3px" : "50%",
               background: event.colorDot,
-              marginTop: "5px", flexShrink: 0,
-              boxShadow: event.isNow ? `0 0 0 3px ${event.colorDot}40` : undefined,
+              marginTop: "4px", flexShrink: 0,
+              boxShadow: event.isNow ? `0 0 0 3px ${event.colorDot}35` : undefined,
             }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: "0.87rem",
+                fontFamily: theme.bodyFont,
+                fontSize: isFestival ? "0.88rem" : "0.85rem",
                 fontWeight: event.isNow ? 600 : 400,
                 color: "#1A0A35",
-                opacity: event.isNow ? 1 : 0.8,
+                opacity: event.isNow ? 1 : 0.82,
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
               }}>
                 {event.title}
-                {event.isNow && <span style={{ color: theme.accentColor, marginLeft: "6px", fontSize: "0.7rem", fontWeight: 700 }}>NOW</span>}
+                {event.isNow && (
+                  <span style={{
+                    background: theme.accentColor,
+                    color: "#FFFFFF",
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    padding: "1px 6px",
+                    borderRadius: "4px",
+                    marginLeft: "7px",
+                    letterSpacing: "0.08em",
+                  }}>NOW</span>
+                )}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#1A0A35", opacity: 0.5 }}>
+              <div style={{
+                fontFamily: theme.bodyFont,
+                fontSize: "0.73rem",
+                color: "#1A0A35",
+                opacity: 0.45,
+                marginTop: "1px",
+              }}>
                 {event.startTime}{event.endTime ? ` – ${event.endTime}` : ""}
-                {event.location && <span style={{ marginLeft: "6px" }}>📍 {event.location}</span>}
+                {event.location && <span style={{ marginLeft: "6px", opacity: 0.7 }}>📍 {event.location}</span>}
               </div>
             </div>
           </div>
@@ -128,8 +179,8 @@ export default function CalendarWidget({ theme, onEventsLoaded }: CalendarWidget
       </div>
 
       <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
+        @keyframes db-shimmer {
+          0%   { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
       `}</style>

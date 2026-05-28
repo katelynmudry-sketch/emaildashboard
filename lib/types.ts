@@ -47,6 +47,7 @@ export interface RawEmail {
   inReplyTo?: string
   messageId?: string    // RFC 2822 Message-ID header
   labelIds: string[]
+  attachments?: EmailAttachment[]
 }
 
 export interface Email {
@@ -64,6 +65,7 @@ export interface Email {
   inReplyTo?: string
   messageId?: string
   labelIds: string[]
+  attachments?: EmailAttachment[]
   replied?: boolean
   forwarded?: boolean
   todo?: boolean         // manually pinned by user to top of briefing
@@ -141,6 +143,15 @@ export interface ReadRequest {
   account?: AccountId
 }
 
+/** Attachment metadata on a received email (no binary data — fetched on demand) */
+export interface EmailAttachment {
+  filename: string
+  mimeType: string
+  attachmentId: string   // Gmail attachment ID — use to fetch data via /api/gmail/attachment
+  size: number           // bytes
+}
+
+/** Attachment with data — used when composing/sending */
 export interface Attachment {
   filename: string
   mimeType: string

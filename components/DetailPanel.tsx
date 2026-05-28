@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import type { AccountId, Email, Category } from "@/lib/types"
+import type { AccountId, Email, Category, Attachment } from "@/lib/types"
 import { recordAction } from "@/lib/stats"
+import { loadSettings } from "@/lib/settings-storage"
+import { downloadAttachment } from "@/lib/attachment-download"
 import DraftEditor from "./DraftEditor"
 
 const TAG_COLORS = [
@@ -18,8 +20,8 @@ interface Props {
   onClose: () => void
   onArchive: (email: Email) => Promise<void>
   onMarkRead: (email: Email) => Promise<void>
-  onSaveDraft: (email: Email, body: string) => Promise<void>
-  onSend: (email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) => Promise<void>
+  onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
   onStar: (email: Email) => Promise<void>
   onDelete: (email: Email) => Promise<void>
   onRecategorize: (email: Email, newCategory: string, teachClaude: boolean) => Promise<void>
@@ -44,6 +46,7 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
   const [archiving, setArchiving] = useState(false)
   const [archived, setArchived] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [htmlBody, setHtmlBody] = useState<string | null>(email?.htmlBody ?? null)
   const [htmlLoading, setHtmlLoading] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -99,6 +102,14 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
 
   if (!email) return null
 
+  async function handleDownloadAttachment(att: { filename: string; mimeType: string; attachmentId: string }) {
+    setDownloadingId(att.attachmentId)
+    try {
+      await downloadAttachment(email!.id, att, gmailAccount)
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   async function handleArchive() {
     if (!email) return
@@ -184,17 +195,65 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
           </div>
         )}
 
+        {/* Attachments */}
+        {email.attachments && email.attachments.length > 0 && (
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5">
+            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
+              📎 {email.attachments.length} attachment{email.attachments.length !== 1 ? "s" : ""}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {email.attachments.map(att => {
+                const isDownloading = downloadingId === att.attachmentId
+                const emoji = att.mimeType.startsWith("image/") ? "🖼" :
+                  att.mimeType === "application/pdf" ? "📄" :
+                  att.mimeType.startsWith("video/") ? "🎥" :
+                  att.mimeType.startsWith("audio/") ? "🎵" : "📎"
+                const size = att.size > 0
+                  ? att.size < 1024 * 1024
+                    ? `${Math.round(att.size / 1024)} KB`
+                    : `${(att.size / (1024 * 1024)).toFixed(1)} MB`
+                  : ""
+                return (
+                  <button
+                    key={att.attachmentId}
+                    type="button"
+                    disabled={isDownloading}
+                    onClick={() => void handleDownloadAttachment(att)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-violet-200 bg-white text-violet-700 hover:bg-violet-50 disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    <span>{emoji}</span>
+                    <span className="max-w-[150px] truncate">{att.filename}</span>
+                    {size && <span className="text-violet-400">{size}</span>}
+                    <span className="text-violet-300">{isDownloading ? "↓…" : "↓"}</span>
+                  </button>
+                )
+              })}
+              {gmailAccount === "work" && email.attachments.length > 0 && (
+                <button
+                  type="button"
+                  disabled={downloadingId !== null}
+                  onClick={async () => { for (const att of email.attachments!) await handleDownloadAttachment(att) }}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition-colors shadow-sm ml-auto"
+                >
+                  {downloadingId ? "Saving…" : "💾 Save to admin"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {draftMode && (
           <DraftEditor
             email={email}
+            gmailAccount={gmailAccount}
             mode={draftMode === "forward" ? "forward" : "reply"}
-            initialBody={draftMode === "ai" ? (aiDraftBody ?? "") : ""}
-            onSaveDraft={async body => {
-              await onSaveDraft(email, body)
+            initialBody={draftMode === "ai" ? (aiDraftBody ?? "") : undefined}
+            onSaveDraft={async (body, attachments, forwardTo) => {
+              await onSaveDraft(email, body, attachments, forwardTo)
               setDraftMode(null)
             }}
-            onSend={async (body, forwardTo) => {
-              await onSend(email, draftMode === "forward" ? "forward" : "reply", body, forwardTo)
+            onSend={async (body, attachments, forwardTo) => {
+              await onSend(email, draftMode === "forward" ? "forward" : "reply", body, attachments, forwardTo)
               setDraftMode(null)
             }}
             onCancel={() => setDraftMode(null)}
@@ -223,10 +282,17 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
                   setDraftMode(null)
                   recordAction("aiDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
                   try {
+                    const settings = loadSettings()
+                    const isWork = gmailAccount === "work"
+                    const customContext = isWork ? settings.workRules : settings.personalRules
                     const res = await fetch("/api/ai/draft", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body } }),
+                      body: JSON.stringify({
+                        email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
+                        systemContext: settings.systemContext || undefined,
+                        customContext: customContext || undefined,
+                      }),
                     })
                     const data = await res.json()
                     setAiDraftBody(data.draft ?? "")

@@ -6,7 +6,7 @@ import type { DraftRequest } from "@/lib/types"
 
 export async function POST(request: Request) {
   const session = await auth()
-  const { to, subject, body, threadId, inReplyTo, messageId, account }: DraftRequest = await request.json()
+  const { to, subject, body, threadId, inReplyTo, messageId, account, attachments }: DraftRequest = await request.json()
   
   if (!to || !to.trim()) {
     return NextResponse.json({ error: "Recipient email address is required" }, { status: 400 })
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const from = account === "work" && workEmail ? workEmail : (session?.user?.email ?? "")
 
   try {
-    await sendEmail(authz.accessToken, to, subject, body, threadId, inReplyTo, messageId, from)
+    await sendEmail(authz.accessToken, to, subject, body, threadId, inReplyTo, messageId, from, attachments)
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error("[send] Error sending email:", err)

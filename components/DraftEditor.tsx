@@ -1,73 +1,52 @@
 "use client"
 
 import { useState } from "react"
-import type { Email } from "@/lib/types"
+import type { AccountId, Email, Attachment } from "@/lib/types"
+import { loadSettings } from "@/lib/settings-storage"
+import ComposeArea from "./ComposeArea"
 
-interface Props {
-  email: Email
-  mode?: "reply" | "forward"
-  initialBody?: string
-  onSaveDraft: (body: string) => Promise<void>
-  onSend: (body: string, forwardTo?: string) => Promise<void>
-  onCancel: () => void
-}
-
-const btnBase =
-  "text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75"
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function forwardBody(email: Email): string {
   return `\n\n---------- Forwarded message ----------\nFrom: ${email.from} <${email.fromEmail}>\nSubject: ${email.subject}\n\n${email.body}`
 }
 
-export default function DraftEditor({ email, mode = "reply", initialBody, onSaveDraft, onSend, onCancel }: Props) {
-  const [body, setBody] = useState(initialBody ?? (mode === "forward" ? forwardBody(email) : ""))
-  const [forwardTo, setForwardTo] = useState("")
-  const [saving, setSaving] = useState(false)
+// ── Props ─────────────────────────────────────────────────────────────────────
+
+interface Props {
+  email: Email
+  gmailAccount?: AccountId
+  mode?: "reply" | "forward"
+  initialBody?: string
+  onSaveDraft: (body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
+  onSend: (body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
+  onCancel: () => void
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function DraftEditor({ email, gmailAccount, mode = "reply", initialBody, onSaveDraft, onSend, onCancel }: Props) {
   const [saved, setSaved] = useState(false)
-  const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const [aiCompleting, setAiCompleting] = useState(false)
 
-  async function handleAiComplete() {
-    setAiCompleting(true)
-    try {
-      const res = await fetch("/api/ai/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
-          partialDraft: body,
-        }),
-      })
-      const data = await res.json()
-      if (data.draft) setBody(data.draft)
-    } finally {
-      setAiCompleting(false)
-    }
-  }
+  const computedInitialBody = initialBody ?? (mode === "forward" ? forwardBody(email) : undefined)
 
-  const to = mode === "forward" ? forwardTo : email.fromEmail
-  const subject = mode === "forward" ? `Fwd: ${email.subject}` : email.subject
-
-  async function handleSaveDraft() {
-    setSaving(true)
-    await onSaveDraft(body)
-    setSaving(false)
-    setSaved(true)
-  }
-
-  async function handleSend() {
-    setSending(true)
-    setSendError(null)
-    try {
-      await onSend(body, mode === "forward" ? forwardTo : undefined)
-      setSent(true)
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : "Failed to send")
-    } finally {
-      setSending(false)
-    }
+  async function handleAiDraft(partialBody: string): Promise<string> {
+    const settings = loadSettings()
+    const isWork = gmailAccount === "work"
+    const customContext = isWork ? settings.workRules : settings.personalRules
+    const res = await fetch("/api/ai/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
+        partialDraft: partialBody,
+        systemContext: settings.systemContext || undefined,
+        customContext: customContext || undefined,
+      }),
+    })
+    const data = await res.json()
+    return data.draft ?? ""
   }
 
   if (saved) {
@@ -91,53 +70,21 @@ export default function DraftEditor({ email, mode = "reply", initialBody, onSave
       <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
         {mode === "forward" ? "Forward" : "Draft reply"}
       </p>
-      {mode === "forward" && (
-        <input
-          type="email"
-          value={forwardTo}
-          onChange={e => setForwardTo(e.target.value)}
-          placeholder="To: email address"
-          className="w-full text-sm text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent"
-        />
-      )}
-      <textarea
-        value={body}
-        onChange={e => setBody(e.target.value)}
-        rows={6}
-        className="w-full text-sm text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-xl p-3 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent"
-        placeholder="Write your reply..."
+      <ComposeArea
+        mode={mode}
+        initialBody={computedInitialBody}
+        onAiDraft={mode === "reply" ? handleAiDraft : undefined}
+        showUploadButton={gmailAccount === "work"}
+        onSaveDraft={async (body, attachments, forwardTo) => {
+          await onSaveDraft(body, attachments, forwardTo)
+          setSaved(true)
+        }}
+        onSend={async (body, attachments, forwardTo) => {
+          await onSend(body, attachments, forwardTo)
+          setSent(true)
+        }}
+        onCancel={onCancel}
       />
-      {sendError && (
-        <p className="text-xs text-rose-600">{sendError}</p>
-      )}
-      <div className="flex gap-2 flex-wrap">
-        {mode === "reply" && (
-          <button
-            onClick={handleAiComplete}
-            disabled={aiCompleting}
-            className={`${btnBase} text-violet-700 border-violet-300 bg-violet-50 hover:bg-violet-100 disabled:opacity-50`}
-          >
-            {aiCompleting ? "Writing…" : body.trim() ? "AI complete" : "AI draft"}
-          </button>
-        )}
-        <button
-          onClick={handleSaveDraft}
-          disabled={saving || !body.trim() || (mode === "forward" && !forwardTo.trim())}
-          className={`${btnBase} disabled:opacity-50`}
-        >
-          {saving ? "Saving…" : "Save to Drafts"}
-        </button>
-        <button
-          onClick={handleSend}
-          disabled={sending || !body.trim() || (mode === "forward" && !forwardTo.trim())}
-          className={`${btnBase} disabled:opacity-50`}
-        >
-          {sending ? "Sending…" : "Send"}
-        </button>
-        <button onClick={onCancel} className={btnBase}>
-          Cancel
-        </button>
-      </div>
     </div>
   )
 }

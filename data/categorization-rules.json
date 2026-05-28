@@ -4,6 +4,13 @@
     "description": "info@outsmartemr.com → delete",
     "fromPattern": "info@outsmartemr.com",
     "category": "delete",
-    "createdAt": "2026-05-26T15:44:46.870Z"
+    "createdAt": "2026-05-27T16:30:12.502Z"
+  },
+  {
+    "id": "mike.ostrzenski@nbc.ca->finance",
+    "description": "Ostrzenski, Mike → Finance",
+    "fromPattern": "mike.ostrzenski@nbc.ca",
+    "category": "Finance",
+    "createdAt": "2026-05-27T18:48:03.266Z"
   }
 ]

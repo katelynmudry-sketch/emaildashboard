@@ -1,47 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { RawEmail, Email, Category, ProposeResponse } from "./types"
 import { loadRules, formatRulesForPrompt } from "./rules"
+import { DEFAULT_SYSTEM_CONTEXT, extractJson } from "./claude-utils"
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// ── Sanitize strings to remove invalid UTF-8 ──────────────────────────────────
+// ── Settings passed in from client (localStorage → request body) ──────────────
 
-function sanitizeUtf8(str: string): string {
-  return Buffer.from(str, "utf-8").toString("utf-8")
+export interface ClaudeSettings {
+  customContext?: string  // per-account rules text
+  systemContext?: string  // full CLINIC_CONTEXT override (user-edited via settings panel)
 }
 
-// ── Static context (cached by Claude) ────────────────────────────────────────
+// ── Sanitize strings (passthrough — kept for call-site compatibility) ─────────
+// Note: this round-trip does not change well-formed strings; kept to avoid
+// touching all 20+ call sites in this file. Real encoding issues should be
+// handled at the Gmail API decode boundary in lib/gmail.ts.
 
-const CLINIC_CONTEXT = (process.env.CLINIC_CONTEXT ?? `You are an AI assistant helping the user triage their email.
-
-## Summary rules
-Only generate a summary if the email body is longer than ~150 words or contains a special offer/promotion. Otherwise set summary to null.
-
-## Concise summary style
-- Keep summaries extremely short and action-oriented.
-- Mention the sender/brand/person only once, and only if it adds clarity.
-- If the sender or title already includes a brand or name, do not repeat it again in the summary.
-- Prefer this structure: [topic/action] + [deadline/date/time] + [status or amount].
-- For promotions or events, include the most important detail and the expiration or date.
-- For recurring or grouped emails, summarize what the next step is and what to act on.
-- Use no more than 2-3 short phrases in the summary.
-
-Examples:
-- "Rick Levine course 33% off until Jun 8"
-- "ADHD summit Day 3 expiring Fri 5pm"
-- "VIP pass $199 by Tue"
-- "Aishwarya update: confirm call details"
-- "Astrology Hub sale ends Wed"
-
-## Group logic
-- If multiple emails are clearly part of the same series or thread, generate a summary that focuses on the most recent action or deadline.
-- Do not turn the summary into a paragraph of repeated names or general marketing copy.
-- If the sender is in the subject line, focus on the content instead of the sender name.
-`).trim()
-
-function extractJson(text: string): string {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  return fenced ? fenced[1].trim() : text.trim()
+function sanitizeUtf8(str: string): string {
+  return str
 }
 
 function timeAgo(internalDate: number): string {
@@ -62,7 +39,8 @@ function timeAgo(internalDate: number): string {
 export async function proposeCategories(
   emails: RawEmail[],
   existingLabelNames: string[],
-  account: string
+  account: string,
+  settings?: ClaudeSettings
 ): Promise<ProposeResponse> {
   const isWork = account.includes("drkmudry")
 
@@ -100,10 +78,12 @@ ${emails.slice(0, Math.min(100, emails.length)).map(e => `- From: ${sanitizeUtf8
 Return ONLY valid JSON array. No markdown, no explanation.
 `.trim()
 
+  const effectiveSystemContext = settings?.systemContext?.trim() || DEFAULT_SYSTEM_CONTEXT
+
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 512,
-    system: [{ type: "text", text: CLINIC_CONTEXT, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: effectiveSystemContext, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
   })
 
@@ -121,17 +101,22 @@ Return ONLY valid JSON array. No markdown, no explanation.
 export async function categorizeInbox(
   emails: RawEmail[],
   categories: Category[],
-  account: string
+  account: string,
+  settings?: ClaudeSettings
 ): Promise<Email[]> {
   if (emails.length === 0) return []
 
   const categoryList = categories.map(c => c.name).join(", ")
   const isWork = account.includes("drkmudry")
   const rulesSection = formatRulesForPrompt(loadRules())
+  const customContextSection = settings?.customContext?.trim()
+    ? `\n## Custom instructions for this account\n${settings.customContext.trim()}`
+    : ""
+  const effectiveSystemContext = settings?.systemContext?.trim() || DEFAULT_SYSTEM_CONTEXT
 
   const prompt = `
 Categorize each of these ${emails.length} emails into one of these categories: ${categoryList}
-${rulesSection}
+${rulesSection}${customContextSection}
 
 Also assign:
 - priority: "urgent" (needs reply today/time-sensitive), "today" (action needed soon), or "fyi" (informational, no action needed)
@@ -177,7 +162,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 16000,
-    system: [{ type: "text", text: CLINIC_CONTEXT, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: effectiveSystemContext, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
   })
 
@@ -225,7 +210,8 @@ Return ONLY valid JSON array. No markdown, no explanation.
 export async function generateDraftReply(
   email: { from: string; fromEmail: string; subject: string; body: string },
   account: string,
-  partialDraft: string = ""
+  partialDraft: string = "",
+  settings?: ClaudeSettings
 ): Promise<string> {
   const isWork = account.includes("drkmudry")
   const hasPartial = partialDraft.trim().length > 0
@@ -246,10 +232,15 @@ From: ${sanitizeUtf8(email.from)}
 Subject: ${sanitizeUtf8(email.subject)}
 Message: ${sanitizeUtf8(email.body.slice(0, 1000))}${partialSection}`
 
+  const effectiveSystemContext = settings?.systemContext?.trim() || DEFAULT_SYSTEM_CONTEXT
+  const customContextSection = settings?.customContext?.trim()
+    ? `\n\n## Custom instructions for this account\n${settings.customContext.trim()}`
+    : ""
+
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 500,
-    system: [{ type: "text", text: CLINIC_CONTEXT, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: effectiveSystemContext + customContextSection, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
   })
 

@@ -5,7 +5,6 @@ import type { ThemeConfig } from "./theme-config"
 
 const FIESTA_COLORS = ["#FF1F6E", "#FFD000", "#FF6B1A", "#00C4A7", "#8FC900", "#8B3FD8"]
 
-// Calendar event type buckets (keyword heuristic)
 function bucketEvent(title: string): string {
   const t = title.toLowerCase()
   if (/call|meet|zoom|sync|standup|huddle|debrief|check.?in/.test(t)) return "Calls"
@@ -17,6 +16,18 @@ function bucketEvent(title: string): string {
   return "Personal"
 }
 
+function parseTimeToMin(str: string): number {
+  if (!str || str === "All day") return 0
+  const match = str.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!match) return 0
+  let h = parseInt(match[1], 10)
+  const m = parseInt(match[2], 10)
+  const ampm = match[3].toUpperCase()
+  if (ampm === "PM" && h !== 12) h += 12
+  if (ampm === "AM" && h === 12) h = 0
+  return h * 60 + m
+}
+
 interface InsightWidgetProps {
   emails: Email[]
   calendarEvents: CalendarEvent[]
@@ -25,9 +36,13 @@ interface InsightWidgetProps {
 
 export default function InsightWidget({ emails, calendarEvents, theme }: InsightWidgetProps) {
   const today = new Date()
-  const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+  const dateStr = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
 
-  // ── Inbox breakdown ────────────────────────────────────────────────────────
+  const isAltar = theme.id === "morning-altar"
+  const isFestival = theme.id === "festival-stage"
+  const isWabi = theme.id === "wabi-sabi-studio"
+
+  // ── Inbox breakdown ───────────────────────────────────────────────────────
   const categoryMap: Record<string, number> = {}
   for (const email of emails) {
     const cat = email.category || "Other"
@@ -39,12 +54,10 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
   if (otherCount > 0) top5.push(["Other", otherCount])
   const totalEmails = emails.length || 1
 
-  // ── Calendar breakdown ─────────────────────────────────────────────────────
-  // Sum up booked minutes
+  // ── Calendar breakdown ────────────────────────────────────────────────────
   let bookedMins = 0
   const calBuckets: Record<string, number> = {}
   for (const evt of calendarEvents) {
-    // parse "9:00 AM" / "10:30 AM" strings
     const startMin = parseTimeToMin(evt.startTime)
     const endMin = evt.endTime ? parseTimeToMin(evt.endTime) : startMin + 60
     const dur = Math.max(endMin - startMin, 0)
@@ -52,11 +65,13 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
     const bucket = bucketEvent(evt.title)
     calBuckets[bucket] = (calBuckets[bucket] ?? 0) + dur
   }
-  const totalDayMins = 16 * 60 // 16 waking hours
-  const freeMins = Math.max(totalDayMins - bookedMins, 0)
+  const freeMins = Math.max(16 * 60 - bookedMins, 0)
   if (freeMins > 0) calBuckets["Free"] = freeMins
   const calSorted = Object.entries(calBuckets).sort((a, b) => b[1] - a[1])
   const totalCalMins = calSorted.reduce((s, [, m]) => s + m, 0) || 1
+
+  const barH = theme.insightBarHeight
+  const barRadius = isFestival ? "3px" : isWabi ? "2px" : "6px"
 
   return (
     <div style={{
@@ -64,40 +79,99 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
       border: theme.cardBorder,
       borderRadius: theme.cardRadius,
       boxShadow: theme.cardShadow,
-      padding: "20px",
+      padding: theme.cardPadding,
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "16px" }}>
-        <div style={theme.labelStyle}>Your day at a glance</div>
-        <div style={{ fontSize: "0.75rem", color: "#1A0A35", opacity: 0.45 }}>{dateStr}</div>
+      {/* Header */}
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        marginBottom: "16px",
+        paddingBottom: "12px",
+        borderBottom: theme.sectionDivider,
+      }}>
+        <div style={{ ...theme.labelStyle }}>
+          {isFestival ? "DAY AT A GLANCE" : "Day at a Glance"}
+        </div>
+        <div style={{
+          fontFamily: theme.bodyFont,
+          fontSize: "0.72rem",
+          color: "#1A0A35",
+          opacity: 0.4,
+          letterSpacing: isWabi ? "0.1em" : undefined,
+        }}>{dateStr}</div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-        {/* Inbox split */}
+
+        {/* ── Inbox split ── */}
         <div>
-          <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#1A0A35", opacity: 0.6, marginBottom: "10px" }}>
-            📬 Inbox ({emails.length} emails)
+          <div style={{
+            fontFamily: theme.bodyFont,
+            fontSize: isFestival ? "0.82rem" : "0.76rem",
+            fontWeight: 600,
+            color: "#1A0A35",
+            opacity: 0.55,
+            marginBottom: "10px",
+            letterSpacing: isFestival ? "0.08em" : undefined,
+            textTransform: isFestival ? "uppercase" : undefined,
+          }}>
+            📬 Inbox{emails.length > 0 ? ` · ${emails.length}` : ""}
           </div>
+
           {emails.length === 0 ? (
-            <p style={{ fontSize: "0.8rem", color: "#1A0A35", opacity: 0.35, fontStyle: "italic" }}>No emails loaded</p>
+            <p style={{ fontSize: "0.8rem", color: "#1A0A35", opacity: 0.3, fontStyle: isAltar ? "italic" : "normal", margin: 0, fontFamily: theme.bodyFont }}>
+              No emails loaded
+            </p>
           ) : (
             <>
               {/* Stacked bar */}
-              <div style={{ display: "flex", height: "12px", borderRadius: "6px", overflow: "hidden", marginBottom: "12px" }}>
-                {top5.map(([cat, count], i) => (
-                  <div key={cat} style={{
+              <div style={{
+                display: "flex",
+                height: barH,
+                borderRadius: barRadius,
+                overflow: "hidden",
+                marginBottom: "12px",
+                border: isFestival ? "1.5px solid #1A0A35" : undefined,
+                gap: isFestival ? "2px" : undefined,
+              }}>
+                {top5.map(([, count], i) => (
+                  <div key={i} style={{
                     width: `${(count / totalEmails) * 100}%`,
                     background: FIESTA_COLORS[i % FIESTA_COLORS.length],
                     transition: "width 0.6s ease",
+                    flexShrink: 0,
                   }} />
                 ))}
               </div>
               {/* Legend */}
               <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
                 {top5.map(([cat, count], i) => (
-                  <div key={cat} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "0.78rem", color: "#1A0A35" }}>
-                    <div style={{ width: "9px", height: "9px", borderRadius: "3px", background: FIESTA_COLORS[i % FIESTA_COLORS.length], flexShrink: 0 }} />
-                    <span style={{ flex: 1, opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cat}</span>
-                    <span style={{ opacity: 0.5, fontVariantNumeric: "tabular-nums" }}>{Math.round((count / totalEmails) * 100)}%</span>
+                  <div key={cat} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                    <div style={{
+                      width: isFestival ? "10px" : "8px",
+                      height: isFestival ? "10px" : "8px",
+                      borderRadius: isFestival ? "2px" : "3px",
+                      background: FIESTA_COLORS[i % FIESTA_COLORS.length],
+                      flexShrink: 0,
+                    }} />
+                    <span style={{
+                      flex: 1,
+                      fontFamily: theme.bodyFont,
+                      fontSize: "0.76rem",
+                      color: "#1A0A35",
+                      opacity: 0.75,
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                      textTransform: isFestival ? "uppercase" : undefined,
+                      letterSpacing: isFestival ? "0.06em" : undefined,
+                    }}>{cat}</span>
+                    <span style={{
+                      fontFamily: theme.bodyFont,
+                      fontSize: "0.72rem",
+                      color: "#1A0A35",
+                      opacity: 0.4,
+                      fontVariantNumeric: "tabular-nums",
+                    }}>{Math.round((count / totalEmails) * 100)}%</span>
                   </div>
                 ))}
               </div>
@@ -105,42 +179,84 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
           )}
         </div>
 
-        {/* Calendar split */}
+        {/* ── Calendar split ── */}
         <div>
-          <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#1A0A35", opacity: 0.6, marginBottom: "10px" }}>
-            📅 Day ({calendarEvents.length === 0 ? "no events" : `${Math.round(bookedMins / 60 * 10) / 10}h booked`})
+          <div style={{
+            fontFamily: theme.bodyFont,
+            fontSize: isFestival ? "0.82rem" : "0.76rem",
+            fontWeight: 600,
+            color: "#1A0A35",
+            opacity: 0.55,
+            marginBottom: "10px",
+            letterSpacing: isFestival ? "0.08em" : undefined,
+            textTransform: isFestival ? "uppercase" : undefined,
+          }}>
+            📅 Day{calendarEvents.length > 0
+              ? ` · ${Math.round(bookedMins / 60 * 10) / 10}h booked`
+              : ""}
           </div>
+
           {calSorted.length === 0 ? (
-            <p style={{ fontSize: "0.8rem", color: "#1A0A35", opacity: 0.35, fontStyle: "italic" }}>Calendar not loaded</p>
+            <p style={{ fontSize: "0.8rem", color: "#1A0A35", opacity: 0.3, fontStyle: isAltar ? "italic" : "normal", margin: 0, fontFamily: theme.bodyFont }}>
+              {isAltar ? "Your day unfolds freely" : "No events loaded"}
+            </p>
           ) : (
             <>
               {/* Stacked bar */}
-              <div style={{ display: "flex", height: "12px", borderRadius: "6px", overflow: "hidden", marginBottom: "12px" }}>
+              <div style={{
+                display: "flex",
+                height: barH,
+                borderRadius: barRadius,
+                overflow: "hidden",
+                marginBottom: "12px",
+                border: isFestival ? "1.5px solid #1A0A35" : undefined,
+                gap: isFestival ? "2px" : undefined,
+              }}>
                 {calSorted.map(([cat, mins], i) => (
                   <div key={cat} style={{
                     width: `${(mins / totalCalMins) * 100}%`,
                     background: cat === "Free"
-                      ? `${FIESTA_COLORS[i % FIESTA_COLORS.length]}40`
+                      ? `${FIESTA_COLORS[i % FIESTA_COLORS.length]}38`
                       : FIESTA_COLORS[i % FIESTA_COLORS.length],
                     transition: "width 0.6s ease",
+                    flexShrink: 0,
+                    border: cat === "Free" && isFestival
+                      ? `1px dashed ${FIESTA_COLORS[i % FIESTA_COLORS.length]}`
+                      : undefined,
+                    boxSizing: "border-box",
                   }} />
                 ))}
               </div>
               {/* Legend */}
               <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
                 {calSorted.map(([cat, mins], i) => (
-                  <div key={cat} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "0.78rem", color: "#1A0A35" }}>
+                  <div key={cat} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
                     <div style={{
-                      width: "9px", height: "9px", borderRadius: "3px", flexShrink: 0,
+                      width: isFestival ? "10px" : "8px",
+                      height: isFestival ? "10px" : "8px",
+                      borderRadius: isFestival ? "2px" : "3px",
                       background: cat === "Free"
-                        ? `${FIESTA_COLORS[i % FIESTA_COLORS.length]}40`
+                        ? `${FIESTA_COLORS[i % FIESTA_COLORS.length]}38`
                         : FIESTA_COLORS[i % FIESTA_COLORS.length],
-                      border: cat === "Free" ? `1px solid ${FIESTA_COLORS[i % FIESTA_COLORS.length]}80` : "none",
+                      border: cat === "Free" ? `1px solid ${FIESTA_COLORS[i % FIESTA_COLORS.length]}60` : "none",
+                      flexShrink: 0,
                     }} />
-                    <span style={{ flex: 1, opacity: cat === "Free" ? 0.5 : 0.8 }}>{cat}</span>
-                    <span style={{ opacity: 0.5, fontVariantNumeric: "tabular-nums" }}>
-                      {Math.round((mins / totalCalMins) * 100)}%
-                    </span>
+                    <span style={{
+                      flex: 1,
+                      fontFamily: theme.bodyFont,
+                      fontSize: "0.76rem",
+                      color: "#1A0A35",
+                      opacity: cat === "Free" ? 0.45 : 0.75,
+                      textTransform: isFestival ? "uppercase" : undefined,
+                      letterSpacing: isFestival ? "0.06em" : undefined,
+                    }}>{cat}</span>
+                    <span style={{
+                      fontFamily: theme.bodyFont,
+                      fontSize: "0.72rem",
+                      color: "#1A0A35",
+                      opacity: 0.4,
+                      fontVariantNumeric: "tabular-nums",
+                    }}>{Math.round((mins / totalCalMins) * 100)}%</span>
                   </div>
                 ))}
               </div>
@@ -150,17 +266,4 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
       </div>
     </div>
   )
-}
-
-/** Convert "9:00 AM" / "10:30 PM" → minutes from midnight */
-function parseTimeToMin(str: string): number {
-  if (!str || str === "All day") return 0
-  const match = str.match(/(\d+):(\d+)\s*(AM|PM)/i)
-  if (!match) return 0
-  let h = parseInt(match[1], 10)
-  const m = parseInt(match[2], 10)
-  const ampm = match[3].toUpperCase()
-  if (ampm === "PM" && h !== 12) h += 12
-  if (ampm === "AM" && h === 12) h = 0
-  return h * 60 + m
 }

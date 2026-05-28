@@ -1,8 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { AccountId, Email } from "@/lib/types"
+import type { AccountId, Email, Attachment } from "@/lib/types"
 import { recordAction } from "@/lib/stats"
+import { loadSettings } from "@/lib/settings-storage"
+import { downloadAttachment } from "@/lib/attachment-download"
+import ComposeArea from "./ComposeArea"
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   email: Email
@@ -12,15 +17,16 @@ interface Props {
   onStar: (email: Email) => Promise<void>
   onArchive: (email: Email) => Promise<void>
   onDelete: (email: Email) => Promise<void>
-  onSaveDraft: (email: Email, body: string) => Promise<void>
-  onSend: (email: Email, mode: "reply" | "forward", body: string, forwardTo?: string) => Promise<void>
+  onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
   onToggleTodo?: (email: Email) => void
   onSnooze?: (email: Email) => void
   initialComposeMode?: "ai" | "reply" | "forward" | null
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function extractUnsubscribeUrl(html: string | null, body: string): string | null {
-  // Try HTML first — find <a> tags with unsubscribe-related text or href
   if (html) {
     const linkRe = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi
     let m: RegExpExecArray | null
@@ -32,7 +38,6 @@ function extractUnsubscribeUrl(html: string | null, body: string): string | null
       }
     }
   }
-  // Fall back to plain text URL extraction
   const plainRe = /https?:\/\/[^\s<>"]+unsubscribe[^\s<>"]+/i
   const match = body.match(plainRe)
   return match ? match[0] : null
@@ -45,7 +50,18 @@ function injectStyles(html: string): string {
     : `${inject}${html}`
 }
 
+function forwardBody(email: Email): string {
+  const subject = email.subject.toLowerCase().startsWith("fwd:")
+    ? email.subject
+    : `Fwd: ${email.subject}`
+  return `\n\n---------- Forwarded message ----------\nFrom: ${email.from} <${email.fromEmail}>\nSubject: ${subject}\n\n${email.body}`
+}
+
+// ── Shared button class ───────────────────────────────────────────────────────
+
 const btn = "text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75"
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, onStar, onArchive, onDelete, onSaveDraft, onSend, onToggleTodo, onSnooze, initialComposeMode }: Props) {
   const [htmlBody, setHtmlBody] = useState<string | null>(email.htmlBody ?? null)
@@ -53,13 +69,12 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
   const [unsubscribeUrl, setUnsubscribeUrl] = useState<string | null>(() =>
     extractUnsubscribeUrl(email.htmlBody ?? null, email.body)
   )
-  const [composeMode, setComposeMode] = useState<"ai" | "reply" | "forward" | null>(null)
-  const [draftBody, setDraftBody] = useState("")
-  const [forwardTo, setForwardTo] = useState("")
+  const [composeMode, setComposeMode] = useState<"reply" | "forward" | null>(null)
+  const [initialBody, setInitialBody] = useState<string | undefined>(undefined)
   const [aiDraftLoading, setAiDraftLoading] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [savingDraft, setSavingDraft] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
+  // ── Load HTML body ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (email.htmlBody) {
@@ -78,45 +93,54 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
       .finally(() => setLoading(false))
   }, [email.id, gmailAccount])
 
+  // ── Esc to close ────────────────────────────────────────────────────────────
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose() }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
 
+  // ── Auto-open compose when launched with a mode ─────────────────────────────
+
   useEffect(() => {
     if (!initialComposeMode) return
-    openCompose(initialComposeMode)
+    void openCompose(initialComposeMode)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialComposeMode, email.id])
+
+  // ── Compose helpers ─────────────────────────────────────────────────────────
 
   async function openCompose(mode: "ai" | "reply" | "forward") {
     if (mode === "forward") {
-      setDraftBody(`\n\n---------- Forwarded message ----------\nFrom: ${email.from} <${email.fromEmail}>\nSubject: ${email.subject}\n\n${email.body}`)
-      setForwardTo("")
+      setInitialBody(forwardBody(email))
       setComposeMode("forward")
       return
     }
     if (mode === "reply") {
-      setDraftBody("")
+      setInitialBody(undefined)
       setComposeMode("reply")
       return
     }
-    // AI Draft — call Claude
+    // AI Draft — fetch first, then open compose with pre-filled body
     recordAction("aiDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
     setAiDraftLoading(true)
-    setComposeMode("ai")
-    // Snapshot any user-typed/pasted content before clearing so we can append it after
-    const userContent = draftBody.trim()
-    setDraftBody("")
     try {
+      const settings = loadSettings()
+      const isWork = gmailAccount === "work"
+      const customContext = isWork ? settings.workRules : settings.personalRules
       const res = await fetch("/api/ai/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body } }),
+        body: JSON.stringify({
+          email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
+          systemContext: settings.systemContext || undefined,
+          customContext: customContext || undefined,
+        }),
       })
       const data = await res.json()
-      const draftText = data.draft ?? ""
-      setDraftBody(userContent ? `${draftText}\n\n${userContent}` : draftText)
+      setInitialBody(data.draft ?? "")
+      setComposeMode("reply")
     } finally {
       setAiDraftLoading(false)
     }
@@ -124,53 +148,53 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
 
   function closeCompose() {
     setComposeMode(null)
-    setDraftBody("")
-    setForwardTo("")
-    setSendError(null)
+    setInitialBody(undefined)
   }
 
-  async function handleSaveDraft() {
-    setSavingDraft(true)
-    try { await onSaveDraft(email, draftBody) } finally { setSavingDraft(false) }
-    closeCompose()
+  async function handleAiDraftInCompose(partialBody: string): Promise<string> {
+    const settings = loadSettings()
+    const isWork = gmailAccount === "work"
+    const customContext = isWork ? settings.workRules : settings.personalRules
+    const res = await fetch("/api/ai/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
+        partialDraft: partialBody,
+        systemContext: settings.systemContext || undefined,
+        customContext: customContext || undefined,
+      }),
+    })
+    const data = await res.json()
+    return data.draft ?? ""
   }
 
-  async function handleSend() {
-    setSending(true)
-    setSendError(null)
+  // ── Email actions ───────────────────────────────────────────────────────────
+
+  async function handleMarkRead() { await onMarkRead(email) }
+  async function handleArchive() { await onArchive(email); onClose() }
+  async function handleDelete() { await onDelete(email); onClose() }
+  async function handleStar() { await onStar(email) }
+
+  // ── Attachment download ──────────────────────────────────────────────────────
+
+  async function handleDownloadAttachment(att: { filename: string; mimeType: string; attachmentId: string }) {
+    setDownloadingId(att.attachmentId)
     try {
-      await onSend(
-        email,
-        composeMode === "forward" ? "forward" : "reply",
-        draftBody,
-        composeMode === "forward" ? forwardTo : undefined
-      )
-      closeCompose()
-      onClose()
-    } catch (err) {
-      setSending(false)
-      setSendError(err instanceof Error ? err.message : "Failed to send email")
+      await downloadAttachment(email.id, att, gmailAccount)
+    } finally {
+      setDownloadingId(null)
     }
   }
 
-
-  async function handleMarkRead() {
-    await onMarkRead(email)
+  async function downloadAllAttachments() {
+    if (!email.attachments?.length) return
+    for (const att of email.attachments) {
+      await handleDownloadAttachment(att)
+    }
   }
 
-  async function handleArchive() {
-    await onArchive(email)
-    onClose()
-  }
-
-  async function handleDelete() {
-    await onDelete(email)
-    onClose()
-  }
-
-  async function handleStar() {
-    await onStar(email)
-  }
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -178,6 +202,7 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl max-h-[90vh] overflow-hidden">
+
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-zinc-100 shrink-0">
           <div className="min-w-0 pr-4">
@@ -211,11 +236,15 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
             <button onClick={() => onSnooze(email)} className={btn}>💤 Snooze</button>
           )}
           <div className="flex-1" />
-          <button onClick={() => openCompose("ai")} disabled={aiDraftLoading} className={`${btn} disabled:opacity-50`}>
+          <button
+            onClick={() => void openCompose("ai")}
+            disabled={aiDraftLoading}
+            className={`${btn} disabled:opacity-50`}
+          >
             {aiDraftLoading ? "Drafting…" : "AI Draft"}
           </button>
-          <button onClick={() => openCompose("reply")} className={btn}>Reply</button>
-          <button onClick={() => openCompose("forward")} className={btn}>Forward</button>
+          <button onClick={() => void openCompose("reply")} className={btn}>Reply</button>
+          <button onClick={() => void openCompose("forward")} className={btn}>Forward</button>
         </div>
 
         {/* Unsubscribe banner */}
@@ -267,55 +296,88 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
           )}
         </div>
 
+        {/* Attachments bar */}
+        {email.attachments && email.attachments.length > 0 && (
+          <div className="border-t border-zinc-100 px-5 py-3 shrink-0 bg-zinc-50">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mr-1">
+                📎 {email.attachments.length} attachment{email.attachments.length !== 1 ? "s" : ""}
+              </span>
+
+              {email.attachments.map(att => {
+                const isDownloading = downloadingId === att.attachmentId
+                const emoji = att.mimeType.startsWith("image/") ? "🖼" :
+                  att.mimeType === "application/pdf" ? "📄" :
+                  att.mimeType.startsWith("video/") ? "🎥" :
+                  att.mimeType.startsWith("audio/") ? "🎵" : "📎"
+                const kb = att.size > 0 ? (att.size < 1024 * 1024
+                  ? `${Math.round(att.size / 1024)} KB`
+                  : `${(att.size / (1024 * 1024)).toFixed(1)} MB`) : ""
+                return (
+                  <button
+                    key={att.attachmentId}
+                    type="button"
+                    disabled={isDownloading}
+                    onClick={() => void handleDownloadAttachment(att)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition-colors"
+                  >
+                    <span>{emoji}</span>
+                    <span className="max-w-[140px] truncate">{att.filename}</span>
+                    {kb && <span className="opacity-60">{kb}</span>}
+                    {isDownloading
+                      ? <span className="opacity-60">↓…</span>
+                      : <span className="opacity-40">↓</span>
+                    }
+                  </button>
+                )
+              })}
+
+              {/* Work-only: Save all attachments to admin */}
+              {gmailAccount === "work" && email.attachments.length > 1 && (
+                <button
+                  type="button"
+                  disabled={downloadingId !== null}
+                  onClick={() => void downloadAllAttachments()}
+                  className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                >
+                  {downloadingId !== null ? "Saving…" : "💾 Save all to admin"}
+                </button>
+              )}
+
+              {/* Work-only: Save single attachment with admin label */}
+              {gmailAccount === "work" && email.attachments.length === 1 && (
+                <button
+                  type="button"
+                  disabled={downloadingId !== null}
+                  onClick={() => void handleDownloadAttachment(email.attachments![0])}
+                  className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                >
+                  {downloadingId !== null ? "Saving…" : "💾 Save to admin"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Compose area */}
         {composeMode && (
-          <div className="border-t border-zinc-100 px-5 py-4 shrink-0 flex flex-col gap-3">
-            {composeMode === "forward" && (
-              <input
-                type="email"
-                value={forwardTo}
-                onChange={e => setForwardTo(e.target.value)}
-                placeholder="To: email address"
-                className="w-full text-sm text-zinc-800 border border-zinc-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300"
-              />
-            )}
-            {aiDraftLoading && (
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
-                <div className="w-3 h-3 border-2 border-violet-300 border-t-transparent rounded-full animate-spin" />
-                Claude is writing your draft…
-              </div>
-            )}
-            <textarea
-              rows={6}
-              value={draftBody}
-              onChange={e => setDraftBody(e.target.value)}
-              className="w-full text-sm text-zinc-800 border border-zinc-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300"
-              placeholder="Write your reply…"
-              autoFocus
+          <div className="border-t border-zinc-100 px-5 py-4 shrink-0">
+            <ComposeArea
+              mode={composeMode}
+              initialBody={initialBody}
+              onAiDraft={composeMode === "reply" ? handleAiDraftInCompose : undefined}
+              showUploadButton={gmailAccount === "work"}
+              onSaveDraft={async (body, attachments, forwardTo) => {
+                await onSaveDraft(email, body, attachments, forwardTo)
+                closeCompose()
+              }}
+              onSend={async (body, attachments, forwardTo) => {
+                await onSend(email, composeMode, body, attachments, forwardTo)
+                closeCompose()
+                onClose()
+              }}
+              onCancel={closeCompose}
             />
-            {sendError && (
-              <div className="px-3 py-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700">
-                <p className="font-medium">Send failed:</p>
-                <p className="mt-0.5">{sendError}</p>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSaveDraft}
-                disabled={savingDraft || sending}
-                className={btn}
-              >
-                {savingDraft ? "Saving…" : "Save to Drafts"}
-              </button>
-              <button
-                onClick={handleSend}
-                disabled={sending || savingDraft || (composeMode === "forward" && !forwardTo.trim())}
-                className={`${btn} disabled:opacity-50`}
-              >
-                {sending ? "Sending…" : "Send"}
-              </button>
-              <button onClick={closeCompose} className={`${btn} text-zinc-500`}>Cancel</button>
-            </div>
           </div>
         )}
       </div>
