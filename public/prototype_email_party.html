@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Party — v1 Prototype</title>
+<style>
+  :root {
+    --bg: #EEE4FF; --card: #FFFFFF;
+    --magenta: #FF1F6E; --gold: #FFD000; --teal: #00C4A7;
+    --orange: #FF6B1A; --purple: #8B3FD8; --lime: #8FC900;
+    --ink: #1A0A35; --muted: rgba(26,10,53,0.45);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: 'DM Sans', system-ui, sans-serif; overflow: hidden; height: 100vh; }
+
+  /* ─── FEATURE 1: QUOTE GATE ───────────────────────────────────────────────── */
+  #quote-gate {
+    position: fixed; inset: 0; z-index: 100;
+    background: linear-gradient(145deg, #1A0A35 0%, #2D0F5C 50%, #0D1A35 100%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 32px;
+    padding: 40px;
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  #quote-gate.shatter {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .gate-ornament {
+    font-size: 3.5rem;
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 20px rgba(255,208,0,0.4));
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .gate-teacher {
+    font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--gold); opacity: 0.7;
+  }
+  .gate-quote {
+    font-size: clamp(1.3rem, 4vw, 2.2rem);
+    line-height: 1.5; text-align: center;
+    color: rgba(255,255,255,0.93);
+    max-width: 600px;
+    font-style: italic;
+  }
+  .gate-source { font-size: 0.82rem; color: rgba(255,255,255,0.35); }
+  .gate-reflection {
+    font-size: 1rem; color: rgba(255,255,255,0.55);
+    text-align: center; max-width: 400px; line-height: 1.6;
+  }
+  .gate-btn {
+    margin-top: 12px;
+    padding: 14px 36px; border-radius: 999px;
+    border: 1px solid rgba(255,208,0,0.4);
+    background: rgba(255,208,0,0.1);
+    color: var(--gold);
+    font-size: 0.9rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    animation: pulse-gold 2s ease-in-out infinite;
+  }
+  @keyframes pulse-gold {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,208,0,0.3); }
+    50% { box-shadow: 0 0 0 12px rgba(255,208,0,0); }
+  }
+  .gate-btn:hover { background: rgba(255,208,0,0.2); border-color: var(--gold); }
+
+  /* Confetti burst */
+  .confetti-particle {
+    position: fixed; pointer-events: none; z-index: 200;
+    width: 8px; height: 8px; border-radius: 2px;
+    animation: burst 0.8s ease-out forwards;
+  }
+  @keyframes burst {
+    from { opacity: 1; transform: translate(0,0) scale(1); }
+    to { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.2); }
+  }
+
+  /* ─── FEATURE 2: KARMA COUNTER ────────────────────────────────────────────── */
+  #app { display: none; height: 100vh; flex-direction: column; }
+  #app.visible { display: flex; }
+
+  .header {
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(26,10,53,0.08);
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo-area { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, #FF1F6E, #FF6B1A);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; box-shadow: 0 6px 20px rgba(255,31,110,0.35);
+  }
+  .logo-title { font-size: 1.9rem; font-weight: 900; letter-spacing: 0.04em; line-height: 1; }
+  .logo-sub { font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+
+  /* Karma pill */
+  .karma-pill {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px; border-radius: 999px;
+    background: linear-gradient(135deg, rgba(255,208,0,0.12), rgba(139,63,216,0.10));
+    border: 1px solid rgba(255,208,0,0.30);
+    cursor: default;
+    position: relative;
+  }
+  .karma-lotus { font-size: 1.4rem; filter: drop-shadow(0 0 6px rgba(255,208,0,0.5)); }
+  .karma-info { display: flex; flex-direction: column; gap: 1px; }
+  .karma-value { font-size: 1.3rem; font-weight: 800; color: var(--gold); line-height: 1; }
+  .karma-label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+  .karma-bar-wrap { width: 60px; height: 4px; background: rgba(26,10,53,0.12); border-radius: 99px; overflow: hidden; }
+  .karma-bar { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--gold), var(--orange)); transition: width 0.5s cubic-bezier(0.16,1,0.3,1); }
+  .karma-level { font-size: 0.72rem; color: var(--orange); font-weight: 700; }
+  .karma-toast {
+    position: absolute; top: -36px; left: 50%; transform: translateX(-50%);
+    background: var(--gold); color: var(--ink); font-size: 0.78rem; font-weight: 700;
+    padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+    animation: karma-pop 1.4s ease forwards;
+    pointer-events: none;
+  }
+  @keyframes karma-pop {
+    0% { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  }
+
+  /* ─── FEATURE 3: CATEGORY EVOLUTION ──────────────────────────────────────── */
+  .inbox-area {
+    flex: 1; overflow-y: auto; padding: 20px 24px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;
+    align-content: start;
+  }
+  .cat-block {
+    border-radius: 16px; overflow: hidden;
+    border: 1px solid rgba(26,10,53,0.08);
+    background: var(--card);
+    box-shadow: 0 2px 12px rgba(26,10,53,0.05);
+    transition: all 0.5s ease;
+  }
+  .cat-header {
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(26,10,53,0.06);
+    transition: background 0.5s ease;
+  }
+  .cat-title { font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .cat-badge {
+    font-size: 0.75rem; font-weight: 700;
+    padding: 2px 8px; border-radius: 99px;
+    transition: all 0.3s ease;
+  }
+  .cat-progress-bar { height: 3px; transition: width 0.5s cubic-bezier(0.16,1,0.3,1); }
+  .cat-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
+  .email-pill {
+    padding: 8px 12px; border-radius: 8px;
+    background: rgba(26,10,53,0.04); border: 1px solid rgba(26,10,53,0.06);
+    font-size: 0.82rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    transition: all 0.2s;
+  }
+  .email-pill:hover { background: rgba(26,10,53,0.08); }
+  .email-from { font-weight: 600; flex-shrink: 0; color: rgba(26,10,53,0.7); font-size: 0.78rem; }
+  .email-subject { color: rgba(26,10,53,0.55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; }
+  .archive-btn {
+    font-size: 0.9rem; background: none; border: none; cursor: pointer;
+    opacity: 0.4; padding: 2px; transition: opacity 0.2s;
+    flex-shrink: 0;
+  }
+  .archive-btn:hover { opacity: 1; }
+  .cat-bloom {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 20px; gap: 8px; min-height: 80px;
+    animation: bloom-in 0.5s ease;
+  }
+  @keyframes bloom-in {
+    from { opacity: 0; transform: scale(0.7); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .bloom-emoji { font-size: 2.5rem; filter: drop-shadow(0 0 10px rgba(0,196,167,0.4)); }
+  .bloom-text { font-size: 0.78rem; color: var(--teal); font-weight: 600; text-align: center; }
+
+  /* ─── FEATURE 4: MINDFUL PURGE ────────────────────────────────────────────── */
+  .purge-banner {
+    margin: 0 24px 16px;
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(139,63,216,0.28);
+    background: linear-gradient(135deg, rgba(139,63,216,0.08), rgba(255,31,110,0.06));
+  }
+  .purge-header {
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .purge-boulder {
+    font-size: 2rem;
+    animation: boulder-shake 2s ease-in-out infinite;
+    cursor: pointer; transition: transform 0.1s;
+    flex-shrink: 0;
+  }
+  @keyframes boulder-shake {
+    0%, 100% { transform: rotate(-2deg); }
+    50% { transform: rotate(2deg); }
+  }
+  .purge-boulder:active { transform: scale(0.85) rotate(-5deg); }
+  .purge-text { flex: 1; }
+  .purge-title { font-size: 0.9rem; font-weight: 700; color: var(--purple); }
+  .purge-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+  .purge-btn {
+    padding: 8px 18px; border-radius: 999px;
+    background: var(--purple); color: white;
+    font-size: 0.82rem; font-weight: 700;
+    border: none; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(139,63,216,0.3);
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .purge-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(139,63,216,0.4); }
+  .purge-shatter {
+    animation: shatter-out 0.5s ease forwards;
+  }
+  @keyframes shatter-out {
+    0% { opacity: 1; transform: scale(1); }
+    30% { transform: scale(1.1) rotate(3deg); }
+    100% { opacity: 0; transform: scale(0) rotate(-10deg); }
+  }
+  .purge-result {
+    padding: 12px 18px;
+    font-size: 0.85rem; color: var(--teal); font-weight: 600; text-align: center;
+    display: none;
+    animation: slide-up 0.4s ease;
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* demo controls */
+  .demo-bar {
+    padding: 8px 24px; background: rgba(26,10,53,0.04);
+    border-top: 1px solid rgba(26,10,53,0.06);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    font-size: 0.78rem; color: var(--muted);
+  }
+  .demo-btn {
+    padding: 5px 12px; border-radius: 6px;
+    background: rgba(255,31,110,0.10); border: 1px solid rgba(255,31,110,0.25);
+    color: var(--magenta); font-size: 0.78rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .demo-btn:hover { background: rgba(255,31,110,0.18); }
+</style>
+</head>
+<body>
+
+<!-- FEATURE 1: QUOTE GATE -->
+<div id="quote-gate">
+  <div class="gate-ornament">☸️</div>
+  <div class="gate-teacher">Thich Nhat Hanh</div>
+  <div class="gate-quote">"Quiet the mind, and the soul will speak."</div>
+  <div class="gate-source">— The Heart of the Buddha's Teaching</div>
+  <div class="gate-reflection">What is already asking for your attention this morning?</div>
+  <button class="gate-btn" onclick="shatterGate()">✨ Enter the Party</button>
+</div>
+
+<!-- MAIN APP (hidden until gate shatters) -->
+<div id="app">
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-icon">✉️</div>
+      <div>
+        <div class="logo-title">EMAIL PARTY</div>
+        <div class="logo-sub">Mindful Inbox · AI Fiesta</div>
+      </div>
+    </div>
+
+    <!-- KARMA COUNTER -->
+    <div class="karma-pill" id="karma-pill">
+      <div class="karma-lotus">🪷</div>
+      <div class="karma-info">
+        <div class="karma-value" id="karma-value">47</div>
+        <div class="karma-label">Karma</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <div class="karma-level" id="karma-level">🌿 Sprout</div>
+        <div class="karma-bar-wrap">
+          <div class="karma-bar" id="karma-bar" style="width: 62%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MINDFUL PURGE BANNER -->
+  <div class="purge-banner">
+    <div class="purge-header">
+      <div class="purge-boulder" id="purge-boulder" onclick="smashBoulder()">🪨</div>
+      <div class="purge-text">
+        <div class="purge-title">Mindful Purge — The Boulder Awaits</div>
+        <div class="purge-sub">43 promotional emails older than 7 days are piling up. One tap shatters the boulder.</div>
+      </div>
+      <button class="purge-btn" onclick="smashBoulder()">⚡ Shatter It</button>
+    </div>
+    <div class="purge-result" id="purge-result">
+      🧘 43 emails released. You earned +86 Karma. The clutter has been cleared.
+    </div>
+  </div>
+
+  <!-- CATEGORY GRID -->
+  <div class="inbox-area" id="inbox-area">
+
+    <!-- Category: Orders (stormy → clearing) -->
+    <div class="cat-block" id="cat-orders">
+      <div class="cat-header" style="background: rgba(255,107,26,0.06)">
+        <div class="cat-title">
+          <span>🛒 Orders</span>
+        </div>
+        <div>
+          <span class="cat-badge" style="background:rgba(255,107,26,0.12);color:#FF6B1A">3 emails</span>
+        </div>
+      </div>
+      <div class="cat-progress-bar" style="width:30%;background:var(--orange)"></div>
+      <div class="cat-body" id="orders-body">
+        <div class="email-pill">
+          <div><div class="email-from">Amazon</div><div class="email-subject">Your order has shipped</div></div>
+          <button class="archive-btn" onclick="archiveEmail(this,'cat-orders','orders-body',1,3,'orange')">✓</button>
+        </div>
+        <div class="email-pill">
+          <div><div class="email-from">Etsy</div><div class="email-subject">Order confirmation #4829</div></div>
+          <button class="archive-btn" onclick="archiveEmail(this,'cat-orders','orders-body',2,3,'orange')">✓</button>
+        </div>
+        <div class="email-pill">
+          <div><div class="email-from">Shopify</div><div class="email-subject">Your receipt from Acme Co</div></div>
+          <button class="archive-btn" onclick="archiveEmail(this,'cat-orders','orders-body',3,3,'orange')">✓</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category: Newsletters (cloudy → sunny) -->
+    <div class="cat-block" id="cat-news">
+      <div class="cat-header" style="background: rgba(0,196,167,0.06)">
+        <div class="cat-title"><span>📰 Newsletters</span></div>
+        <div><span class="cat-badge" style="background:rgba(0,196,167,0.12);color:#00C4A7">2 emails</span></div>
+      </div>
+      <div class="cat-progress-bar" style="width:50%;background:var(--teal)"></div>
+      <div class="cat-body" id="news-body">
+        <div class="email-pill">
+          <div><div class="email-from">Morning Brew</div><div class="email-subject">Today's top stories</div></div>
+          <button class="archive-btn" onclick="archiveEmail(this,'cat-news','news-body',1,2,'teal')">✓</button>
+        </div>
+        <div class="email-pill">
+          <div><div class="email-from">Dense Discovery</div><div class="email-subject">Issue #214</div></div>
+          <button class="archive-btn" onclick="archiveEmail(this,'cat-news','news-body',2,2,'teal')">✓</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category: Work (already clear) -->
+    <div class="cat-block" id="cat-work">
+      <div class="cat-header" style="background: linear-gradient(135deg, rgba(0,196,167,0.12), rgba(143,201,0,0.08))">
+        <div class="cat-title"><span>💼 Work</span></div>
+        <div><span class="cat-badge" style="background:rgba(0,196,167,0.18);color:#00C4A7">✓ Clear</span></div>
+      </div>
+      <div class="cat-progress-bar" style="width:100%;background:linear-gradient(90deg,var(--teal),var(--lime))"></div>
+      <div class="cat-body">
+        <div class="cat-bloom">
+          <div class="bloom-emoji">🪷</div>
+          <div class="bloom-text">Inbox Zero for Work<br>You're at peace ✨</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DEMO CONTROLS -->
+  <div class="demo-bar">
+    <span>🎮 Demo controls:</span>
+    <button class="demo-btn" onclick="addKarma(5)">+5 Karma (archive)</button>
+    <button class="demo-btn" onclick="addKarma(3)">+3 Karma (delete)</button>
+    <button class="demo-btn" onclick="showGate()">↩ Re-show Gate</button>
+  </div>
+</div>
+
+<script>
+  let karma = 47;
+  const levels = [
+    { min: 0,   emoji: '🌱', name: 'Seed',   next: 25  },
+    { min: 25,  emoji: '🌿', name: 'Sprout', next: 75  },
+    { min: 75,  emoji: '🪴', name: 'Potted', next: 150 },
+    { min: 150, emoji: '🌳', name: 'Tree',   next: 300 },
+    { min: 300, emoji: '🪷', name: 'Lotus',  next: 999 },
+  ];
+
+  function getLevel(xp) {
+    return levels.slice().reverse().find(l => xp >= l.min) ?? levels[0];
+  }
+
+  function updateKarmaUI(gained) {
+    const lvl = getLevel(karma);
+    const nextLvl = levels.find(l => l.min > karma) ?? lvl;
+    const pct = ((karma - lvl.min) / (nextLvl.min - lvl.min)) * 100;
+    document.getElementById('karma-value').textContent = karma;
+    document.getElementById('karma-level').textContent = `${lvl.emoji} ${lvl.name}`;
+    document.getElementById('karma-bar').style.width = Math.min(100, pct) + '%';
+
+    if (gained) {
+      const pill = document.getElementById('karma-pill');
+      const toast = document.createElement('div');
+      toast.className = 'karma-toast';
+      toast.textContent = `+${gained} Karma`;
+      pill.appendChild(toast);
+      setTimeout(() => toast.remove(), 1400);
+    }
+  }
+
+  function addKarma(n) {
+    karma += n;
+    updateKarmaUI(n);
+  }
+
+  function shatterGate() {
+    // Confetti burst
+    const colors = ['#FF1F6E','#FFD000','#00C4A7','#FF6B1A','#8B3FD8','#8FC900'];
+    for (let i = 0; i < 30; i++) {
+      const p = document.createElement('div');
+      p.className = 'confetti-particle';
+      p.style.cssText = `
+        left: 50vw; top: 50vh;
+        background: ${colors[Math.floor(Math.random()*colors.length)]};
+        --tx: ${(Math.random()-0.5)*400}px;
+        --ty: ${(Math.random()-0.5)*300}px;
+        animation-delay: ${Math.random()*0.2}s;
+      `;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 1000);
+    }
+    const gate = document.getElementById('quote-gate');
+    gate.classList.add('shatter');
+    setTimeout(() => {
+      gate.style.display = 'none';
+      document.getElementById('app').classList.add('visible');
+      updateKarmaUI(0);
+    }, 600);
+  }
+
+  function showGate() {
+    const gate = document.getElementById('quote-gate');
+    gate.style.display = '';
+    gate.classList.remove('shatter');
+    document.getElementById('app').classList.remove('visible');
+  }
+
+  let archived = { orders: 0, news: 0 };
+  let totals   = { orders: 3, news: 2 };
+
+  function archiveEmail(btn, catId, bodyId, num, total, colorKey) {
+    const pill = btn.closest('.email-pill');
+    pill.style.opacity = '0';
+    pill.style.transform = 'translateX(40px) scale(0.9)';
+    pill.style.transition = 'all 0.3s ease';
+    setTimeout(() => pill.remove(), 300);
+
+    const cat = catId.replace('cat-','');
+    archived[cat] = (archived[cat] || 0) + 1;
+    const remaining = total - archived[cat];
+
+    addKarma(2);
+
+    // Update badge
+    const block = document.getElementById(catId);
+    const badge = block.querySelector('.cat-badge');
+    const bar = block.querySelector('.cat-progress-bar');
+    const pct = (archived[cat] / total) * 100;
+
+    if (remaining > 0) {
+      badge.textContent = `${remaining} emails`;
+      bar.style.width = pct + '%';
+    } else {
+      // Bloom!
+      badge.textContent = '✓ Clear';
+      badge.style.background = 'rgba(0,196,167,0.18)';
+      badge.style.color = '#00C4A7';
+      bar.style.width = '100%';
+      bar.style.background = 'linear-gradient(90deg, #00C4A7, #8FC900)';
+      block.querySelector('.cat-header').style.background = 'linear-gradient(135deg, rgba(0,196,167,0.12), rgba(143,201,0,0.08))';
+
+      const body = document.getElementById(bodyId);
+      setTimeout(() => {
+        body.innerHTML = `
+          <div class="cat-bloom">
+            <div class="bloom-emoji">🪷</div>
+            <div class="bloom-text">Category cleared!<br>Lotus blooms for you ✨</div>
+          </div>`;
+        addKarma(10);
+      }, 350);
+    }
+  }
+
+  function smashBoulder() {
+    const boulder = document.getElementById('purge-boulder');
+    boulder.classList.add('shatter-out');
+    boulder.style.animation = 'boulder-shake 0.1s, shatter-out 0.5s ease forwards';
+    setTimeout(() => {
+      document.querySelector('.purge-header').style.display = 'none';
+      document.getElementById('purge-result').style.display = 'block';
+      addKarma(86);
+    }, 500);
+  }
+</script>
+</body>
+</html>

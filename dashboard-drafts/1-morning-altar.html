@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inbox AI — Morning Altar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Crimson+Pro:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEE4FF; --card: #FFFEF9; --ink: #1A0A35;
+    --muted: rgba(26,10,53,0.45); --muted2: rgba(26,10,53,0.18);
+    --gold: #C8960C; --gold-light: #FFD000; --rose: #FF1F6E; --teal: #00C4A7;
+    --orange: #FF6B1A; --lime: #8FC900; --purple: #8B3FD8;
+    --border: rgba(200,150,12,0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Crimson Pro', Georgia, serif; font-size: 16px; min-height: 100vh; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse 80% 60% at 15% -5%, rgba(255,208,0,0.07) 0%, transparent 50%),
+                radial-gradient(ellipse 60% 50% at 85% 105%, rgba(255,31,110,0.05) 0%, transparent 50%);
+  }
+  .app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 20px 40px; }
+
+  /* Header */
+  .site-header { display: flex; align-items: center; justify-content: space-between; padding: 28px 0 20px; border-bottom: 1px solid var(--muted2); }
+  .logo { display: flex; align-items: center; gap: 14px; }
+  .logo-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #FF1F6E, #FF6B1A); display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 6px 24px rgba(255,31,110,0.32); }
+  .logo-text { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 600; letter-spacing: 0.06em; color: var(--ink); }
+  .logo-sub { font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+  .header-actions { display: flex; gap: 10px; }
+  .btn { padding: 8px 20px; border-radius: 999px; border: none; font-family: 'Crimson Pro', serif; font-size: 0.95rem; cursor: pointer; transition: all 0.18s ease; }
+  .btn-ghost { background: transparent; border: 1px solid var(--muted2); color: var(--muted); }
+  .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-primary { background: var(--rose); color: white; font-weight: 500; box-shadow: 0 4px 16px rgba(255,31,110,0.35); }
+  .btn-primary:hover { transform: translateY(-1px); }
+
+  /* Toggle bar */
+  .dashboard-toggle-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }
+  .dashboard-label { font-family: 'Cormorant Garamond', serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); }
+  .toggle-btn { display: flex; align-items: center; gap: 6px; background: none; border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; font-family: 'Crimson Pro', serif; font-size: 0.82rem; color: var(--muted); cursor: pointer; transition: all 0.18s; }
+  .toggle-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .toggle-arrow { transition: transform 0.3s ease; font-size: 0.7rem; }
+  .toggle-arrow.collapsed { transform: rotate(-90deg); }
+
+  /* Dashboard panel */
+  .dashboard-panel { overflow: hidden; transition: max-height 0.5s cubic-bezier(0.16,1,0.3,1), opacity 0.4s ease; max-height: 2000px; opacity: 1; }
+  .dashboard-panel.hidden { max-height: 0; opacity: 0; }
+  .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; padding-bottom: 14px; }
+  .dashboard-bottom { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; padding-bottom: 20px; }
+  @media (max-width: 800px) { .dashboard-grid, .dashboard-bottom { grid-template-columns: 1fr; } }
+
+  /* Widget base */
+  .widget { background: var(--card); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 2px 24px rgba(200,150,12,0.06); }
+  .widget-header { padding: 14px 20px 12px; border-bottom: 1px solid rgba(200,150,12,0.10); display: flex; align-items: center; gap: 8px; }
+  .widget-icon { font-size: 1rem; }
+  .widget-title { font-family: 'Cormorant Garamond', serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); }
+  .widget-body { padding: 16px 20px; }
+
+  /* Calendar */
+  .cal-event { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(26,10,53,0.06); }
+  .cal-event:last-child { border-bottom: none; }
+  .cal-time { font-size: 0.78rem; color: var(--gold); font-weight: 500; min-width: 52px; letter-spacing: 0.04em; padding-top: 1px; }
+  .cal-event-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .cal-event-name { font-size: 0.92rem; color: var(--ink); line-height: 1.3; }
+  .cal-event-sub { font-size: 0.78rem; color: var(--muted); margin-top: 1px; }
+  .cal-now-line { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  .cal-now-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rose); flex-shrink: 0; box-shadow: 0 0 8px rgba(255,31,110,0.7); }
+  .cal-now-dash { flex: 1; height: 1px; background: rgba(255,31,110,0.3); }
+  .cal-now-text { font-size: 0.72rem; color: var(--rose); letter-spacing: 0.08em; }
+
+  /* Dharma */
+  .quote-ornament { font-family: 'Cormorant Garamond', serif; font-size: 4rem; line-height: 0.6; color: var(--gold-light); opacity: 0.4; margin-bottom: 8px; display: block; }
+  .quote-text { font-family: 'Cormorant Garamond', serif; font-size: 1.18rem; font-style: italic; line-height: 1.7; color: var(--ink); }
+  .quote-author { margin-top: 12px; font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+  .quote-divider { width: 32px; height: 1px; background: var(--gold); opacity: 0.4; margin: 10px 0; }
+
+  /* Manifestation */
+  .manifest-intention { font-family: 'Cormorant Garamond', serif; font-size: 1.05rem; font-style: italic; line-height: 1.65; color: var(--ink); border-left: 2px solid var(--gold-light); padding-left: 12px; margin-bottom: 14px; opacity: 0.8; }
+  .manifest-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .manifest-item { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; }
+  .manifest-gem { width: 6px; height: 6px; border-radius: 1px; transform: rotate(45deg); flex-shrink: 0; margin-top: 6px; }
+  .manifest-text { font-size: 0.88rem; line-height: 1.4; color: var(--ink); }
+  .manifest-moon { display: flex; align-items: center; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(200,150,12,0.12); font-size: 0.75rem; color: var(--muted); letter-spacing: 0.1em; }
+
+  /* ── Breathwork ── */
+  .breath-body { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .breath-ring-wrap { position: relative; width: 110px; height: 110px; }
+  .breath-ring-wrap svg { transform: rotate(-90deg); }
+  .breath-track { fill: none; stroke: rgba(200,150,12,0.12); stroke-width: 6; }
+  .breath-ring { fill: none; stroke: var(--gold); stroke-width: 6; stroke-linecap: round;
+    stroke-dasharray: 283; stroke-dashoffset: 283;
+    transition: stroke-dashoffset 0.15s linear; }
+  .breath-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .breath-count { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 600; color: var(--ink); line-height: 1; }
+  .breath-phase { font-family: 'Cormorant Garamond', serif; font-size: 0.75rem; font-style: italic; color: var(--gold); margin-top: 2px; text-align: center; line-height: 1.2; }
+  .breath-label-below { font-family: 'Cormorant Garamond', serif; font-size: 0.95rem; font-style: italic; color: var(--muted); min-height: 22px; text-align: center; }
+  .breath-rounds { font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  .breath-controls { display: flex; gap: 8px; }
+  .breath-btn { font-family: 'Crimson Pro', serif; font-size: 0.88rem; padding: 6px 16px; border-radius: 999px; cursor: pointer; transition: all 0.15s; border: 1px solid; }
+  .breath-btn-start { background: var(--gold); border-color: var(--gold); color: white; }
+  .breath-btn-start:hover { background: var(--gold-light); border-color: var(--gold-light); }
+  .breath-btn-reset { background: transparent; border-color: var(--muted2); color: var(--muted); }
+  .breath-btn-reset:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ── Insight Charts ── */
+  .insight-body { padding: 16px 20px; }
+  .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .insight-section-title { font-family: 'Cormorant Garamond', serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+  .stacked-bar { display: flex; height: 12px; border-radius: 99px; overflow: hidden; gap: 2px; margin-bottom: 12px; }
+  .bar-seg { height: 100%; border-radius: 99px; transition: opacity 0.2s; cursor: default; }
+  .bar-seg:hover { opacity: 0.8; }
+  .legend-list { display: flex; flex-direction: column; gap: 5px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .legend-name { font-size: 0.82rem; color: var(--ink); flex: 1; }
+  .legend-pct { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+
+  /* Inbox divider */
+  .inbox-header { display: flex; align-items: center; gap: 14px; padding: 10px 0 12px; border-top: 1px solid var(--muted2); }
+  .inbox-title { font-family: 'Cormorant Garamond', serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); }
+  .inbox-line { flex: 1; height: 1px; background: var(--muted2); }
+  .email-row { display: flex; align-items: center; gap: 12px; padding: 11px 18px; background: var(--card); border-radius: 12px; margin-bottom: 6px; border: 1px solid rgba(26,10,53,0.05); cursor: pointer; transition: all 0.15s ease; }
+  .email-row:hover { border-color: var(--border); box-shadow: 0 2px 12px rgba(200,150,12,0.08); }
+  .email-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .email-from { font-weight: 500; font-size: 0.9rem; min-width: 160px; }
+  .email-subject { font-size: 0.9rem; color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .email-time { font-size: 0.78rem; color: var(--muted); }
+  .email-badge { font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="site-header">
+    <div class="logo">
+      <div class="logo-icon">✉️</div>
+      <div>
+        <div class="logo-text">INBOX AI</div>
+        <div class="logo-sub">Your morning practice</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost">Compose</button>
+      <button class="btn btn-primary">Refresh</button>
+    </div>
+  </header>
+
+  <div class="dashboard-toggle-bar">
+    <span class="dashboard-label">✦ Morning Altar</span>
+    <button class="toggle-btn" id="toggleBtn" onclick="toggleDashboard()">
+      <span id="toggleLabel">Hide dashboard</span>
+      <span class="toggle-arrow" id="arrow">▼</span>
+    </button>
+  </div>
+
+  <div class="dashboard-panel" id="dashPanel">
+
+    <!-- Row 1: Calendar · Dharma · Manifestation -->
+    <div class="dashboard-grid">
+
+      <div class="widget">
+        <div class="widget-header"><span class="widget-icon">☽</span><span class="widget-title">Today — Tuesday 27 May</span></div>
+        <div class="widget-body">
+          <div class="cal-event"><span class="cal-time">6:30</span><span class="cal-event-dot" style="background:#FFD000;"></span><div><div class="cal-event-name">Morning meditation</div><div class="cal-event-sub">20 min · sitting practice</div></div></div>
+          <div class="cal-event"><span class="cal-time">8:00</span><span class="cal-event-dot" style="background:#00C4A7;"></span><div><div class="cal-event-name">Journaling</div><div class="cal-event-sub">Intentions + gratitude</div></div></div>
+          <div class="cal-now-line"><span class="cal-now-dot"></span><span class="cal-now-dash"></span><span class="cal-now-text">now · 9:14 AM</span></div>
+          <div class="cal-event"><span class="cal-time">10:00</span><span class="cal-event-dot" style="background:#FF6B1A;"></span><div><div class="cal-event-name">Apothecary review call</div><div class="cal-event-sub">Google Meet · 45 min</div></div></div>
+          <div class="cal-event"><span class="cal-time">2:00</span><span class="cal-event-dot" style="background:#8B3FD8;"></span><div><div class="cal-event-name">Design sprint</div><div class="cal-event-sub">Inbox AI — dashboard</div></div></div>
+          <div class="cal-event"><span class="cal-time">5:30</span><span class="cal-event-dot" style="background:#8FC900;"></span><div><div class="cal-event-name">Movement / walk</div><div class="cal-event-sub">Sunset light</div></div></div>
+        </div>
+      </div>
+
+      <div class="widget">
+        <div class="widget-header"><span class="widget-icon">🪷</span><span class="widget-title">Daily Dharma</span></div>
+        <div class="widget-body">
+          <span class="quote-ornament">"</span>
+          <p class="quote-text">Do not dwell in the past, do not dream of the future — concentrate the mind on the present moment.</p>
+          <div class="quote-divider"></div>
+          <p class="quote-author">— Gautama Buddha</p>
+          <div style="margin-top:22px;padding-top:16px;border-top:1px solid rgba(200,150,12,0.10);">
+            <div class="manifest-label">today's seed</div>
+            <p style="font-size:0.9rem;line-height:1.6;color:var(--ink);font-style:italic;">Where in your life are you resisting what already is?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="widget">
+        <div class="widget-header"><span class="widget-icon">✨</span><span class="widget-title">Manifestation Work</span></div>
+        <div class="widget-body">
+          <div class="manifest-label">year intention</div>
+          <div class="manifest-intention">I am creating a life of ease, abundance, and creative flow — where my work is medicine.</div>
+          <div class="manifest-label">calling in this season</div>
+          <div class="manifest-item"><span class="manifest-gem" style="background:#FFD000;"></span><span class="manifest-text">Financial freedom through joyful creation</span></div>
+          <div class="manifest-item"><span class="manifest-gem" style="background:#FF1F6E;"></span><span class="manifest-text">Deep, nourishing creative partnerships</span></div>
+          <div class="manifest-item"><span class="manifest-gem" style="background:#00C4A7;"></span><span class="manifest-text">A body that feels alive and at home</span></div>
+          <div class="manifest-item"><span class="manifest-gem" style="background:#8B3FD8;"></span><span class="manifest-text">Magical synchronicities — daily</span></div>
+          <div class="manifest-moon"><span>🌙</span><span>Waxing gibbous · Growing momentum</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row 2: Breathwork · Insight -->
+    <div class="dashboard-bottom">
+
+      <!-- 4-7-8 Breathwork -->
+      <div class="widget">
+        <div class="widget-header"><span class="widget-icon">🫁</span><span class="widget-title">4 · 7 · 8 Breathwork</span></div>
+        <div class="breath-body">
+          <div class="breath-ring-wrap">
+            <svg width="110" height="110" viewBox="0 0 110 110">
+              <circle class="breath-track" cx="55" cy="55" r="45"/>
+              <circle class="breath-ring" id="breathRing" cx="55" cy="55" r="45"/>
+            </svg>
+            <div class="breath-center">
+              <span class="breath-count" id="breathCount">4</span>
+              <span class="breath-phase" id="breathPhaseInner">inhale</span>
+            </div>
+          </div>
+          <div class="breath-label-below" id="breathPhaseLabel">Ready when you are</div>
+          <div class="breath-rounds" id="breathRounds">Round 1 of 4</div>
+          <div class="breath-controls">
+            <button class="breath-btn breath-btn-start" id="breathStartBtn" onclick="toggleBreath()">Begin</button>
+            <button class="breath-btn breath-btn-reset" onclick="resetBreath()">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Insight Charts -->
+      <div class="widget">
+        <div class="widget-header"><span class="widget-icon">✦</span><span class="widget-title">Your Day at a Glance</span></div>
+        <div class="insight-body">
+          <div class="insight-grid">
+
+            <div>
+              <div class="insight-section-title">📬 Inbox split</div>
+              <div class="stacked-bar">
+                <div class="bar-seg" style="width:42%;background:#8B3FD8;" title="Classes 42%"></div>
+                <div class="bar-seg" style="width:22%;background:#FF6B1A;" title="Newsletters 22%"></div>
+                <div class="bar-seg" style="width:18%;background:#00C4A7;" title="Work 18%"></div>
+                <div class="bar-seg" style="width:12%;background:#FF1F6E;" title="Family 12%"></div>
+                <div class="bar-seg" style="width:6%;background:#FFD000;" title="Other 6%"></div>
+              </div>
+              <div class="legend-list">
+                <div class="legend-item"><span class="legend-dot" style="background:#8B3FD8;"></span><span class="legend-name">Classes</span><span class="legend-pct">42%</span></div>
+                <div class="legend-item"><span class="legend-dot" style="background:#FF6B1A;"></span><span class="legend-name">Newsletters</span><span class="legend-pct">22%</span></div>
+                <div class="legend-item"><span class="legend-dot" style="background:#00C4A7;"></span><span class="legend-name">Work</span><span class="legend-pct">18%</span></div>
+                <div class="legend-item"><span class="legend-dot" style="background:#FF1F6E;"></span><span class="legend-name">Family</span><span class="legend-pct">12%</span></div>
+                <div class="legend-item"><span class="legend-dot" style="background:#FFD000;"></span><span class="legend-name">Other</span><span class="legend-pct">6%</span></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="insight-section-title">📅 Calendar split</div>
+              <div class="stacked-bar">
+                <div class="bar-seg" style="width:38%;background:rgba(26,10,53,0.10);" title="Free 38%"></div>
+                <div class="bar-seg" style="width:28%;background:#FF6B1A;" title="Calls 28%"></div>
+                <div class="bar-seg" style="width:22%;background:#8B3FD8;" title="Creative 22%"></div>
+                <div class="bar-seg" style="width:12%;background:#8FC900;" title="Movement 12%"></div>
+              </div>
+              <div class="legend-list">
+                <div class="legend-item"><span class="legend-dot" style="background:rgba(26,10,53,0.20);border:1px solid rgba(26,10,53,0.15);"></span><span class="legend-name">Free time</span><span class="legend-pct">38%</span></div>
+                <div class="legend-item"><span class="legend-dot" style="background:#FF6B1A;"></span><span class="legend-name">Calls / Meetings</span><span class="legend-pct">28%</span></div>
+                <div class="legend-item"><span class="legend-dot" style="background:#8B3FD8;"></span><span class="legend-name">Creative work</span><span class="legend-pct">22%</span></div>
+                <div class="legend-item"><span class="legend-dot" style="background:#8FC900;"></span><span class="legend-name">Movement</span><span class="legend-pct">12%</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Inbox -->
+  <div class="inbox-header">
+    <span class="inbox-title">Your Inbox</span>
+    <span class="inbox-line"></span>
+    <span style="font-size:0.75rem;color:var(--muted)">12 imported · 3 urgent</span>
+  </div>
+  <div class="email-row"><span class="email-dot" style="background:#FF1F6E;"></span><span class="email-badge" style="background:rgba(255,31,110,0.12);color:#FF1F6E;">urgent</span><span class="email-from">Notion</span><span class="email-subject">Your workspace plan renews in 3 days — action needed</span><span class="email-time">9:02 AM</span></div>
+  <div class="email-row"><span class="email-dot" style="background:#FFD000;"></span><span class="email-badge" style="background:rgba(255,208,0,0.12);color:#C8960C;">today</span><span class="email-from">Sarah K.</span><span class="email-subject">Re: Apothecary label designs — love these directions</span><span class="email-time">8:47 AM</span></div>
+  <div class="email-row"><span class="email-dot" style="background:#00C4A7;"></span><span class="email-badge" style="background:rgba(0,196,167,0.10);color:#00A38A;">fyi</span><span class="email-from">Substack</span><span class="email-subject">Your newsletter stats for May</span><span class="email-time">7:30 AM</span></div>
+  <div class="email-row"><span class="email-dot" style="background:#8B3FD8;"></span><span class="email-badge" style="background:rgba(139,63,216,0.10);color:#8B3FD8;">fyi</span><span class="email-from">Figma</span><span class="email-subject">New comment on "Dashboard — Morning Altar"</span><span class="email-time">Yesterday</span></div>
+
+</div>
+<script>
+  // ── Toggle ──
+  function toggleDashboard() {
+    const panel = document.getElementById('dashPanel');
+    const label = document.getElementById('toggleLabel');
+    const arrow = document.getElementById('arrow');
+    const isHidden = panel.classList.toggle('hidden');
+    arrow.classList.toggle('collapsed', isHidden);
+    label.textContent = isHidden ? 'Show dashboard' : 'Hide dashboard';
+  }
+
+  // ── 4-7-8 Breathwork ──
+  const CIRC = 2 * Math.PI * 45;
+  const DURATIONS = { inhale: 4000, hold: 7000, exhale: 8000 };
+  const PHASE_LABELS = { inhale: 'Breathe in…', hold: 'Hold…', exhale: 'Let go…', idle: 'Ready when you are' };
+  const PHASE_INNER = { inhale: 'inhale', hold: 'hold', exhale: 'exhale', idle: '' };
+  let breath = { active: false, phase: 'idle', elapsed: 0, rounds: 0, lastTick: null, timer: null };
+
+  function breathTick() {
+    if (!breath.active) return;
+    const now = Date.now();
+    if (breath.lastTick) breath.elapsed += now - breath.lastTick;
+    breath.lastTick = now;
+    const dur = DURATIONS[breath.phase] || 1;
+    const progress = Math.min(breath.elapsed / dur, 1);
+    let ringFill = breath.phase === 'inhale' ? progress : breath.phase === 'hold' ? 1 : 1 - progress;
+    document.getElementById('breathRing').style.strokeDashoffset = CIRC * (1 - ringFill);
+    const remaining = Math.max(1, Math.ceil((dur - breath.elapsed) / 1000));
+    document.getElementById('breathCount').textContent = remaining;
+    if (breath.elapsed >= dur) {
+      breath.elapsed = 0;
+      if (breath.phase === 'inhale') { breath.phase = 'hold'; chime(528); }
+      else if (breath.phase === 'hold') { breath.phase = 'exhale'; chime(396); }
+      else { breath.rounds++; updateRounds(); chime(528);
+        if (breath.rounds >= 4) { stopBreath(); document.getElementById('breathPhaseLabel').textContent = 'Session complete ✦'; return; }
+        breath.phase = 'inhale'; }
+      document.getElementById('breathPhaseLabel').textContent = PHASE_LABELS[breath.phase];
+      document.getElementById('breathPhaseInner').textContent = PHASE_INNER[breath.phase];
+    }
+  }
+
+  function chime(freq) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator(); const g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.frequency.value = freq; osc.type = 'sine';
+      g.gain.setValueAtTime(0.12, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
+      osc.start(); osc.stop(ctx.currentTime + 1);
+    } catch(e) {}
+  }
+
+  function toggleBreath() {
+    if (breath.active) {
+      breath.active = false; clearInterval(breath.timer); breath.lastTick = null;
+      document.getElementById('breathStartBtn').textContent = 'Resume';
+    } else {
+      if (breath.phase === 'idle') { breath.phase = 'inhale'; breath.elapsed = 0; breath.rounds = 0; updateRounds(); chime(528); }
+      breath.active = true; breath.lastTick = Date.now();
+      breath.timer = setInterval(breathTick, 50);
+      document.getElementById('breathStartBtn').textContent = 'Pause';
+      document.getElementById('breathPhaseLabel').textContent = PHASE_LABELS[breath.phase];
+      document.getElementById('breathPhaseInner').textContent = PHASE_INNER[breath.phase];
+    }
+  }
+
+  function stopBreath() {
+    breath.active = false; clearInterval(breath.timer);
+    document.getElementById('breathStartBtn').textContent = 'Begin';
+  }
+
+  function resetBreath() {
+    stopBreath(); breath.phase = 'idle'; breath.elapsed = 0; breath.rounds = 0; breath.lastTick = null;
+    document.getElementById('breathRing').style.strokeDashoffset = CIRC;
+    document.getElementById('breathCount').textContent = '4';
+    document.getElementById('breathPhaseLabel').textContent = 'Ready when you are';
+    document.getElementById('breathPhaseInner').textContent = '';
+    document.getElementById('breathStartBtn').textContent = 'Begin';
+    updateRounds();
+  }
+
+  function updateRounds() {
+    document.getElementById('breathRounds').textContent = `Round ${breath.rounds + 1} of 4`;
+  }
+</script>
+</body>
+</html>

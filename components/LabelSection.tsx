@@ -18,6 +18,10 @@ export interface LabelSectionProps {
   headerTextColor: string
   border?: string
   boxShadow?: string
+  headerOverlay?: string
+
+  // Collapse state (controlled externally by CategoryBlock)
+  collapsed?: boolean
 
   // Data
   emails: Email[]
@@ -56,6 +60,8 @@ export default function LabelSection({
   title, headerBg, headerTextColor,
   border = "rgba(26,10,53,0.10)",
   boxShadow = "0 4px 28px rgba(26,10,53,0.05)",
+  headerOverlay,
+  collapsed = false,
   emails, categories, selectedEmail,
   children,
   bulkActions = [],
@@ -111,8 +117,19 @@ export default function LabelSection({
       {/* ── Header band ── */}
       <div
         className="flex items-center justify-between px-4 py-2.5"
-        style={{ background: headerBg }}
+        style={{
+          background: headerBg,
+          position: "relative",
+        }}
       >
+        {headerOverlay && (
+          <div style={{
+            position: "absolute", inset: 0,
+            background: headerOverlay,
+            borderRadius: "inherit",
+            pointerEvents: "none",
+          }} />
+        )}
         <h2 style={{
           fontFamily: "var(--font-display)",
           fontSize: "0.92rem",
@@ -260,6 +277,13 @@ export default function LabelSection({
         </div>
       )}
 
+      {/* ── Collapsible body ── */}
+      <div style={{
+        overflow: "hidden",
+        maxHeight: collapsed ? 0 : "2000px",
+        transition: "max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+      }}>
+
       {/* ── Optional children slot (e.g. summary paragraph) ── */}
       {children}
 
@@ -316,6 +340,8 @@ export default function LabelSection({
           ))
         )}
       </div>
+
+      </div>{/* end collapsible body */}
     </div>
   )
 }

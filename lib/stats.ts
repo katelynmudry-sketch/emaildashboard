@@ -176,17 +176,43 @@ export function recordAction(
   return stats;
 }
 
-export function getPlantStage(): { emoji: string; stage: string; xp: number } {
+export interface KarmaLevel {
+  emoji: string;
+  stage: string;
+  label: string;
+  xp: number;
+  nextThreshold: number;
+}
+
+export const KARMA_THRESHOLDS = [
+  { min: 300, emoji: "🪷", stage: "lotus",  label: "Lotus"  },
+  { min: 150, emoji: "🌳", stage: "tree",   label: "Tree"   },
+  { min: 75,  emoji: "🪴", stage: "potted", label: "Potted" },
+  { min: 25,  emoji: "🌿", stage: "sprout", label: "Sprout" },
+  { min: 0,   emoji: "🌱", stage: "seed",   label: "Seed"   },
+] as const;
+
+export function getKarmaLevel(): KarmaLevel {
   const stats = getStats();
   const { xp } = stats;
 
   if (isWilted()) {
-    return { emoji: "🥀", stage: "wilted", xp };
+    return { emoji: "🥀", stage: "wilted", label: "Wilting", xp, nextThreshold: 25 };
   }
-  if (xp >= 150) return { emoji: "🌳", stage: "tree", xp };
-  if (xp >= 75) return { emoji: "🪴", stage: "potted", xp };
-  if (xp >= 25) return { emoji: "🌿", stage: "sprout", xp };
-  return { emoji: "🌱", stage: "seed", xp };
+
+  for (let i = 0; i < KARMA_THRESHOLDS.length; i++) {
+    const t = KARMA_THRESHOLDS[i];
+    if (xp >= t.min) {
+      const nextThreshold = i > 0 ? KARMA_THRESHOLDS[i - 1].min : 9999;
+      return { emoji: t.emoji, stage: t.stage, label: t.label, xp, nextThreshold };
+    }
+  }
+  return { emoji: "🌱", stage: "seed", label: "Seed", xp, nextThreshold: 25 };
+}
+
+export function getPlantStage(): { emoji: string; stage: string; xp: number } {
+  const { emoji, stage, xp } = getKarmaLevel();
+  return { emoji, stage, xp };
 }
 
 export function isWilted(): boolean {

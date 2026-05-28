@@ -58,6 +58,65 @@ body {
   animation: slide-up 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ── Zen mode overrides ──────────────────────────── */
+.mode-zen {
+  --magenta:  #9B6DAF;
+  --gold:     #B8965A;
+  --orange:   #C07A50;
+  --teal:     #3D9E8A;
+  --lime:     #6B9A30;
+  --purple:   #6B5490;
+  --bg:       #F0ECF8;
+  --bg2:      #F7F4FC;
+  --border:   rgba(80, 50, 120, 0.10);
+  --muted:    rgba(26, 10, 53, 0.38);
+}
+
+.mode-zen * {
+  animation-duration: 0s !important;
+  transition-duration: 0.25s !important;
+}
+
+/* re-allow specific intentional transitions in zen */
+.mode-zen .zen-transition {
+  transition-duration: 0.4s !important;
+}
+
+/* ── Party mode ──────────────────────────────────── */
+@keyframes karma-earned {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  60%  { transform: translateY(-18px) scale(1.15); opacity: 1; }
+  100% { transform: translateY(-28px) scale(0.9); opacity: 0; }
+}
+
+.karma-toast-anim {
+  animation: karma-earned 1.2s ease-out forwards;
+}
+
+@keyframes lotus-bloom {
+  0%   { transform: scale(0.2) rotate(-20deg); opacity: 0; filter: blur(8px); }
+  50%  { transform: scale(1.15) rotate(5deg); opacity: 1; filter: blur(0); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.lotus-bloom-anim {
+  animation: lotus-bloom 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes sparkle-out {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.5); }
+}
+
+.sparkle-anim {
+  animation: sparkle-out 0.5s ease-out forwards;
+}
+
+@keyframes boulder-rock {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
 /* ── Festival spinner ────────────────────────────── */
 .fiesta-spinner {
   width: 48px;

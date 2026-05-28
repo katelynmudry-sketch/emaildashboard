@@ -5,7 +5,8 @@ import { useSession, signIn } from "next-auth/react"
 import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/types"
 import { ACCOUNTS } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
-import { recordAction } from "@/lib/stats"
+import { recordAction, getKarmaLevel } from "@/lib/stats"
+import { getPartyMode, setPartyMode, hasSeenGate, type PartyMode } from "@/lib/party-mode"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
 import { snoozeEmail } from "@/lib/todo-snooze"
 import { loadSettings } from "@/lib/settings-storage"
@@ -21,6 +22,7 @@ import ComposeModal from "./ComposeModal"
 import SnoozeModal from "./SnoozeModal"
 import ConfettiBlast from "./ConfettiBlast"
 import InstructionsPanel from "./InstructionsPanel"
+import QuoteGate from "./QuoteGate"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
 
@@ -139,6 +141,110 @@ function TallyTicket({ loaded, total }: { loaded: number; total: number }) {
   )
 }
 
+// ── Karma pill sub-component ─────────────────────────────────────────────────
+
+function KarmaPill({
+  emoji, label, xp, nextThreshold, toast, mode,
+  onToggleMode, currentMode,
+}: {
+  emoji: string; label: string; xp: number; nextThreshold: number
+  toast: string | null; mode: PartyMode
+  onToggleMode: () => void; currentMode: PartyMode
+}) {
+  const prevThreshold = (() => {
+    const thresholds = [0, 25, 75, 150, 300, 9999]
+    const idx = thresholds.findIndex(t => t === nextThreshold)
+    return idx > 0 ? thresholds[idx - 1] : 0
+  })()
+  const pct = nextThreshold > prevThreshold
+    ? Math.min(100, ((xp - prevThreshold) / (nextThreshold - prevThreshold)) * 100)
+    : 100
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
+      {/* Karma pill */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "6px 14px", borderRadius: 999,
+        background: mode === "party"
+          ? "linear-gradient(135deg, rgba(255,208,0,0.14), rgba(139,63,216,0.10))"
+          : "rgba(26,10,53,0.05)",
+        border: mode === "party"
+          ? "1px solid rgba(255,208,0,0.35)"
+          : "1px solid rgba(26,10,53,0.12)",
+        position: "relative",
+      }}>
+        <span style={{ fontSize: "1.3rem", lineHeight: 1, filter: mode === "party" ? "drop-shadow(0 0 5px rgba(255,208,0,0.5))" : "none" }}>
+          {emoji}
+        </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+            <span style={{
+              fontSize: "1.1rem", fontWeight: 800, lineHeight: 1,
+              color: mode === "party" ? "#FFD000" : "rgba(26,10,53,0.65)",
+              fontFamily: "var(--font-display)",
+            }}>
+              {xp}
+            </span>
+            <span style={{ fontSize: "0.62rem", textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(26,10,53,0.40)" }}>
+              Karma
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: "0.65rem", color: mode === "party" ? "#FF6B1A" : "rgba(26,10,53,0.40)", fontWeight: 700 }}>
+              {label}
+            </span>
+            <div style={{ width: 44, height: 3, background: "rgba(26,10,53,0.10)", borderRadius: 99, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 99,
+                width: `${pct}%`,
+                background: mode === "party"
+                  ? "linear-gradient(90deg, #FFD000, #FF6B1A)"
+                  : "rgba(26,10,53,0.30)",
+                transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)",
+              }} />
+            </div>
+          </div>
+        </div>
+        {/* Karma toast */}
+        {toast && mode === "party" && (
+          <div className="karma-toast-anim" style={{
+            position: "absolute", top: -26, left: "50%",
+            transform: "translateX(-50%)",
+            background: "#FFD000", color: "#1A0A35",
+            fontSize: "0.75rem", fontWeight: 800,
+            padding: "2px 8px", borderRadius: 6,
+            whiteSpace: "nowrap", pointerEvents: "none",
+          }}>
+            {toast} Karma
+          </div>
+        )}
+      </div>
+
+      {/* Mode toggle */}
+      <button
+        onClick={onToggleMode}
+        title={`Switch to ${currentMode === "zen" ? "Party" : "Zen"} mode`}
+        style={{
+          padding: "6px 14px", borderRadius: 999, cursor: "pointer",
+          border: currentMode === "zen"
+            ? "1px solid rgba(147,197,253,0.40)"
+            : "1px solid rgba(255,31,110,0.35)",
+          background: currentMode === "zen"
+            ? "rgba(147,197,253,0.10)"
+            : "rgba(255,31,110,0.08)",
+          color: currentMode === "zen" ? "rgba(147,197,253,0.90)" : "#FF1F6E",
+          fontSize: "0.80rem", fontWeight: 600, letterSpacing: "0.06em",
+          display: "flex", alignItems: "center", gap: 6,
+          transition: "all 0.2s",
+        }}
+      >
+        {currentMode === "zen" ? "🧘 Zen" : "🎉 Party"}
+      </button>
+    </div>
+  )
+}
+
 // ── Main dashboard component ─────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -173,8 +279,65 @@ export default function Dashboard() {
   const [todoLabelId, setTodoLabelId] = useState<string | null>(null)
   const prevEmailCount = useRef<number | null>(null)
 
+  // ── Email Party state ─────────────────────────────────────────────────────
+  const [mode, setMode] = useState<PartyMode>("party")
+  const [showGate, setShowGate] = useState(false)
+  const [karmaEmoji, setKarmaEmoji] = useState("🌱")
+  const [karmaLabel, setKarmaLabel] = useState("Seed")
+  const [karmaXp, setKarmaXp] = useState(0)
+  const [karmaNextThreshold, setKarmaNextThreshold] = useState(25)
+  const [karmaToast, setKarmaToast] = useState<string | null>(null)
+  const [mindfulPurge, setMindfulPurge] = useState<Email[]>([])
+  const [purgeShattered, setPurgeShattered] = useState(false)
+  const [purgeDismissed, setPurgeDismissed] = useState(false)
+  const [lotusQuote, setLotusQuote] = useState<string | null>(null)
+  const [showLotusBloom, setShowLotusBloom] = useState(false)
+
   // In-memory cache for fast account switching within a session
   const sessionCache = useRef<Map<string, InboxCache>>(new Map())
+
+  // ── Email Party init ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const stored = getPartyMode()
+    setMode(stored)
+    if (!hasSeenGate()) setShowGate(true)
+    syncKarma()
+
+    function syncKarma() {
+      const lvl = getKarmaLevel()
+      setKarmaEmoji(lvl.emoji)
+      setKarmaLabel(lvl.label)
+      setKarmaXp(lvl.xp)
+      setKarmaNextThreshold(lvl.nextThreshold)
+    }
+
+    function onStats() {
+      const lvl = getKarmaLevel()
+      const prev = karmaXp
+      setKarmaEmoji(lvl.emoji)
+      setKarmaLabel(lvl.label)
+      setKarmaXp(lvl.xp)
+      setKarmaNextThreshold(lvl.nextThreshold)
+      const gained = lvl.xp - prev
+      if (gained > 0) {
+        setKarmaToast(`+${gained}`)
+        setTimeout(() => setKarmaToast(null), 1400)
+      }
+    }
+
+    function onModeChange(e: Event) {
+      const detail = (e as CustomEvent<PartyMode>).detail
+      setMode(detail)
+    }
+
+    window.addEventListener("inbox-stats-updated", onStats)
+    window.addEventListener("inbox-mode-changed", onModeChange)
+    return () => {
+      window.removeEventListener("inbox-stats-updated", onStats)
+      window.removeEventListener("inbox-mode-changed", onModeChange)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const activeAccountConfig = ACCOUNTS.find(a => a.id === activeAccount)!
   const gmailAccountQuery = `account=${activeAccount}`
@@ -290,16 +453,25 @@ export default function Dashboard() {
     return false
   }
 
-  // ── Confetti on inbox zero ───────────────────────────────────────────────────
+  // ── Inbox zero: confetti + lotus bloom ──────────────────────────────────────
 
   useEffect(() => {
     if (appState !== "ready") return
     const count = visibleEmails.filter(e => !e.deletable && !e.snoozedUntil).length
     if (prevEmailCount.current !== null && prevEmailCount.current > 0 && count === 0) {
-      setConfetti(true)
+      if (mode === "party") setConfetti(true)
+      setShowLotusBloom(true)
+      const LOTUS_QUOTES = [
+        "Peace comes from within. Do not seek it without.",
+        "The present moment is the only moment available to us.",
+        "You yourself, as much as anybody in the entire universe, deserve your love.",
+        "Wherever you are, be there totally.",
+        "Let go of the past. Let go of the future. Let go of the present.",
+      ]
+      setLotusQuote(LOTUS_QUOTES[Math.floor(Math.random() * LOTUS_QUOTES.length)])
     }
     prevEmailCount.current = count
-  }, [visibleEmails, appState])
+  }, [visibleEmails, appState, mode])
 
   // ── On mount: restore last active account's data ─────────────────────────────
 
@@ -487,6 +659,20 @@ export default function Dashboard() {
     setTotalEmailsAtLoad(categorized.length)
     setFetchedAt(now)
     setAppState("ready")
+
+    // Mindful Purge: find old promo/newsletter emails
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const purgeableCandidates = categorized.filter(e =>
+      e.actionFlag === "read" &&
+      e.internalDate < sevenDaysAgo &&
+      !e.todo &&
+      !e.snoozedUntil
+    )
+    if (purgeableCandidates.length >= 5) {
+      setMindfulPurge(purgeableCandidates)
+      setPurgeDismissed(false)
+      setPurgeShattered(false)
+    }
 
     const cache: InboxCache = {
       account: activeAccountConfig.email,
@@ -848,6 +1034,43 @@ export default function Dashboard() {
 
   const isLoading = appState === "fetching" || appState === "categorizing" || appState === "proposing"
 
+  function handleToggleMode() {
+    const next: PartyMode = mode === "zen" ? "party" : "zen"
+    setPartyMode(next)
+    setMode(next)
+  }
+
+  async function handleMindfulPurge() {
+    setPurgeShattered(true)
+    const toDelete = [...mindfulPurge]
+    await Promise.all(
+      toDelete.map(email =>
+        fetch("/api/gmail/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messageId: email.id, account: activeAccount }),
+        }).catch(() => {})
+      )
+    )
+    setEmails(prev => prev.filter(e => !toDelete.some(d => d.id === e.id)))
+    for (const _ of toDelete) recordAction("delete")
+    setTimeout(() => {
+      setMindfulPurge([])
+      setPurgeDismissed(true)
+    }, 600)
+  }
+
+  // ── Quote Gate ───────────────────────────────────────────────────────────────
+
+  if (showGate) {
+    return (
+      <QuoteGate onEnter={(m) => {
+        setMode(m)
+        setShowGate(false)
+      }} />
+    )
+  }
+
   // ── Category proposal screen ─────────────────────────────────────────────────
 
   if (proposedCategories) {
@@ -864,7 +1087,7 @@ export default function Dashboard() {
   // ── FESTIVAL RENDER ──────────────────────────────────────────────────────────
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#EEE4FF", color: "#1A0A35" }}>
+    <div className={`relative min-h-screen mode-${mode}`} style={{ background: "#EEE4FF", color: "#1A0A35" }}>
 
       {/* Ambient background glows */}
       <div
@@ -1021,8 +1244,18 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Right: Action buttons + TODO widget */}
+            {/* Right: Karma + Mode Toggle + Action buttons + TODO widget */}
             <div className="flex items-start gap-3 flex-wrap">
+              <KarmaPill
+                emoji={karmaEmoji}
+                label={karmaLabel}
+                xp={karmaXp}
+                nextThreshold={karmaNextThreshold}
+                toast={karmaToast}
+                mode={mode}
+                onToggleMode={handleToggleMode}
+                currentMode={mode}
+              />
               <div className="flex items-center gap-2 flex-wrap">
                 {workNeedsLink && activeAccountConfig.email && (
                   <button
@@ -1369,20 +1602,35 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ── Inbox zero ── */}
-            {appState === "ready" && visibleEmails.filter(e => !e.deletable).length === 0 && totalEmailsAtLoad > 0 && (
+            {/* ── Inbox zero / Lotus Bloom ── */}
+            {appState === "ready" && visibleEmails.filter(e => !e.deletable).length === 0 && totalEmailsAtLoad > 0 && showLotusBloom && (
               <div className="mb-4 text-center" style={{
-                background: "linear-gradient(135deg, rgba(0,229,196,0.10), rgba(184,240,0,0.07))",
-                border: "1px solid rgba(0,229,196,0.28)",
+                background: mode === "party"
+                  ? "linear-gradient(135deg, rgba(0,229,196,0.12), rgba(184,240,0,0.08))"
+                  : "linear-gradient(135deg, rgba(147,197,253,0.10), rgba(0,229,196,0.07))",
+                border: `1px solid ${mode === "party" ? "rgba(0,229,196,0.28)" : "rgba(147,197,253,0.25)"}`,
                 borderRadius: 20,
-                padding: "36px 24px",
+                padding: "40px 24px",
                 boxShadow: "0 4px 40px rgba(0,229,196,0.07)",
               }}>
-                <p style={{ fontSize: "3.5rem", marginBottom: 14 }}>🎉</p>
-                <p style={{ fontFamily: "var(--font-display)", fontSize: "2.2rem", color: "#00E5C4", margin: "0 0 10px", letterSpacing: "0.04em" }}>
-                  ¡INBOX ZERO!
+                <div className="lotus-bloom-anim" style={{ fontSize: "4rem", marginBottom: 12, display: "inline-block" }}>🪷</div>
+                <p style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: mode === "party" ? "2.4rem" : "1.8rem",
+                  color: "#00E5C4", margin: "0 0 12px", letterSpacing: "0.04em",
+                }}>
+                  {mode === "party" ? "🎉 INBOX ZERO!" : "Inbox Clear"}
                 </p>
-                <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.62)", margin: 0 }}>
+                {lotusQuote && (
+                  <p style={{
+                    fontStyle: "italic", fontSize: "0.88rem",
+                    color: "rgba(26,10,53,0.55)", maxWidth: 420, margin: "0 auto 10px",
+                    lineHeight: 1.6,
+                  }}>
+                    &ldquo;{lotusQuote}&rdquo;
+                  </p>
+                )}
+                <p style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.45)", margin: 0 }}>
                   You triaged everything in this batch. Refresh to load more.
                 </p>
               </div>
@@ -1416,6 +1664,56 @@ export default function Dashboard() {
               />
             )}
 
+            {/* ── Mindful Purge boulder ── */}
+            {appState === "ready" && mindfulPurge.length >= 5 && !purgeDismissed && (
+              <div className="mb-4 overflow-hidden" style={{
+                background: "linear-gradient(135deg, rgba(139,63,216,0.09), rgba(255,31,110,0.06))",
+                border: "1px solid rgba(139,63,216,0.28)",
+                borderRadius: 14,
+                transition: "opacity 0.4s ease",
+                opacity: purgeShattered ? 0 : 1,
+              }}>
+                <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+                  <span style={{
+                    fontSize: "2rem", lineHeight: 1, flexShrink: 0,
+                    display: "inline-block",
+                    animation: purgeShattered ? "none" : "boulder-rock 2s ease-in-out infinite",
+                  }}>🪨</span>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#8B3FD8" }}>
+                      Mindful Purge — The Boulder
+                    </div>
+                    <div style={{ fontSize: "0.76rem", color: "rgba(26,10,53,0.55)", marginTop: 2 }}>
+                      {mindfulPurge.length} old newsletter{mindfulPurge.length !== 1 ? "s" : ""} &amp; promos (7+ days). One tap clears the clutter.
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleMindfulPurge}
+                    disabled={purgeShattered}
+                    style={{
+                      padding: "8px 20px", borderRadius: 999,
+                      background: purgeShattered ? "rgba(139,63,216,0.3)" : "#8B3FD8",
+                      color: "white", fontSize: "0.82rem", fontWeight: 700,
+                      border: "none", cursor: purgeShattered ? "not-allowed" : "pointer",
+                      boxShadow: purgeShattered ? "none" : "0 4px 16px rgba(139,63,216,0.30)",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    ⚡ Shatter It
+                  </button>
+                  <button
+                    onClick={() => setPurgeDismissed(true)}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "rgba(26,10,53,0.35)", fontSize: "0.78rem", padding: "4px 8px",
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* ── Category grid ── */}
             {appState === "ready" && categories.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1427,6 +1725,7 @@ export default function Dashboard() {
                     key={cat.id}
                     category={cat}
                     categories={categories}
+                    mode={mode}
                     emails={cat.id === "__delete__"
                       ? deletableEmails
                       : emails.filter(e => e.category === cat.name)}
