@@ -70,12 +70,21 @@ export function getGmailService(accessToken: string) {
 // ── Parse a raw Gmail message into RawEmail ──────────────────────────────────
 
 function getHeader(headers: { name?: string | null; value?: string | null }[], name: string): string {
-  return headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value ?? ""
+  const val = headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value ?? ""
+  return sanitizeString(val)
+}
+
+// Replace lone surrogates (invalid in JSON / UTF-8) with the replacement char.
+// Valid surrogate pairs (high+low) are left intact.
+function sanitizeString(s: string): string {
+  return s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g, (match) =>
+    match.length === 2 ? match : "�"
+  )
 }
 
 function decodeBase64(data: string): string {
   const buf = Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64")
-  return buf.toString("utf-8")
+  return sanitizeString(buf.toString("utf-8"))
 }
 
 function extractPlainText(payload: any): string {
@@ -181,7 +190,7 @@ export function parseMessage(msg: any): RawEmail {
     fromEmail,
     to: getHeader(headers, "to"),
     subject: getHeader(headers, "subject") || "(no subject)",
-    snippet: msg.snippet ?? "",
+    snippet: sanitizeString(msg.snippet ?? ""),
     body,
     htmlBody: htmlBody || undefined,
     date: new Date(parseInt(msg.internalDate)).toISOString(),
