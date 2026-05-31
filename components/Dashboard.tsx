@@ -234,6 +234,8 @@ export default function Dashboard() {
   const [composeOpen, setComposeOpen] = useState(false)
   const [snoozeTarget, setSnoozeTarget] = useState<Email | null>(null)
   const [instructionsOpen, setInstructionsOpen] = useState(false)
+  const [sentDrawerOpen, setSentDrawerOpen] = useState(false)
+  const [logDrawerOpen, setLogDrawerOpen] = useState(false)
   const [roast, setRoast] = useState<string | null>(null)
   const [roasting, setRoasting] = useState(false)
   const [confetti, setConfetti] = useState(false)
@@ -264,6 +266,8 @@ export default function Dashboard() {
   const [mindfulPurge, setMindfulPurge] = useState<Email[]>([])
   const [purgeShattered, setPurgeShattered] = useState(false)
   const [purgeDismissed, setPurgeDismissed] = useState(false)
+  const [purgeExpanded, setPurgeExpanded] = useState(false)
+  const [purgeChecked, setPurgeChecked] = useState<Set<string>>(new Set())
   const [lotusQuote, setLotusQuote] = useState<string | null>(null)
   const [showLotusBloom, setShowLotusBloom] = useState(false)
 
@@ -647,6 +651,8 @@ export default function Dashboard() {
       setMindfulPurge(purgeableCandidates)
       setPurgeDismissed(false)
       setPurgeShattered(false)
+      setPurgeExpanded(false)
+      setPurgeChecked(new Set(purgeableCandidates.map(e => e.id)))
     }
 
     const cache: InboxCache = {
@@ -1007,9 +1013,11 @@ export default function Dashboard() {
     setRoast(null)
   }
 
-  async function handleMindfulPurge() {
+  async function handleMindfulPurge(idsToDelete?: Set<string>) {
+    const toDelete = idsToDelete
+      ? mindfulPurge.filter(e => idsToDelete.has(e.id))
+      : [...mindfulPurge]
     setPurgeShattered(true)
-    const toDelete = [...mindfulPurge]
     await Promise.all(
       toDelete.map(email =>
         fetch("/api/gmail/delete", {
@@ -1779,53 +1787,128 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ── Mindful Purge boulder ── */}
-            {appState === "ready" && mindfulPurge.length >= 5 && !purgeDismissed && (
+            {/* ── Mindful Purge (zen only) ── */}
+            {appState === "ready" && mode === "zen" && mindfulPurge.length >= 5 && !purgeDismissed && (
               <div className="mb-4 overflow-hidden" style={{
-                background: "linear-gradient(135deg, rgba(139,63,216,0.09), rgba(255,31,110,0.06))",
-                border: "1px solid rgba(139,63,216,0.28)",
-                borderRadius: 14,
-                transition: "opacity 0.4s ease",
-                opacity: purgeShattered ? 0 : 1,
-              }}>
-                <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
-                  <span style={{
-                    fontSize: "2rem", lineHeight: 1, flexShrink: 0,
-                    display: "inline-block",
-                    animation: purgeShattered ? "none" : "boulder-rock 2s ease-in-out infinite",
-                  }}>🪨</span>
-                  <div style={{ flex: 1, minWidth: 160 }}>
-                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#8B3FD8" }}>
-                      Mindful Purge — The Boulder
+                  background: "rgba(200,150,12,0.05)",
+                  border: "1px solid rgba(200,150,12,0.25)",
+                  borderRadius: 14,
+                  transition: "opacity 0.4s ease",
+                  opacity: purgeShattered ? 0 : 1,
+                }}>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <span style={{ fontSize: "1.4rem", lineHeight: 1, flexShrink: 0 }}>🍂</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#8B6914" }}>
+                        {mindfulPurge.length} old newsletter{mindfulPurge.length !== 1 ? "s" : ""} &amp; promotions
+                      </div>
+                      <div style={{ fontSize: "0.74rem", color: "rgba(26,10,53,0.50)", marginTop: 1 }}>
+                        These haven&apos;t needed your attention in 7+ days. Review and release what no longer serves.
+                      </div>
                     </div>
-                    <div style={{ fontSize: "0.76rem", color: "rgba(26,10,53,0.55)", marginTop: 2 }}>
-                      {mindfulPurge.length} old newsletter{mindfulPurge.length !== 1 ? "s" : ""} &amp; promos (7+ days). One tap clears the clutter.
-                    </div>
+                    <button
+                      onClick={() => setPurgeExpanded(v => !v)}
+                      style={{
+                        flexShrink: 0,
+                        padding: "4px 12px", borderRadius: 6,
+                        background: "rgba(200,150,12,0.10)",
+                        border: "1px solid rgba(200,150,12,0.30)",
+                        color: "#8B6914", fontSize: "0.78rem", fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {purgeExpanded ? "▲ Hide" : "▼ Review"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (purgeChecked.size === 0) return
+                        handleMindfulPurge(purgeChecked)
+                      }}
+                      disabled={purgeChecked.size === 0 || purgeShattered}
+                      style={{
+                        flexShrink: 0,
+                        padding: "4px 14px", borderRadius: 6,
+                        background: purgeChecked.size === 0 ? "rgba(200,150,12,0.15)" : "#C8960C",
+                        color: purgeChecked.size === 0 ? "rgba(139,105,20,0.45)" : "#fff",
+                        fontSize: "0.78rem", fontWeight: 700,
+                        border: "none", cursor: purgeChecked.size === 0 ? "not-allowed" : "pointer",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      Release {purgeChecked.size > 0 ? `${purgeChecked.size} ` : ""}selected
+                    </button>
+                    <button
+                      onClick={() => setPurgeDismissed(true)}
+                      style={{
+                        flexShrink: 0,
+                        background: "none", border: "none", cursor: "pointer",
+                        color: "rgba(26,10,53,0.30)", fontSize: "0.76rem", padding: "4px 6px",
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <button
-                    onClick={handleMindfulPurge}
-                    disabled={purgeShattered}
-                    style={{
-                      padding: "8px 20px", borderRadius: 999,
-                      background: purgeShattered ? "rgba(139,63,216,0.3)" : "#8B3FD8",
-                      color: "white", fontSize: "0.82rem", fontWeight: 700,
-                      border: "none", cursor: purgeShattered ? "not-allowed" : "pointer",
-                      boxShadow: purgeShattered ? "none" : "0 4px 16px rgba(139,63,216,0.30)",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    ⚡ Shatter It
-                  </button>
-                  <button
-                    onClick={() => setPurgeDismissed(true)}
-                    style={{
-                      background: "none", border: "none", cursor: "pointer",
-                      color: "rgba(26,10,53,0.35)", fontSize: "0.78rem", padding: "4px 8px",
-                    }}
-                  >
-                    Dismiss
-                  </button>
-                </div>
+
+                  {purgeExpanded && (
+                    <div style={{ borderTop: "1px solid rgba(200,150,12,0.18)" }}>
+                      {/* Select all / deselect all row */}
+                      <div className="flex items-center gap-2 px-4 py-1.5" style={{ borderBottom: "1px solid rgba(200,150,12,0.10)" }}>
+                        <button
+                          onClick={() => {
+                            if (purgeChecked.size === mindfulPurge.length) {
+                              setPurgeChecked(new Set())
+                            } else {
+                              setPurgeChecked(new Set(mindfulPurge.map(e => e.id)))
+                            }
+                          }}
+                          style={{
+                            fontSize: "0.72rem", color: "#8B6914", fontWeight: 600,
+                            background: "none", border: "none", cursor: "pointer", padding: 0,
+                          }}
+                        >
+                          {purgeChecked.size === mindfulPurge.length ? "Deselect all" : "Select all"}
+                        </button>
+                        <span style={{ fontSize: "0.70rem", color: "rgba(26,10,53,0.35)" }}>
+                          · {purgeChecked.size} of {mindfulPurge.length} selected
+                        </span>
+                      </div>
+
+                      <div className="max-h-64 overflow-y-auto divide-y" style={{ borderColor: "rgba(200,150,12,0.08)" }}>
+                        {mindfulPurge.map(email => (
+                          <div
+                            key={email.id}
+                            className="flex items-center gap-3 px-4 py-2"
+                            style={{ borderColor: "rgba(200,150,12,0.08)" }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={purgeChecked.has(email.id)}
+                              onChange={ev => {
+                                setPurgeChecked(prev => {
+                                  const next = new Set(prev)
+                                  if (ev.target.checked) next.add(email.id)
+                                  else next.delete(email.id)
+                                  return next
+                                })
+                              }}
+                              style={{ accentColor: "#C8960C", flexShrink: 0, width: 15, height: 15 }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div style={{
+                                fontSize: "0.82rem", fontWeight: 500, color: "rgba(26,10,53,0.78)",
+                                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                              }}>
+                                {email.subject}
+                              </div>
+                              <div style={{ fontSize: "0.70rem", color: "rgba(26,10,53,0.42)", marginTop: 1 }}>
+                                {(email.from?.split("<")[0] ?? email.from ?? "").trim()} · {email.timeAgo}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </div>
             )}
 
