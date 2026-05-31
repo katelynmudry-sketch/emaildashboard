@@ -1216,26 +1216,25 @@ export default function Dashboard() {
           </div>
           {/* end Row A */}
 
-              {/* Stats — only when ready */}
-              {appState === "ready" && (
-                <div className="flex flex-col gap-3">
+          {/* ── Row B: only when ready ── */}
+          {appState === "ready" && (
+            <div className="flex items-center justify-between gap-4 flex-wrap mt-5">
 
-                  {/* Ticket stats */}
-                  <div className="flex flex-wrap items-stretch gap-2">
-                    <TallyTicket loaded={emails.length} total={totalUnreadInbox} mode={mode} />
-                    <div className="flex items-stretch gap-1">
-                      <MiniStat value={urgentCount} label="urgent" color={mode === "party" ? "#FF1F6E" : themeAccent} mode={mode} />
-                      <MiniStat value={todayCount}  label="today"  color={mode === "party" ? "#FFD000" : themeAccent} mode={mode} />
-                      <MiniStat value={fyiCount}    label="fyi"    color={mode === "party" ? "#00E5C4" : themeAccent} mode={mode} />
-                    </div>
-                    <div className="flex items-center">
-                      <AccountToggle
-                        active={activeAccount}
-                        onChange={handleAccountSwitch}
-                        loading={isLoading}
-                      />
-                    </div>
-                  </div>
+              {/* Left cluster */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <PlantHeader
+                  remaining={emails.length}
+                  total={totalUnreadInbox}
+                  mode={mode}
+                />
+                <TallyTicket loaded={emails.length} total={totalUnreadInbox} mode={mode} />
+                <div className="flex items-stretch gap-1">
+                  <MiniStat value={urgentCount} label="urgent" color={mode === "party" ? "#FF1F6E" : themeAccent} mode={mode} />
+                  <MiniStat value={todayCount}  label="today"  color={mode === "party" ? "#FFD000" : themeAccent} mode={mode} />
+                  <MiniStat value={fyiCount}    label="fyi"    color={mode === "party" ? "#00E5C4" : themeAccent} mode={mode} />
+                </div>
+                <AccountToggle active={activeAccount} onChange={handleAccountSwitch} loading={isLoading} />
+              </div>
 
                   {/* Controls row */}
                   {!workNeedsLink && (
