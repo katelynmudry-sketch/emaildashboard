@@ -1096,125 +1096,125 @@ export default function Dashboard() {
         {/* ══════════════════ HEADER ══════════════════════════════════════════ */}
         <header style={{ padding: "24px 28px 20px", borderBottom: "1px solid rgba(26,10,53,0.08)" }}>
 
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          {/* ── Row A: always visible — logo | mode pills | util buttons ── */}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
 
-            {/* Left: Logo + stats */}
-            <div className="flex flex-col gap-5">
-
-              {/* Logo row + mode selector */}
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-4">
-                  <div style={{
-                    width: 52, height: 52, flexShrink: 0,
-                    borderRadius: 14,
-                    background: mode === "zen"
-                      ? "linear-gradient(135deg, #C8960C 0%, #B07B0A 100%)"
-                      : mode === "wabi-sabi"
-                        ? "transparent"
-                        : "linear-gradient(135deg, #FF1F6E 0%, #FF6B1A 100%)",
-                    border: mode === "wabi-sabi" ? "2px solid #111" : "none",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 26,
-                    boxShadow: mode === "zen"
-                      ? "0 8px 32px rgba(200,150,12,0.30)"
-                      : mode === "wabi-sabi"
-                        ? "none"
-                        : "0 8px 32px rgba(255,31,110,0.38)",
-                    transition: "all 0.3s ease",
-                  }}>
-                    ✉️
-                  </div>
-                  <div>
-                    <h1 style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: "clamp(2rem, 5vw, 3.2rem)",
-                      lineHeight: 1,
-                      color: mode === "zen" ? "#3D2800" : "#1A0A35",
-                      margin: 0,
-                      transition: "color 0.3s ease",
-                    }}>
-                      EMAIL PARTY
-                    </h1>
-                    <p style={{
-                      fontSize: "0.78rem",
-                      letterSpacing: "0.18em",
-                      textTransform: "uppercase",
-                      color: mode === "zen" ? "rgba(61,40,0,0.40)" : "rgba(26,10,53,0.35)",
-                      margin: "5px 0 0",
-                      transition: "color 0.3s ease",
-                    }}>
-                      {mode === "zen" ? "Your Mindful Inbox" : mode === "wabi-sabi" ? "ur inbox bestie ✨" : "Your AI-Powered Inbox"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* ── 3-way mode selector + Settings + Sign out ── */}
-                <div className="flex items-center gap-2">
-                  {([
-                    { id: "party",     emoji: "🎉", label: "Party",    activeBg: "#FF1F6E", activeText: "#1A0A35", accentHex: "#FF1F6E" },
-                    { id: "wabi-sabi", emoji: "☕", label: "Basic AF", activeBg: "transparent", activeText: "#111", accentHex: "#111" },
-                    { id: "zen",       emoji: "🧘", label: "Zen",      activeBg: "#C8960C", activeText: "#3D2800", accentHex: "#C8960C" },
-                  ] as { id: PartyMode; emoji: string; label: string; activeBg: string; activeText: string; accentHex: string }[]).map(m => {
-                    const isActive = mode === m.id
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => { setPartyMode(m.id); setMode(m.id); setRoast(null) }}
-                        style={{
-                          padding: "7px 16px", borderRadius: 999, cursor: "pointer",
-                          border: isActive
-                            ? (m.id === "party" ? `1.5px solid ${m.activeBg}` : `1.5px solid ${m.accentHex}55`)
-                            : `1px solid ${m.accentHex}44`,
-                          background: isActive
-                            ? (m.id === "party" ? m.activeBg : "#FFFFFF")
-                            : "transparent",
-                          color: isActive ? m.accentHex : m.accentHex,
-                          fontSize: "0.82rem", fontWeight: isActive ? 700 : 500,
-                          letterSpacing: "0.04em",
-                          display: "flex", alignItems: "center", gap: 5,
-                          transition: "all 0.18s ease",
-                          opacity: isActive ? 1 : 0.6,
-                          boxShadow: isActive
-                            ? (m.id === "party" ? `0 2px 12px ${m.activeBg}33` : "0 1px 4px rgba(0,0,0,0.08)")
-                            : "none",
-                        }}
-                      >
-                        {m.emoji} {m.label}
-                      </button>
-                    )
-                  })}
-                  <div style={{ width: 1, height: 20, background: "rgba(26,10,53,0.12)", margin: "0 2px" }} />
-                  <button
-                    type="button"
-                    onClick={() => setInstructionsOpen(true)}
-                    title="Settings & AI Instructions"
-                    style={{
-                      width: 34, height: 34, borderRadius: 9,
-                      border: mode === "zen" ? "1px solid rgba(200,150,12,0.28)" : mode === "wabi-sabi" ? "1.5px solid rgba(26,10,53,0.18)" : "1px solid rgba(139,63,216,0.30)",
-                      background: mode === "zen" ? "rgba(200,150,12,0.06)" : mode === "wabi-sabi" ? "#FFFFFF" : "rgba(139,63,216,0.08)",
-                      color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#8B3FD8",
-                      fontSize: "1rem", cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                  >
-                    ⚙️
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => signOut({ redirectTo: "/" })}
-                    style={{
-                      padding: "7px 14px", borderRadius: 999, cursor: "pointer",
-                      border: mode === "zen" ? "1px solid rgba(200,150,12,0.28)" : mode === "wabi-sabi" ? "1.5px solid rgba(26,10,53,0.18)" : "1px solid rgba(139,63,216,0.30)",
-                      background: "transparent",
-                      color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#8B3FD8",
-                      fontSize: "0.82rem", fontWeight: 500,
-                      opacity: 0.7,
-                    }}
-                  >
-                    Sign out
-                  </button>
-                </div>
+            {/* Left: logo icon + wordmark + subtitle */}
+            <div className="flex items-center gap-4">
+              <div style={{
+                width: 52, height: 52, flexShrink: 0,
+                borderRadius: 14,
+                background: mode === "zen"
+                  ? "linear-gradient(135deg, #C8960C 0%, #B07B0A 100%)"
+                  : mode === "wabi-sabi"
+                    ? "transparent"
+                    : "linear-gradient(135deg, #FF1F6E 0%, #FF6B1A 100%)",
+                border: mode === "wabi-sabi" ? "2px solid #111" : "none",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 26,
+                boxShadow: mode === "zen"
+                  ? "0 8px 32px rgba(200,150,12,0.30)"
+                  : mode === "wabi-sabi"
+                    ? "none"
+                    : "0 8px 32px rgba(255,31,110,0.38)",
+                transition: "all 0.3s ease",
+              }}>
+                ✉️
               </div>
+              <div>
+                <h1 style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: "clamp(2rem, 5vw, 3.2rem)",
+                  lineHeight: 1,
+                  color: mode === "zen" ? "#3D2800" : "#1A0A35",
+                  margin: 0,
+                  transition: "color 0.3s ease",
+                }}>
+                  EMAIL PARTY
+                </h1>
+                <p style={{
+                  fontSize: "0.78rem",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  color: mode === "zen" ? "rgba(61,40,0,0.40)" : "rgba(26,10,53,0.35)",
+                  margin: "5px 0 0",
+                  transition: "color 0.3s ease",
+                }}>
+                  {mode === "zen" ? "Your Mindful Inbox" : mode === "wabi-sabi" ? "ur inbox bestie" : "Your AI-Powered Inbox"}
+                </p>
+              </div>
+            </div>
+
+            {/* Center: 3-way mode pills — text only, no emojis */}
+            <div className="flex items-center gap-2">
+              {([
+                { id: "party",     label: "Party",    activeBg: "#FF1F6E", accentHex: "#FF1F6E" },
+                { id: "wabi-sabi", label: "Basic AF", activeBg: "transparent", accentHex: "#111" },
+                { id: "zen",       label: "Zen",      activeBg: "#C8960C", accentHex: "#C8960C" },
+              ] as { id: PartyMode; label: string; activeBg: string; accentHex: string }[]).map(m => {
+                const isActive = mode === m.id
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { setPartyMode(m.id); setMode(m.id); setRoast(null) }}
+                    style={{
+                      padding: "7px 16px", borderRadius: 999, cursor: "pointer",
+                      border: isActive
+                        ? (m.id === "party" ? `1.5px solid ${m.activeBg}` : `1.5px solid ${m.accentHex}55`)
+                        : `1px solid ${m.accentHex}44`,
+                      background: isActive
+                        ? (m.id === "party" ? m.activeBg : "#FFFFFF")
+                        : "transparent",
+                      color: m.accentHex,
+                      fontSize: "0.82rem", fontWeight: isActive ? 700 : 500,
+                      letterSpacing: "0.04em",
+                      transition: "all 0.18s ease",
+                      opacity: isActive ? 1 : 0.6,
+                      boxShadow: isActive
+                        ? (m.id === "party" ? `0 2px 12px ${m.activeBg}33` : "0 1px 4px rgba(0,0,0,0.08)")
+                        : "none",
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Right: utility buttons — quiet text links */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSentDrawerOpen(true)}
+                style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+              >
+                Sent
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogDrawerOpen(true)}
+                style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+              >
+                Log
+              </button>
+              <div style={{ width: 1, height: 16, background: "rgba(26,10,53,0.14)", margin: "0 2px" }} />
+              <button
+                type="button"
+                onClick={() => setInstructionsOpen(true)}
+                style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+              >
+                Settings
+              </button>
+              <button
+                type="button"
+                onClick={() => signOut({ redirectTo: "/" })}
+                style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+          {/* end Row A */}
 
               {/* Stats — only when ready */}
               {appState === "ready" && (
@@ -1359,7 +1359,6 @@ export default function Dashboard() {
                   </p>
                 </div>
               )}
-            </div>
 
             {/* Right: Karma + Mode Toggle + Action buttons + TODO widget */}
             <div className="flex items-start gap-3 flex-wrap">
@@ -1500,7 +1499,6 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-          </div>
         </header>
 
         {/* ══════════════════ MORNING DASHBOARD ══════════════════════════════ */}
