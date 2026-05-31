@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prototype — Header Hierarchy + Sent + Log Drawers</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font-display: 'Playfair Display', serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  body {
+    font-family: var(--font-body);
+    min-height: 100vh;
+    transition: background 0.3s ease;
+  }
+
+  /* ── Theme tokens ──────────────────────────────────────────── */
+  body.party  { background: linear-gradient(160deg,#F3EEFF 0%,#EDE0FF 40%,#F9E6F0 100%); }
+  body.zen    { background: linear-gradient(160deg,#FFFDF5 0%,#FFF8E8 50%,#FFF3D6 100%); }
+  body.basic  { background: linear-gradient(160deg,#FDF8F2 0%,#F9F0E4 50%,#F5E8D4 100%); }
+
+  /* ══════════════════ HEADER ROW A ══════════════════ */
+  .header-a {
+    padding: 14px 28px;
+    border-bottom: 1px solid rgba(26,10,53,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .logo-cluster {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 42px; height: 42px;
+    border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+  }
+  body.party .logo-icon { background: linear-gradient(135deg,#FF1F6E,#FF6B1A); box-shadow: 0 6px 24px rgba(255,31,110,0.35); }
+  body.zen   .logo-icon { background: linear-gradient(135deg,#C8960C,#B07B0A); box-shadow: 0 6px 24px rgba(200,150,12,0.28); }
+  body.basic .logo-icon { background: transparent; border: 2px solid #111; box-shadow: none; }
+
+  .logo-text h1 {
+    font-family: var(--font-display);
+    font-size: 1.55rem;
+    line-height: 1;
+    transition: color 0.3s;
+  }
+  body.party .logo-text h1 { color: #1A0A35; }
+  body.zen   .logo-text h1 { color: #3D2800; }
+  body.basic .logo-text h1 { color: #111; }
+
+  .logo-text p {
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 3px;
+    transition: color 0.3s;
+  }
+  body.party .logo-text p { color: rgba(26,10,53,0.35); }
+  body.zen   .logo-text p { color: rgba(61,40,0,0.38); }
+  body.basic .logo-text p { color: rgba(17,17,17,0.38); }
+
+  /* Mode selector */
+  .mode-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mode-pill {
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: flex; align-items: center; gap: 5px;
+    transition: all 0.18s ease;
+    font-family: var(--font-body);
+  }
+
+  /* System utilities */
+  .system-utils {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .icon-btn {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.95rem;
+    cursor: pointer;
+    border: 1px solid;
+    transition: all 0.15s ease;
+    font-family: var(--font-body);
+    background: transparent;
+    position: relative;
+  }
+  body.party .icon-btn { border-color: rgba(139,63,216,0.30); color: #8B3FD8; background: rgba(139,63,216,0.07); }
+  body.zen   .icon-btn { border-color: rgba(200,150,12,0.28); color: #C8960C; background: rgba(200,150,12,0.06); }
+  body.basic .icon-btn { border-color: rgba(26,10,53,0.18); color: #1A0A35; background: #fff; }
+
+  .icon-btn:hover { opacity: 0.8; transform: scale(1.05); }
+
+  .icon-btn.active {
+    opacity: 1 !important;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .sign-out-btn {
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    background: transparent;
+    font-family: var(--font-body);
+    transition: all 0.15s ease;
+    opacity: 0.6;
+  }
+  body.party .sign-out-btn { border: 1px solid rgba(139,63,216,0.28); color: #8B3FD8; }
+  body.zen   .sign-out-btn { border: 1px solid rgba(200,150,12,0.25); color: #C8960C; }
+  body.basic .sign-out-btn { border: 1.5px solid rgba(26,10,53,0.18); color: #1A0A35; }
+
+  .divider-v { width: 1px; height: 20px; background: rgba(26,10,53,0.10); margin: 0 2px; }
+
+  /* ══════════════════ HEADER ROW B ══════════════════ */
+  .header-b {
+    padding: 16px 28px 18px;
+    border-bottom: 1px solid rgba(26,10,53,0.06);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .stats-cluster {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* PlantHeader area */
+  .plant-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    width: 64px;
+  }
+
+  .plant-svg-wrap { width: 64px; height: 80px; }
+
+  .plant-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-align: center;
+    transition: color 0.3s;
+  }
+  body.party .plant-label { color: #8B3FD8; }
+  body.zen   .plant-label { color: #C8960C; }
+  body.basic .plant-label { color: #111; }
+
+  .plant-bar-wrap {
+    display: flex; align-items: center; gap: 5px;
+  }
+  .plant-bar {
+    width: 56px; height: 3px;
+    border-radius: 99px;
+    background: rgba(26,10,53,0.08);
+    overflow: hidden;
+  }
+  .plant-bar-fill {
+    height: 100%; border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.16,1,0.3,1);
+  }
+  body.party .plant-bar-fill { background: linear-gradient(90deg,#FF1F6E,#8B3FD8); }
+  body.zen   .plant-bar-fill { background: linear-gradient(90deg,#C8960C,#B07B0A); }
+  body.basic .plant-bar-fill { background: linear-gradient(90deg,#111,rgba(17,17,17,0.45)); }
+
+  /* TallyTicket */
+  .tally {
+    padding: 8px 14px;
+    border-radius: 10px;
+    min-width: 130px;
+  }
+  body.party .tally { background: rgba(255,31,110,0.07); border: 1px solid rgba(255,31,110,0.22); }
+  body.zen   .tally { background: rgba(200,150,12,0.06); border: 1px solid rgba(200,150,12,0.22); }
+  body.basic .tally { background: transparent; border: 1px solid rgba(17,17,17,0.18); }
+
+  .tally-nums { display: flex; align-items: baseline; gap: 3px; }
+  .tally-big {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+  body.party .tally-big { color: #FF1F6E; }
+  body.zen   .tally-big { color: #C8960C; }
+  body.basic .tally-big { color: #111; }
+
+  .tally-slash { font-family: var(--font-display); font-size: 0.8rem; color: rgba(26,10,53,0.25); }
+  .tally-total { font-family: var(--font-display); font-size: 1.05rem; color: rgba(26,10,53,0.50); }
+  .tally-sub { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.10em; color: rgba(26,10,53,0.50); margin-top: 3px; }
+  .tally-prog { margin-top: 5px; height: 3px; border-radius: 99px; background: rgba(26,10,53,0.08); overflow: hidden; }
+  .tally-prog-fill { height: 100%; border-radius: 99px; width: 35%; }
+  body.party .tally-prog-fill { background: linear-gradient(90deg,#FF1F6E,#FF6B1A); }
+  body.zen   .tally-prog-fill { background: linear-gradient(90deg,#C8960C,#B07B0A); }
+  body.basic .tally-prog-fill { background: linear-gradient(90deg,#111,rgba(17,17,17,0.5)); }
+
+  /* Mini stats */
+  .mini-stats { display: flex; gap: 4px; align-items: stretch; }
+  .mini-stat {
+    padding: 5px 10px;
+    border-radius: 8px;
+    text-align: center;
+    min-width: 52px;
+  }
+  .mini-stat-val { font-family: var(--font-display); font-size: 1.1rem; line-height: 1; }
+  .mini-stat-lbl { font-size: 0.70rem; text-transform: uppercase; letter-spacing: 0.09em; color: rgba(26,10,53,0.55); margin-top: 1px; }
+
+  /* Account toggle */
+  .account-toggle {
+    display: flex;
+    border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+  }
+  body.party .account-toggle { background: rgba(139,63,216,0.08); border: 1px solid rgba(139,63,216,0.18); }
+  body.zen   .account-toggle { background: rgba(200,150,12,0.06); border: 1px solid rgba(200,150,12,0.18); }
+  body.basic .account-toggle { background: transparent; border: 1.5px solid rgba(17,17,17,0.18); }
+
+  .account-btn {
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: var(--font-body);
+    color: rgba(26,10,53,0.45);
+    transition: all 0.15s;
+  }
+  .account-btn.active {
+    color: #fff;
+  }
+  body.party .account-btn.active { background: #8B3FD8; }
+  body.zen   .account-btn.active { background: #C8960C; color: #3D2800; }
+  body.basic .account-btn.active { background: #111; color: #fff; }
+
+  /* ── Right cluster: karma + actions ── */
+  .actions-cluster {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .karma-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+  }
+  body.party .karma-pill { background: linear-gradient(135deg,rgba(255,208,0,0.14),rgba(139,63,216,0.10)); border: 1px solid rgba(255,208,0,0.35); }
+  body.zen   .karma-pill { background: rgba(200,150,12,0.07); border: 1px solid rgba(200,150,12,0.22); }
+  body.basic .karma-pill { background: transparent; border: 1.5px solid rgba(17,17,17,0.22); }
+
+  .karma-emoji { font-size: 1.2rem; line-height: 1; }
+  .karma-num { font-family: var(--font-display); font-size: 1.05rem; font-weight: 800; line-height: 1; }
+  body.party .karma-num { color: #FFD000; }
+  body.zen   .karma-num { color: #C8960C; }
+  body.basic .karma-num { color: #111; }
+
+  .karma-word { font-size: 0.60rem; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(26,10,53,0.40); }
+  .karma-level { font-size: 0.65rem; font-weight: 700; }
+  body.party .karma-level { color: #FF6B1A; }
+  body.zen   .karma-level { color: rgba(200,150,12,0.65); }
+  body.basic .karma-level { color: rgba(17,17,17,0.55); }
+
+  .compose-btn {
+    padding: 9px 22px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font-body);
+    letter-spacing: 0.03em;
+    transition: all 0.15s ease;
+    border: none;
+  }
+  body.party .compose-btn { background: #00E5C4; color: #0A2B27; box-shadow: 0 4px 18px rgba(0,229,196,0.35); }
+  body.zen   .compose-btn { background: rgba(200,150,12,0.10); color: #C8960C; border: 1px solid rgba(200,150,12,0.35); box-shadow: none; }
+  body.basic .compose-btn { background: transparent; color: #111; border: 1.5px solid rgba(17,17,17,0.22); box-shadow: none; }
+
+  .refresh-btn {
+    padding: 9px 20px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: all 0.15s ease;
+  }
+  body.party .refresh-btn { background: #FF1F6E; color: #1A0A35; border: none; box-shadow: 0 4px 18px rgba(255,31,110,0.40); }
+  body.zen   .refresh-btn { background: #C8960C; color: #FFF8E0; border: none; box-shadow: 0 4px 18px rgba(200,150,12,0.28); }
+  body.basic .refresh-btn { background: transparent; color: #111; border: 1.5px solid rgba(17,17,17,0.25); box-shadow: none; }
+
+  .roast-btn {
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.80rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: all 0.15s;
+  }
+  body.party .roast-btn { background: rgba(255,107,26,0.09); color: #FF6B1A; border: 1px solid rgba(255,107,26,0.38); }
+  body.zen   .roast-btn { background: rgba(200,150,12,0.07); color: #C8960C; border: 1px solid rgba(200,150,12,0.30); }
+  body.basic .roast-btn { background: rgba(26,10,53,0.05); color: #1A0A35; border: 1px solid rgba(26,10,53,0.22); }
+
+  /* ══════════════════ DRAWER ══════════════════ */
+  .drawer-backdrop {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(26,10,53,0.25);
+    backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.28s ease;
+  }
+  .drawer-backdrop.open { opacity: 1; pointer-events: all; }
+
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 480px; z-index: 201;
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.16,1,0.3,1);
+    overflow: hidden;
+  }
+  .drawer.open { transform: translateX(0); }
+
+  body.party .drawer { background: #FFFFFF; border-left: 1px solid rgba(139,63,216,0.15); }
+  body.zen   .drawer { background: #FFFEF9; border-left: 1px solid rgba(200,150,12,0.18); }
+  body.basic .drawer { background: #FDFAF7; border-left: 1.5px solid rgba(17,17,17,0.15); }
+
+  .drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px 16px;
+    border-bottom: 1px solid rgba(26,10,53,0.07);
+    flex-shrink: 0;
+  }
+
+  .drawer-title {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+  body.party .drawer-title { color: #1A0A35; }
+  body.zen   .drawer-title { color: #3D2800; }
+  body.basic .drawer-title { color: #111; }
+
+  .drawer-close {
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 1rem;
+    border: 1px solid rgba(26,10,53,0.12);
+    background: transparent;
+    color: rgba(26,10,53,0.50);
+    font-family: var(--font-body);
+  }
+  .drawer-close:hover { background: rgba(26,10,53,0.05); }
+
+  .drawer-body { flex: 1; overflow-y: auto; padding: 0; }
+
+  /* Sent / Log rows */
+  .email-row {
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(26,10,53,0.05);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .email-row:hover { background: rgba(26,10,53,0.025); }
+  .email-row.expanded { background: rgba(26,10,53,0.025); }
+
+  .email-row-top {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  .email-to { font-size: 0.76rem; font-weight: 700; color: rgba(26,10,53,0.55); }
+  .email-date { font-size: 0.72rem; color: rgba(26,10,53,0.35); flex-shrink: 0; }
+  .email-subject { font-size: 0.88rem; font-weight: 600; color: #1A0A35; margin-top: 2px; }
+  .email-snippet { font-size: 0.78rem; color: rgba(26,10,53,0.50); margin-top: 3px; line-height: 1.45; }
+  .email-body-expanded {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(26,10,53,0.03);
+    border: 1px solid rgba(26,10,53,0.08);
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: #1A0A35;
+    display: none;
+  }
+  .email-row.expanded .email-body-expanded { display: block; }
+  .expand-caret { float: right; font-size: 0.72rem; color: rgba(26,10,53,0.35); margin-left: 8px; }
+
+  /* Log rows */
+  .log-row {
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(26,10,53,0.05);
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  }
+  .log-left { flex: 1; min-width: 0; }
+  .log-time { font-size: 0.70rem; color: rgba(26,10,53,0.38); margin-bottom: 2px; }
+  .log-action {
+    font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; margin-bottom: 2px;
+  }
+  .log-subject { font-size: 0.84rem; color: #1A0A35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-detail { font-size: 0.72rem; color: rgba(26,10,53,0.45); margin-top: 1px; }
+
+  .undo-btn {
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-family: var(--font-body);
+    transition: all 0.15s;
+  }
+  body.party .undo-btn { background: rgba(255,31,110,0.08); color: #FF1F6E; border: 1px solid rgba(255,31,110,0.30); }
+  body.zen   .undo-btn { background: rgba(200,150,12,0.08); color: #C8960C; border: 1px solid rgba(200,150,12,0.28); }
+  body.basic .undo-btn { background: rgba(26,10,53,0.06); color: #1A0A35; border: 1px solid rgba(26,10,53,0.22); }
+  .undo-btn:hover { opacity: 0.75; }
+
+  .undone-badge {
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #00B893;
+    background: rgba(0,184,147,0.10);
+    border: 1px solid rgba(0,184,147,0.25);
+    flex-shrink: 0;
+  }
+
+  .drawer-empty {
+    padding: 48px 20px;
+    text-align: center;
+    color: rgba(26,10,53,0.38);
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+
+  /* ══════════════════ CONTENT PLACEHOLDER ══════════════════ */
+  .content-placeholder {
+    padding: 28px;
+  }
+
+  .mock-category-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .mock-cat-block {
+    border-radius: 14px;
+    padding: 14px 16px;
+    height: 120px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  body.party .mock-cat-block { background: #fff; border: 1px solid rgba(26,10,53,0.08); }
+  body.zen   .mock-cat-block { background: rgba(255,253,240,0.95); border: 1px solid rgba(200,150,12,0.12); }
+  body.basic .mock-cat-block { background: #fff; border: 1px solid rgba(17,17,17,0.10); }
+
+  .mock-cat-header { height: 8px; border-radius: 4px; opacity: 0.45; }
+  .mock-cat-row { height: 6px; border-radius: 3px; background: rgba(26,10,53,0.08); }
+
+  /* ══════════════════ INTERACTIVE CONTROLS ══════════════════ */
+  .demo-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(26,10,53,0.88);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    display: flex; gap: 12px; align-items: center;
+    z-index: 300;
+    backdrop-filter: blur(8px);
+  }
+  .demo-controls span { opacity: 0.55; }
+  .demo-controls kbd {
+    background: rgba(255,255,255,0.15);
+    padding: 2px 6px; border-radius: 4px;
+    font-family: monospace; font-size: 0.72rem;
+  }
+
+  /* Plant SVG stages animation */
+  .stage-slider { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .stage-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(26,10,53,0.15);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .stage-dot.active { background: currentColor; transform: scale(1.3); }
+  body.party .stage-dot.active { color: #8B3FD8; }
+  body.zen   .stage-dot.active { color: #C8960C; }
+  body.basic .stage-dot.active { color: #111; }
+</style>
+</head>
+<body class="party">
+
+<!-- ══════════════════ HEADER ROW A ══════════════════ -->
+<header>
+  <div class="header-a">
+    <!-- Logo -->
+    <div class="logo-cluster">
+      <div class="logo-icon">✉️</div>
+      <div class="logo-text">
+        <h1>EMAIL PARTY</h1>
+        <p id="subtitle">Your AI-Powered Inbox</p>
+      </div>
+    </div>
+
+    <!-- Mode selector -->
+    <div class="mode-pills" id="mode-pills">
+      <button class="mode-pill" data-mode="party" onclick="setMode('party')">🎉 Party</button>
+      <button class="mode-pill" data-mode="basic" onclick="setMode('basic')">☕ Basic AF</button>
+      <button class="mode-pill" data-mode="zen" onclick="setMode('zen')">🧘 Zen</button>
+    </div>
+
+    <!-- System utilities -->
+    <div class="system-utils">
+      <button class="icon-btn" onclick="openDrawer('sent')" id="sent-btn" title="Sent" style="width:auto;padding:0 10px;font-size:0.70rem;font-weight:500;letter-spacing:0.05em;opacity:0.55;border:none;background:transparent;height:28px">Sent</button>
+      <button class="icon-btn" onclick="openDrawer('log')" id="log-btn" title="Activity Log" style="width:auto;padding:0 10px;font-size:0.70rem;font-weight:500;letter-spacing:0.05em;opacity:0.55;border:none;background:transparent;height:28px">Log</button>
+      <div class="divider-v"></div>
+      <button class="icon-btn" title="Settings" style="width:auto;padding:0 10px;font-size:0.70rem;font-weight:500;letter-spacing:0.05em;opacity:0.55;border:none;background:transparent;height:28px">Settings</button>
+      <button class="sign-out-btn">Sign out</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════ HEADER ROW B ══════════════════ -->
+  <div class="header-b">
+    <!-- Left: plant + stats -->
+    <div class="stats-cluster">
+
+      <!-- PlantHeader -->
+      <div class="plant-container">
+        <div class="plant-svg-wrap" id="plant-svg-wrap">
+          <!-- SVG injected by JS -->
+        </div>
+        <p class="plant-label" id="plant-label">Seedling</p>
+        <div class="plant-bar-wrap">
+          <div class="plant-bar"><div class="plant-bar-fill" id="plant-bar-fill" style="width:0%"></div></div>
+          <span style="font-size:0.65rem;color:rgba(26,10,53,0.40)" id="plant-pct">0%</span>
+        </div>
+        <div class="stage-slider" id="stage-slider">
+          <!-- dots injected by JS -->
+        </div>
+      </div>
+
+      <!-- TallyTicket -->
+      <div class="tally">
+        <div class="tally-nums">
+          <span class="tally-big">23</span>
+          <span class="tally-slash">/</span>
+          <span class="tally-total">65</span>
+        </div>
+        <div class="tally-sub">emails loaded</div>
+        <div class="tally-prog"><div class="tally-prog-fill"></div></div>
+      </div>
+
+      <!-- Mini stats -->
+      <div class="mini-stats" id="mini-stats">
+        <!-- injected by JS -->
+      </div>
+
+      <!-- Account toggle -->
+      <div class="account-toggle">
+        <button class="account-btn active" onclick="toggleAccount(this)">Personal</button>
+        <button class="account-btn" onclick="toggleAccount(this)">Work</button>
+      </div>
+
+    </div>
+
+    <!-- Right: actions -->
+    <div class="actions-cluster">
+      <button class="compose-btn">Compose</button>
+      <button class="refresh-btn">Refresh</button>
+      <button class="roast-btn" id="roast-btn">Roast my inbox</button>
+    </div>
+
+  </div>
+</header>
+
+<!-- ══════════════════ CONTENT PLACEHOLDER ══════════════════ -->
+<div class="content-placeholder">
+  <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:rgba(26,10,53,0.38);margin-bottom:12px">Category grid (unchanged)</div>
+  <div class="mock-category-grid" id="mock-grid">
+    <!-- injected by JS -->
+  </div>
+</div>
+
+<!-- ══════════════════ SENT DRAWER ══════════════════ -->
+<div class="drawer-backdrop" id="backdrop" onclick="closeDrawer()"></div>
+<div class="drawer" id="sent-drawer">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-title">📤 Sent</div>
+      <div style="font-size:0.70rem;color:rgba(26,10,53,0.40);margin-top:3px">Personal · Read only</div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="email-row" onclick="toggleExpand(this)">
+      <div class="email-row-top">
+        <span class="email-to">To: Dr. Harrison Smith</span>
+        <span class="email-date">May 31</span>
+      </div>
+      <div class="email-subject">Re: Appointment Friday — updated time <span class="expand-caret">▾</span></div>
+      <div class="email-snippet">Thanks for the update, confirmed for 2pm. I'll bring the charts we discussed last…</div>
+      <div class="email-body-expanded">Thanks for the update, confirmed for 2pm. I'll bring the charts we discussed last week.<br><br>Looking forward to it.<br><br>— Katelyn</div>
+    </div>
+    <div class="email-row" onclick="toggleExpand(this)">
+      <div class="email-row-top">
+        <span class="email-to">To: Kimberly Douglas</span>
+        <span class="email-date">May 30</span>
+      </div>
+      <div class="email-subject">Re: Wednesday check-in <span class="expand-caret">▾</span></div>
+      <div class="email-snippet">Yes, 10am works perfectly! See you then. Also wanted to mention the new…</div>
+      <div class="email-body-expanded">Yes, 10am works perfectly! See you then. Also wanted to mention the new protocol we're testing — happy to walk you through it on Wednesday.</div>
+    </div>
+    <div class="email-row" onclick="toggleExpand(this)">
+      <div class="email-row-top">
+        <span class="email-to">To: Patient Intake</span>
+        <span class="email-date">May 29</span>
+      </div>
+      <div class="email-subject">New patient referral — Marcus T. <span class="expand-caret">▾</span></div>
+      <div class="email-snippet">Please find attached the referral documentation for Marcus. He's been…</div>
+      <div class="email-body-expanded">Please find attached the referral documentation for Marcus. He's been a patient of mine for 3 years and I believe he'd benefit greatly from your program.</div>
+    </div>
+    <div class="email-row" onclick="toggleExpand(this)">
+      <div class="email-row-top">
+        <span class="email-to">To: CE Credits Board</span>
+        <span class="email-date">May 27</span>
+      </div>
+      <div class="email-subject">Submission: Spring 2026 CE credits <span class="expand-caret">▾</span></div>
+      <div class="email-snippet">Attached please find my CE credit documentation for Q1–Q2 2026. Let me…</div>
+      <div class="email-body-expanded">Attached please find my CE credit documentation for Q1–Q2 2026. Let me know if anything else is needed for the review.</div>
+    </div>
+    <div class="email-row" onclick="toggleExpand(this)">
+      <div class="email-row-top">
+        <span class="email-to">To: Mom</span>
+        <span class="email-date">May 26</span>
+      </div>
+      <div class="email-subject">Sunday dinner? <span class="expand-caret">▾</span></div>
+      <div class="email-snippet">Hey! Are you free Sunday around 5? Was thinking I'd cook. Let me know 💛</div>
+      <div class="email-body-expanded">Hey! Are you free Sunday around 5? Was thinking I'd cook. Let me know 💛</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ LOG DRAWER ══════════════════ -->
+<div class="drawer" id="log-drawer">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-title" id="log-title">📋 Activity</div>
+      <div style="font-size:0.70rem;color:rgba(26,10,53,0.40);margin-top:3px">This session · Undo within 10 min</div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body" id="log-body">
+    <div class="log-row">
+      <div class="log-left">
+        <div class="log-time">2:34 PM</div>
+        <div class="log-action" style="color:#FF1F6E" id="log-action-1">Archived</div>
+        <div class="log-subject">"Re: Appointment Friday"</div>
+      </div>
+      <button class="undo-btn" onclick="markUndone(this, 1)">Undo</button>
+    </div>
+    <div class="log-row">
+      <div class="log-left">
+        <div class="log-time">2:31 PM</div>
+        <div class="log-action" style="color:#FF1F6E" id="log-action-2">Deleted</div>
+        <div class="log-subject">"Shipment notification — order #8821"</div>
+      </div>
+      <button class="undo-btn" onclick="markUndone(this, 2)">Undo</button>
+    </div>
+    <div class="log-row">
+      <div class="log-left">
+        <div class="log-time">2:28 PM</div>
+        <div class="log-action" id="log-action-3">Snoozed</div>
+        <div class="log-subject">"Invoice due — June 8"</div>
+        <div class="log-detail">→ Jun 3, 9:00 AM</div>
+      </div>
+      <button class="undo-btn" onclick="markUndone(this, 3)">Undo</button>
+    </div>
+    <div class="log-row">
+      <div class="log-left">
+        <div class="log-time">2:19 PM</div>
+        <div class="log-action" id="log-action-4">Labeled</div>
+        <div class="log-subject">"CE credits Q2 — reminder"</div>
+        <div class="log-detail">→ Professional Development</div>
+      </div>
+      <button class="undo-btn" onclick="markUndone(this, 4)">Undo</button>
+    </div>
+    <div class="log-row">
+      <div class="log-left">
+        <div class="log-time">2:15 PM</div>
+        <div class="log-action" id="log-action-5" style="color:rgba(26,10,53,0.45)">Sent</div>
+        <div class="log-subject">"Re: Patient consult — Thursday"</div>
+        <div class="log-detail">Send undo coming in v2</div>
+      </div>
+      <!-- No undo for send -->
+    </div>
+    <div class="log-row">
+      <div class="log-left">
+        <div class="log-time">2:08 PM</div>
+        <div class="log-action" id="log-action-6">Archived</div>
+        <div class="log-subject">"LinkedIn: 3 new connections"</div>
+      </div>
+      <div class="undone-badge">✓ Undone</div>
+    </div>
+  </div>
+</div>
+
+<!-- Demo controls -->
+<div class="demo-controls">
+  <span>Mode:</span>
+  <kbd onclick="setMode('party')" style="cursor:pointer">P</kbd> Party
+  <kbd onclick="setMode('zen')" style="cursor:pointer">Z</kbd> Zen
+  <kbd onclick="setMode('basic')" style="cursor:pointer">B</kbd> Basic AF
+  <span style="margin:0 4px">·</span>
+  <kbd onclick="openDrawer('sent')" style="cursor:pointer">S</kbd> Sent
+  <kbd onclick="openDrawer('log')" style="cursor:pointer">L</kbd> Log
+</div>
+
+<script>
+let currentMode = 'party'
+let currentDrawer = null
+let currentStage = 0
+
+// ── Mode-aware content ────────────────────────────────────────
+const modeContent = {
+  party: {
+    subtitle: 'Your AI-Powered Inbox',
+    karmaLevel: 'Sprout',
+    roastBtn: 'Roast my inbox',
+    logTitle: '📋 Activity',
+    logActions: ['Archived','Deleted','Snoozed','Labeled','Sent','Archived'],
+    plantLabels: ['Seedling','Sprout','Growing','Thriving','Flourishing','Blooming! 🎉'],
+    miniStats: [
+      { val: 4, lbl: 'urgent', color: '#FF1F6E' },
+      { val: 11, lbl: 'today', color: '#FFD000' },
+      { val: 8, lbl: 'fyi', color: '#00E5C4' },
+    ],
+    catColors: ['#FF1F6E','#8B3FD8','#00E5C4','#FF6B1A','#FFD000','#AFA9EC'],
+  },
+  zen: {
+    subtitle: 'Your Mindful Inbox',
+    karmaLevel: 'Sprout',
+    roastBtn: 'Read my inbox',
+    logTitle: '🪷 Actions',
+    logActions: ['Released','Let go','Rested until','Placed gently','Sent','Released'],
+    plantLabels: ['Resting','Awakening','Unfolding','Flourishing','In bloom','🪷 Lotus'],
+    miniStats: [
+      { val: 4, lbl: 'urgent', color: '#C8960C' },
+      { val: 11, lbl: 'today', color: '#C8960C' },
+      { val: 8, lbl: 'fyi', color: '#C8960C' },
+    ],
+    catColors: ['#C8960C','#B07B0A','#E8C04A','#C8960C','#B07B0A','#E8C04A'],
+  },
+  basic: {
+    subtitle: 'ur inbox bestie ✨',
+    karmaLevel: 'Sprout',
+    roastBtn: 'Spill the tea',
+    logTitle: '📋 What you did',
+    logActions: ['Archived bestie','Deleted lol','Snoozed ok','Labeled serving','Sent omg','Archived'],
+    plantLabels: ['Dormant','Emerging','Growing','Present','Complete','Done.'],
+    miniStats: [
+      { val: 4, lbl: 'urgent', color: '#111' },
+      { val: 11, lbl: 'today', color: '#111' },
+      { val: 8, lbl: 'fyi', color: '#111' },
+    ],
+    catColors: ['#111','rgba(17,17,17,0.65)','rgba(17,17,17,0.45)','#111','rgba(17,17,17,0.65)','rgba(17,17,17,0.45)'],
+  },
+}
+
+// ── Plant SVGs ────────────────────────────────────────────────
+
+function getSunriseSVG(stage) {
+  const skyColors = ['#1A1040','#2D1B6E','#8B4513','#E8601C','#F5A623','#FFD700']
+  const skyBot  = ['#2D1B6E','#7B2D8B','#C8450A','#FF8C2A','#FFD060','#FFF8E0']
+  const sky = skyColors[stage]
+  const skyB = skyBot[stage]
+  const groundColor = stage === 0 ? '#111' : stage < 3 ? '#2D5A1B' : '#3A7A22'
+  // sun position: rises from below horizon to high up
+  const sunY = [140, 115, 100, 82, 62, 42]
+  const sunR = [0, 10, 14, 18, 20, 22]
+  const rayLen = [0, 0, 8, 16, 22, 28]
+  const y = sunY[stage], r = sunR[stage], rl = rayLen[stage]
+  const rays = stage >= 2 ? Array.from({length: 8}, (_, i) => {
+    const angle = (i * 45) * Math.PI / 180
+    const x1 = 50 + (r+4)*Math.cos(angle), y1 = y + (r+4)*Math.sin(angle)
+    const x2 = 50 + (r+4+rl)*Math.cos(angle), y2 = y + (r+4+rl)*Math.sin(angle)
+    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>`
+  }).join('') : ''
+  const sunCircle = stage > 0
+    ? `<circle cx="50" cy="${y}" r="${r}" fill="#FFD700" opacity="${0.7 + stage*0.06}"/>`
+    : ''
+  // stars for night/pre-dawn
+  const stars = stage === 0
+    ? `<circle cx="20" cy="20" r="1.2" fill="#fff" opacity="0.8"/>
+       <circle cx="70" cy="14" r="1" fill="#fff" opacity="0.6"/>
+       <circle cx="40" cy="30" r="0.8" fill="#fff" opacity="0.7"/>
+       <circle cx="82" cy="28" r="1.1" fill="#fff" opacity="0.5"/>
+       <circle cx="12" cy="40" r="0.9" fill="#fff" opacity="0.6"/>` : ''
+  // horizon glow
+  const glow = stage > 0
+    ? `<ellipse cx="50" cy="112" rx="${20 + stage*10}" ry="${4 + stage*3}" fill="#FF8C2A" opacity="${0.15 + stage*0.08}"/>`
+    : ''
+  const lotus = stage === 5
+    ? `<text x="50" y="58" text-anchor="middle" font-size="12">🪷</text>`
+    : ''
+  return `<svg viewBox="0 0 100 140" style="width:100%;height:100%">
+    <defs>
+      <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${sky}"/>
+        <stop offset="100%" stop-color="${skyB}"/>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="100" height="112" fill="url(#skyGrad)" rx="6"/>
+    ${stars}${glow}${rays}${sunCircle}${lotus}
+    <rect x="0" y="110" width="100" height="30" fill="${groundColor}" rx="4"/>
+    <ellipse cx="50" cy="110" rx="50" ry="5" fill="${groundColor}" opacity="0.5"/>
+  </svg>`
+}
+
+function getPSLSVG(stage) {
+  const totalH = 70
+  const fillPct = [0, 0.15, 0.38, 0.58, 0.78, 1.0]
+  const pct = fillPct[stage]
+  const fillH = totalH * pct
+  const cupTop = 35, cupBot = 105, cupLeft = 18, cupRight = 82
+  const midL = 22, midR = 78
+  // cup shape: trapezoid wider at top
+  const topY = cupTop, botY = cupBot
+  const liquidTop = botY - fillH
+  const liquidColor = ['#6B3A2A','#8B4A30','#A05A38','#C07040','#D4824A','#E8956A'][stage]
+  const whip = stage >= 4
+    ? `<ellipse cx="50" cy="${cupTop-2}" rx="22" ry="8" fill="#FFF8F0" opacity="${stage===5?0.95:0.7}"/>
+       <path d="M30 ${cupTop-5} Q50 ${cupTop-16} 70 ${cupTop-5}" fill="#FFF8F0" opacity="${stage===5?0.9:0.6}"/>`
+    : ''
+  const drizzle = stage === 5
+    ? `<path d="M34 ${cupTop-10} Q40 ${cupTop-5} 38 ${cupTop-14}" stroke="#8B4A20" stroke-width="1.2" fill="none" opacity="0.7"/>
+       <path d="M58 ${cupTop-12} Q66 ${cupTop-6} 62 ${cupTop-15}" stroke="#8B4A20" stroke-width="1.2" fill="none" opacity="0.7"/>`
+    : ''
+  const steam = stage >= 2 && stage <= 4
+    ? `<path d="M38 ${cupTop-4} Q35 ${cupTop-12} 38 ${cupTop-20}" stroke="rgba(200,150,80,0.35)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+       <path d="M50 ${cupTop-6} Q47 ${cupTop-14} 50 ${cupTop-22}" stroke="rgba(200,150,80,0.3)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+       <path d="M62 ${cupTop-4} Q65 ${cupTop-12} 62 ${cupTop-20}" stroke="rgba(200,150,80,0.25)" stroke-width="1.5" fill="none" stroke-linecap="round"/>`
+    : ''
+  return `<svg viewBox="0 0 100 140" style="width:100%;height:100%">
+    <!-- cup outline -->
+    <path d="M${cupLeft} ${topY} L${cupLeft-4} ${botY} L${cupRight+4} ${botY} L${cupRight} ${topY} Z"
+      fill="#F5DEB3" stroke="#8B6914" stroke-width="2"/>
+    <!-- liquid fill -->
+    ${pct > 0 ? `<clipPath id="cupClip">
+      <path d="M${cupLeft} ${topY} L${cupLeft-4} ${botY} L${cupRight+4} ${botY} L${cupRight} ${topY} Z"/>
+    </clipPath>
+    <rect x="0" y="${liquidTop}" width="100" height="${fillH+10}" fill="${liquidColor}" clip-path="url(#cupClip)" opacity="0.9"/>` : ''}
+    <!-- cup border redraw on top -->
+    <path d="M${cupLeft} ${topY} L${cupLeft-4} ${botY} L${cupRight+4} ${botY} L${cupRight} ${topY} Z"
+      fill="none" stroke="#8B6914" stroke-width="2"/>
+    <!-- cup rim -->
+    <rect x="${cupLeft-3}" y="${topY-3}" width="${cupRight-cupLeft+6}" height="6" rx="3" fill="#D4A843"/>
+    ${steam}${whip}${drizzle}
+    <!-- handle -->
+    <path d="M${cupRight+4} ${topY+20} Q${cupRight+20} ${topY+20} ${cupRight+20} ${topY+40} Q${cupRight+20} ${topY+60} ${cupRight+4} ${topY+60}"
+      fill="none" stroke="#8B6914" stroke-width="2.5" stroke-linecap="round"/>
+  </svg>`
+}
+
+function getPlantSVG(stage, mode) {
+  if (mode === 'zen') return getSunriseSVG(stage)
+  if (mode === 'basic') return getPSLSVG(stage)
+  // Party: simplified plant
+  const s = '#8B3FD8', l1 = '#FF1F6E', l2 = '#AFA9EC'
+  const pot = `<path d="M28 112 L33 135 L67 135 L72 112 Z" fill="#b45309"/>
+    <rect x="22" y="106" width="56" height="9" rx="3" fill="#d97706"/>
+    <ellipse cx="50" cy="106" rx="27" ry="5" fill="#7c5c3a"/>`
+  if (stage === 0) return `<svg viewBox="0 0 100 140" style="width:100%;height:100%">${pot}
+    <line x1="50" y1="105" x2="50" y2="92" stroke="${s}" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="50" cy="89" rx="6" ry="7" fill="${l1}"/></svg>`
+  if (stage === 1) return `<svg viewBox="0 0 100 140" style="width:100%;height:100%">${pot}
+    <line x1="50" y1="105" x2="50" y2="74" stroke="${s}" stroke-width="3" stroke-linecap="round"/>
+    <path d="M50 90 C37 80 27 85 26 94 C36 91 47 91 50 90Z" fill="${l1}"/>
+    <path d="M50 84 C63 74 73 79 74 88 C64 85 53 85 50 84Z" fill="${l2}"/>
+    <ellipse cx="50" cy="71" rx="7" ry="8" fill="${l1}"/></svg>`
+  if (stage === 2) return `<svg viewBox="0 0 100 140" style="width:100%;height:100%">${pot}
+    <line x1="50" y1="105" x2="50" y2="58" stroke="${s}" stroke-width="3" stroke-linecap="round"/>
+    <path d="M50 95 C35 84 24 90 22 100 C33 96 47 96 50 95Z" fill="${l1}"/>
+    <path d="M50 88 C65 77 76 83 78 93 C67 89 53 89 50 88Z" fill="${l2}"/>
+    <path d="M50 76 C37 65 27 70 25 79 C35 76 47 76 50 76Z" fill="${l2}"/>
+    <path d="M50 70 C63 59 73 64 75 73 C65 70 53 70 50 70Z" fill="${l1}"/>
+    <ellipse cx="50" cy="54" rx="9" ry="10" fill="${l1}"/></svg>`
+  if (stage >= 3) return `<svg viewBox="0 0 100 140" style="width:100%;height:100%">${pot}
+    <line x1="50" y1="105" x2="50" y2="28" stroke="${s}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="50" y1="58" x2="28" y2="44" stroke="${s}" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="50" y1="50" x2="72" y2="36" stroke="${s}" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="50" cy="20" rx="${10+stage*4}" ry="${9+stage*3}" fill="${l1}"/>
+    <ellipse cx="28" cy="38" rx="${8+stage*2}" ry="${6+stage*2}" fill="${l2}"/>
+    <ellipse cx="72" cy="32" rx="${8+stage*2}" ry="${6+stage*2}" fill="${l2}"/>
+    ${stage>=5?`<circle cx="50" cy="3" r="5" fill="#FFD000"/><circle cx="34" cy="18" r="3.5" fill="#FF6B1A"/>`:''}</svg>`
+}
+
+// ── Render helpers ────────────────────────────────────────────
+
+function renderMiniStats() {
+  const stats = modeContent[currentMode].miniStats
+  const el = document.getElementById('mini-stats')
+  el.innerHTML = stats.map(s => `
+    <div class="mini-stat" style="background:${s.color}12;border:1px solid ${s.color}30">
+      <div class="mini-stat-val" style="color:${s.color}">${s.val}</div>
+      <div class="mini-stat-lbl">${s.lbl}</div>
+    </div>
+  `).join('')
+}
+
+function renderMockGrid() {
+  const colors = modeContent[currentMode].catColors
+  const names = ['Patients','Professional','Personal','Shopping','Newsletters','Finance']
+  const el = document.getElementById('mock-grid')
+  el.innerHTML = names.map((n,i) => `
+    <div class="mock-cat-block">
+      <div class="mock-cat-header" style="background:${colors[i%colors.length]};height:10px;border-radius:5px"></div>
+      <div style="font-size:0.76rem;font-weight:700;color:rgba(26,10,53,0.7)">${n}</div>
+      <div class="mock-cat-row" style="width:85%"></div>
+      <div class="mock-cat-row" style="width:70%"></div>
+      <div class="mock-cat-row" style="width:55%"></div>
+    </div>
+  `).join('')
+}
+
+function renderPlant() {
+  const content = modeContent[currentMode]
+  document.getElementById('plant-svg-wrap').innerHTML = getPlantSVG(currentStage, currentMode)
+  document.getElementById('plant-label').textContent = content.plantLabels[currentStage]
+  const pct = [0,20,40,60,80,100][currentStage]
+  document.getElementById('plant-bar-fill').style.width = pct + '%'
+  document.getElementById('plant-pct').textContent = pct + '%'
+  // Stage dots
+  const dotsEl = document.getElementById('stage-slider')
+  dotsEl.innerHTML = Array.from({length:6},(_,i)=>
+    `<div class="stage-dot${i===currentStage?' active':''}" onclick="setStage(${i})"></div>`
+  ).join('')
+}
+
+function renderModePills() {
+  const pills = document.querySelectorAll('.mode-pill')
+  pills.forEach(p => {
+    const m = p.dataset.mode
+    const isActive = m === currentMode
+    const configs = {
+      party: { activeBg: '#FF1F6E', activeColor: '#1A0A35', border: 'rgba(255,31,110,0.50)', color: '#FF1F6E' },
+      zen:   { activeBg: '#C8960C', activeColor: '#3D2800', border: 'rgba(200,150,12,0.45)', color: '#C8960C' },
+      basic: { activeBg: 'transparent', activeColor: '#111', border: 'rgba(17,17,17,0.45)', color: '#111' },
+    }
+    const cfg = configs[m]
+    p.style.background = isActive ? cfg.activeBg : 'transparent'
+    p.style.color = isActive ? cfg.activeColor : cfg.color
+    p.style.border = `${isActive?'1.5px':'1px'} solid ${cfg.border}`
+    p.style.opacity = isActive ? '1' : '0.55'
+    p.style.fontWeight = isActive ? '700' : '500'
+    p.style.boxShadow = isActive && m !== 'basic' ? `0 2px 10px ${cfg.activeBg}44` : 'none'
+  })
+}
+
+function renderLogActions() {
+  const actions = modeContent[currentMode].logActions
+  const actionColors = {
+    party: ['#FF1F6E','#FF1F6E','#C8960C','#8B3FD8','rgba(26,10,53,0.45)','#FF1F6E'],
+    zen:   ['#C8960C','#C8960C','#C8960C','#C8960C','rgba(26,10,53,0.45)','#C8960C'],
+    basic: ['#111','#111','#111','#111','rgba(26,10,53,0.45)','#111'],
+  }
+  const colors = actionColors[currentMode]
+  for (let i=1; i<=6; i++) {
+    const el = document.getElementById(`log-action-${i}`)
+    if (el) { el.textContent = actions[i-1]; el.style.color = colors[i-1] }
+  }
+  document.getElementById('log-title').textContent = modeContent[currentMode].logTitle
+}
+
+// ── Mode switch ───────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode
+  document.body.className = mode
+  document.getElementById('subtitle').textContent = modeContent[mode].subtitle
+  document.getElementById('roast-btn').textContent = modeContent[mode].roastBtn
+  renderModePills()
+  renderMiniStats()
+  renderMockGrid()
+  renderPlant()
+  renderLogActions()
+}
+
+function setStage(s) {
+  currentStage = s
+  renderPlant()
+}
+
+// ── Account toggle ────────────────────────────────────────────
+function toggleAccount(btn) {
+  document.querySelectorAll('.account-btn').forEach(b => b.classList.remove('active'))
+  btn.classList.add('active')
+}
+
+// ── Drawers ───────────────────────────────────────────────────
+function openDrawer(which) {
+  closeDrawer(false)
+  const backdrop = document.getElementById('backdrop')
+  const drawer = document.getElementById(which + '-drawer')
+  backdrop.classList.add('open')
+  drawer.classList.add('open')
+  currentDrawer = which
+  // highlight active icon btn
+  document.getElementById('sent-btn').classList.toggle('active', which==='sent')
+  document.getElementById('log-btn').classList.toggle('active', which==='log')
+}
+
+function closeDrawer(clearIcon=true) {
+  document.getElementById('backdrop').classList.remove('open')
+  document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open'))
+  if (clearIcon) {
+    document.getElementById('sent-btn').classList.remove('active')
+    document.getElementById('log-btn').classList.remove('active')
+  }
+  currentDrawer = null
+}
+
+function toggleExpand(row) {
+  row.classList.toggle('expanded')
+  const caret = row.querySelector('.expand-caret')
+  if (caret) caret.textContent = row.classList.contains('expanded') ? '▴' : '▾'
+}
+
+function markUndone(btn, idx) {
+  const badge = document.createElement('div')
+  badge.className = 'undone-badge'
+  badge.textContent = '✓ Undone'
+  btn.replaceWith(badge)
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'p' || e.key === 'P') setMode('party')
+  if (e.key === 'z' || e.key === 'Z') setMode('zen')
+  if (e.key === 'b' || e.key === 'B') setMode('basic')
+  if (e.key === 's' || e.key === 'S') openDrawer('sent')
+  if (e.key === 'l' || e.key === 'L') openDrawer('log')
+  if (e.key === 'Escape') closeDrawer()
+})
+
+// ── Init ──────────────────────────────────────────────────────
+setMode('party')
+</script>
+</body>
+</html>
