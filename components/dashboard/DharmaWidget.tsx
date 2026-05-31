@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import type { ThemeConfig } from "./theme-config"
 import { getDharmaCache, saveDharmaCache, getDashboardPrefs, setDharmaTeacher, type DharmaCache } from "@/lib/dashboard-prefs"
+import type { PartyMode } from "@/lib/party-mode"
+import { PARTY_QUOTES, BASIC_AF_QUOTES, getDailyQuote, type ModeQuote } from "@/lib/mode-quotes"
 
 interface Teacher {
   id: string
@@ -13,23 +15,40 @@ interface Teacher {
 
 interface DharmaWidgetProps {
   theme: ThemeConfig
+  mode?: PartyMode
 }
 
-export default function DharmaWidget({ theme }: DharmaWidgetProps) {
+export default function DharmaWidget({ theme, mode = "zen" }: DharmaWidgetProps) {
   const [data, setData] = useState<DharmaCache | null>(null)
   const [loading, setLoading] = useState(true)
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [selectedTeacher, setSelectedTeacher] = useState<string>("")
   const [showTeachers, setShowTeachers] = useState(false)
+  const [modeQuote, setModeQuote] = useState<ModeQuote | null>(null)
+
+  const isZen = mode === "zen"
+  const isParty = mode === "party"
+  const isBasicAF = mode === "wabi-sabi"
+
+  // For non-zen modes, use local quote pools — no API call needed
+  useEffect(() => {
+    if (isZen) return
+    const pool = isParty ? PARTY_QUOTES : BASIC_AF_QUOTES
+    setModeQuote(getDailyQuote(pool))
+    setLoading(false)
+  }, [mode, isZen, isParty])
 
   useEffect(() => {
+    if (!isZen) return
     fetch("/api/dashboard/dharma/teachers")
       .then(r => r.json())
       .then(d => setTeachers(d.teachers ?? []))
       .catch(err => console.error("[DharmaWidget] teachers:", err))
-  }, [])
+  }, [isZen])
 
   useEffect(() => {
+    if (!isZen) return
+
     const prefs = getDashboardPrefs()
     const teacherId = prefs.dharmaTeacherId
     setSelectedTeacher(teacherId)
@@ -75,7 +94,7 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
       .finally(() => setLoading(false))
     return () => { clearTimeout(timer); controller.abort() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTeacher])
+  }, [selectedTeacher, isZen])
 
   function handleTeacherChange(id: string) {
     setSelectedTeacher(id)
@@ -89,6 +108,29 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
   const isAltar = theme.id === "morning-altar"
   const isFestival = theme.id === "festival-stage"
 
+  // Widget label per mode
+  const widgetLabel = isParty
+    ? (isFestival ? "FUEL" : "Fuel")
+    : isBasicAF
+      ? "Inspo"
+      : isFestival ? "DHARMA" : "Dharma"
+
+  // Determine displayed quote/reflection — local pool for party/basicAF, API for zen
+  const displayQuote = isZen
+    ? (data ? { quote: data.quote, author: data.teacherName, source: data.source, reflection: data.reflection } : null)
+    : modeQuote
+      ? { quote: modeQuote.quote, author: modeQuote.author, source: modeQuote.source, reflection: modeQuote.reflection }
+      : null
+
+  // Sub-label (tradition line for zen, mood line for others)
+  const subLabel = isZen
+    ? currentTeacher?.tradition
+    : isParty
+      ? "Champions & Icons"
+      : "Today's Vibe ✨"
+
+  const reflectionPrefix = isAltar ? "✦" : isFestival ? "▸" : "·"
+
   return (
     <div style={{
       background: theme.cardBg,
@@ -96,7 +138,7 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
       borderRadius: theme.cardRadius,
       boxShadow: theme.cardShadow,
       padding: theme.cardPadding,
-      minHeight: "220px",
+      minHeight: "180px",
       display: "flex",
       flexDirection: "column",
       position: "relative",
@@ -111,10 +153,8 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
         borderBottom: theme.sectionDivider,
       }}>
         <div>
-          <div style={{ ...theme.labelStyle, marginBottom: "4px" }}>
-            {isFestival ? "DHARMA" : "Dharma"}
-          </div>
-          {currentTeacher && (
+          <div style={{ ...theme.labelStyle, marginBottom: "4px" }}>{widgetLabel}</div>
+          {subLabel && (
             <div style={{
               fontFamily: theme.bodyFont,
               fontSize: "0.76rem",
@@ -122,62 +162,64 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
               opacity: 0.5,
               fontStyle: isAltar ? "italic" : "normal",
             }}>
-              {currentTeacher.tradition}
+              {subLabel}
             </div>
           )}
         </div>
 
-        {/* Teacher picker */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setShowTeachers(v => !v)}
-            style={{
-              background: "transparent",
-              border: `1px solid ${theme.accentColor}50`,
-              borderRadius: isFestival ? "4px" : "20px",
-              padding: "3px 10px",
-              fontSize: isFestival ? "0.75rem" : "0.72rem",
-              cursor: "pointer",
-              color: theme.accentColor,
-              fontFamily: isFestival ? "'Bebas Neue', sans-serif" : theme.bodyFont,
-              letterSpacing: isFestival ? "0.1em" : undefined,
-            }}
-          >
-            {currentTeacher?.name.split(" ").pop() ?? "Teacher"} ▾
-          </button>
-          {showTeachers && (
-            <div style={{
-              position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50,
-              background: theme.cardBg,
-              border: theme.cardBorder,
-              borderRadius: theme.cardRadius,
-              boxShadow: isFestival ? "4px 4px 0 #1A0A35" : "0 4px 24px rgba(0,0,0,0.10)",
-              minWidth: "190px",
-              overflow: "hidden",
-            }}>
-              {teachers.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => handleTeacherChange(t.id)}
-                  style={{
-                    display: "block", width: "100%", textAlign: "left",
-                    padding: isFestival ? "8px 14px" : "10px 14px",
-                    background: t.id === selectedTeacher ? `${theme.accentColor}12` : "transparent",
-                    border: "none",
-                    borderBottom: theme.sectionDivider,
-                    cursor: "pointer",
-                    fontSize: "0.82rem",
-                    color: "#1A0A35",
-                    fontFamily: theme.bodyFont,
-                  }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: isFestival ? "0.78rem" : "0.82rem" }}>{t.name}</div>
-                  <div style={{ opacity: 0.45, fontSize: "0.7rem" }}>{t.tradition}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Teacher picker — zen only */}
+        {isZen && (
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowTeachers(v => !v)}
+              style={{
+                background: "transparent",
+                border: `1px solid ${theme.accentColor}50`,
+                borderRadius: isFestival ? "4px" : "20px",
+                padding: "3px 10px",
+                fontSize: isFestival ? "0.75rem" : "0.72rem",
+                cursor: "pointer",
+                color: theme.accentColor,
+                fontFamily: isFestival ? "'Bebas Neue', sans-serif" : theme.bodyFont,
+                letterSpacing: isFestival ? "0.1em" : undefined,
+              }}
+            >
+              {currentTeacher?.name.split(" ").pop() ?? "Teacher"} ▾
+            </button>
+            {showTeachers && (
+              <div style={{
+                position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50,
+                background: theme.cardBg,
+                border: theme.cardBorder,
+                borderRadius: theme.cardRadius,
+                boxShadow: isFestival ? "4px 4px 0 #1A0A35" : "0 4px 24px rgba(0,0,0,0.10)",
+                minWidth: "190px",
+                overflow: "hidden",
+              }}>
+                {teachers.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => handleTeacherChange(t.id)}
+                    style={{
+                      display: "block", width: "100%", textAlign: "left",
+                      padding: isFestival ? "8px 14px" : "10px 14px",
+                      background: t.id === selectedTeacher ? `${theme.accentColor}12` : "transparent",
+                      border: "none",
+                      borderBottom: theme.sectionDivider,
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      color: "#1A0A35",
+                      fontFamily: theme.bodyFont,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: isFestival ? "0.78rem" : "0.82rem" }}>{t.name}</div>
+                    <div style={{ opacity: 0.45, fontSize: "0.7rem" }}>{t.tradition}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -194,7 +236,7 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
         </div>
       )}
 
-      {!loading && data && (
+      {!loading && displayQuote && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "12px" }}>
           {/* Quote */}
           <blockquote style={{
@@ -211,22 +253,24 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
             paddingLeft: "14px",
             letterSpacing: isFestival ? "0.01em" : undefined,
           }}>
-            {isAltar ? `"${data.quote}"` : data.quote}
+            {isAltar ? `"${displayQuote.quote}"` : displayQuote.quote}
           </blockquote>
 
           {/* Attribution */}
-          {data.source && (
-            <div style={{
-              fontFamily: theme.bodyFont,
-              fontSize: "0.72rem",
-              color: "#1A0A35",
-              opacity: 0.45,
-              paddingLeft: "17px",
-              fontStyle: isAltar ? "italic" : "normal",
-            }}>
-              {isFestival ? `— ${data.teacherName.toUpperCase()} / ${data.source.toUpperCase()}` : `— ${data.teacherName}, ${data.source}`}
-            </div>
-          )}
+          <div style={{
+            fontFamily: theme.bodyFont,
+            fontSize: "0.72rem",
+            color: "#1A0A35",
+            opacity: 0.45,
+            paddingLeft: "17px",
+            fontStyle: isAltar ? "italic" : "normal",
+          }}>
+            {displayQuote.source
+              ? (isFestival
+                  ? `— ${displayQuote.author.toUpperCase()} / ${displayQuote.source.toUpperCase()}`
+                  : `— ${displayQuote.author}, ${displayQuote.source}`)
+              : `— ${displayQuote.author}`}
+          </div>
 
           {/* Reflection prompt */}
           <div style={{
@@ -241,7 +285,7 @@ export default function DharmaWidget({ theme }: DharmaWidgetProps) {
             color: "#1A0A35",
             lineHeight: 1.45,
           }}>
-            {isAltar ? `✦ ${data.reflection}` : isFestival ? `▸ ${data.reflection}` : `· ${data.reflection}`}
+            {reflectionPrefix} {displayQuote.reflection}
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-export type PartyMode = "zen" | "party"
+export type PartyMode = "zen" | "party" | "wabi-sabi"
 
 const MODE_KEY = "inbox-ai:party-mode"
 const GATE_KEY = "inbox-ai:gate-seen"
@@ -6,7 +6,7 @@ const GATE_KEY = "inbox-ai:gate-seen"
 export function getPartyMode(): PartyMode {
   try {
     const stored = localStorage.getItem(MODE_KEY) as PartyMode | null
-    return stored === "zen" || stored === "party" ? stored : "party"
+    return stored === "zen" || stored === "party" || stored === "wabi-sabi" ? stored : "party"
   } catch {
     return "party"
   }

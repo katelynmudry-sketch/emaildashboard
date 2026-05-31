@@ -1,12 +1,14 @@
 "use client"
 
 import type { AccountId, Email, Category, Attachment } from "@/lib/types"
+import type { PartyMode } from "@/lib/party-mode"
 import LabelSection from "./LabelSection"
 
 interface Props {
   emails: Email[]
   categories: Category[]
   selectedEmail: Email | null
+  mode?: PartyMode
   /** Optional AI-generated summary paragraph shown between header and email list */
   summary?: string
   onSelect: (email: Email) => void
@@ -15,7 +17,7 @@ interface Props {
   onMarkRead: (email: Email) => Promise<void>
   onArchive: (email: Email) => Promise<void>
   onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => void
   onStar: (email: Email) => Promise<void>
   onDelete: (email: Email) => Promise<void>
   onRecategorize: (email: Email, newCategory: string, teachClaude: boolean) => Promise<void>
@@ -28,20 +30,25 @@ interface Props {
 }
 
 export default function BriefingSection({
-  emails, categories, selectedEmail, summary,
+  emails, categories, selectedEmail, summary, mode = "party",
   onSelect, onExpand, onClose,
   onMarkRead, onArchive, onSaveDraft, onSend,
   onStar, onDelete, onRecategorize, onMarkReplied,
   onMarkDeletable, onNewCategory,
   onToggleTodo, onSnooze, gmailAccount,
 }: Props) {
+  const headerBg    = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#FFFFFF" : "#FF1F6E"
+  const headerText  = mode === "zen" ? "#3D2800" : mode === "wabi-sabi" ? "#111111" : "#FFFFFF"
+  const borderColor = mode === "zen" ? "rgba(200,150,12,0.22)" : mode === "wabi-sabi" ? "rgba(17,17,17,0.13)" : "rgba(255,31,110,0.22)"
+  const shadow      = mode === "zen" ? "0 4px 28px rgba(200,150,12,0.08)" : mode === "wabi-sabi" ? "none" : "0 4px 28px rgba(255,31,110,0.08)"
+
   return (
     <LabelSection
       title="DAILY BRIEFING"
-      headerBg="#FF1F6E"
-      headerTextColor="#FFF5E0"
-      border="rgba(255,31,110,0.22)"
-      boxShadow="0 4px 28px rgba(255,31,110,0.08)"
+      headerBg={headerBg}
+      headerTextColor={headerText}
+      border={borderColor}
+      boxShadow={shadow}
       emails={emails}
       categories={categories}
       selectedEmail={selectedEmail}
@@ -64,6 +71,7 @@ export default function BriefingSection({
       onNewCategory={onNewCategory}
       onToggleTodo={onToggleTodo}
       onSnooze={onSnooze}
+      mode={mode}
       gmailAccount={gmailAccount}
     >
       {/* Summary slot — pass summary={text} from Dashboard when AI generation is ready */}

@@ -131,6 +131,23 @@ export default function QuoteGate({ onEnter }: QuoteGateProps) {
           >
             🎉 Party Mode
           </button>
+
+          <button
+            onClick={() => enter("wabi-sabi")}
+            style={{
+              padding: "12px 32px", borderRadius: 999,
+              border: "1px solid rgba(139,63,216,0.35)",
+              background: "rgba(139,63,216,0.08)",
+              color: "rgba(180,150,220,0.90)",
+              fontSize: "0.88rem", fontWeight: 600, letterSpacing: "0.10em",
+              cursor: "pointer", transition: "all 0.2s",
+              display: "flex", alignItems: "center", gap: 8,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(139,63,216,0.16)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "rgba(139,63,216,0.08)")}
+          >
+            🎴 Basic AF
+          </button>
         </div>
 
         {/* Skip link */}

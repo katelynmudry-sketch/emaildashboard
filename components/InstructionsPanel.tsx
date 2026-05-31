@@ -108,6 +108,10 @@ export default function InstructionsPanel({ open, onClose }: Props) {
   const [workText, setWorkText] = useState("")
   const [saveOk, setSaveOk] = useState<Tab | null>(null)
 
+  // AI action toggles
+  const [aiPastEventDelete, setAiPastEventDelete] = useState(true)
+  const [aiDeliveryChainCleanup, setAiDeliveryChainCleanup] = useState(true)
+
   // System context state
   const [systemContextText, setSystemContextText] = useState("")
 
@@ -144,6 +148,8 @@ export default function InstructionsPanel({ open, onClose }: Props) {
         setPersonalText(stored.personalRules)
         setWorkText(stored.workRules)
         setSystemContextText(stored.systemContext || d.systemContext)
+        setAiPastEventDelete(stored.aiPastEventDelete !== false)
+        setAiDeliveryChainCleanup(stored.aiDeliveryChainCleanup !== false)
       })
       .finally(() => setLoading(false))
   }, [open])
@@ -390,6 +396,64 @@ export default function InstructionsPanel({ open, onClose }: Props) {
                 Short rules injected into Claude&apos;s prompt on every refresh. Changes apply on the next load.
                 Saved in your browser — works on Vercel too.
               </Hint>
+
+              {/* ── AI Actions ── */}
+              <div style={{ background: "rgba(139,63,216,0.04)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(139,63,216,0.12)" }}>
+                <SectionLabel color="#8B3FD8">AI Actions</SectionLabel>
+                <p style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.50)", margin: "0 0 10px", lineHeight: 1.5 }}>
+                  Automatic suggestions Claude surfaces after every inbox load. On by default.
+                </p>
+                {(
+                  [
+                    {
+                      key: "aiPastEventDelete" as const,
+                      label: "Flag past calendar events for deletion",
+                      desc: "Marks event invitation emails as deletable once the event date has passed.",
+                      value: aiPastEventDelete,
+                      set: setAiPastEventDelete,
+                    },
+                    {
+                      key: "aiDeliveryChainCleanup" as const,
+                      label: "Suggest deleting shipping email chains",
+                      desc: "After a package arrives, finds the full shipping/tracking thread and offers to delete it.",
+                      value: aiDeliveryChainCleanup,
+                      set: setAiDeliveryChainCleanup,
+                    },
+                  ] as const
+                ).map(({ key, label, desc, value, set }) => (
+                  <div key={key} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !value
+                        set(next)
+                        saveSettings({ [key]: next })
+                      }}
+                      style={{
+                        flexShrink: 0,
+                        width: 36, height: 20, borderRadius: 99,
+                        background: value ? "#8B3FD8" : "rgba(26,10,53,0.15)",
+                        border: "none", cursor: "pointer", padding: 0,
+                        position: "relative", transition: "background 0.2s",
+                      }}
+                    >
+                      <span style={{
+                        position: "absolute", top: 2,
+                        left: value ? 18 : 2,
+                        width: 16, height: 16, borderRadius: "50%",
+                        background: "#fff",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
+                        transition: "left 0.2s",
+                        display: "block",
+                      }} />
+                    </button>
+                    <div>
+                      <div style={{ fontSize: "0.80rem", fontWeight: 600, color: "#1A0A35", lineHeight: 1.3 }}>{label}</div>
+                      <div style={{ fontSize: "0.72rem", color: "rgba(26,10,53,0.50)", marginTop: 1 }}>{desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
               <div>
                 <SectionLabel color="#FF1F6E">Personal inbox rules</SectionLabel>

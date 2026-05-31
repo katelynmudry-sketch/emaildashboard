@@ -18,12 +18,12 @@ interface Props {
   gmailAccount: AccountId
   categories: Category[]
   onClose: () => void
-  onArchive: (email: Email) => Promise<void>
-  onMarkRead: (email: Email) => Promise<void>
+  onArchive: (email: Email) => void
+  onMarkRead: (email: Email) => void
   onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onStar: (email: Email) => Promise<void>
-  onDelete: (email: Email) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => void
+  onStar: (email: Email) => void
+  onDelete: (email: Email) => void
   onRecategorize: (email: Email, newCategory: string, teachClaude: boolean) => Promise<void>
   onMarkReplied: (email: Email) => void
   onMarkDeletable: (email: Email) => void
@@ -111,10 +111,9 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
     }
   }
 
-  async function handleArchive() {
+  function handleArchive() {
     if (!email) return
-    setArchiving(true)
-    await onArchive(email)
+    onArchive(email)
     setArchiving(false)
     setArchived(true)
   }
@@ -252,8 +251,8 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
               await onSaveDraft(email, body, attachments, forwardTo)
               setDraftMode(null)
             }}
-            onSend={async (body, attachments, forwardTo) => {
-              await onSend(email, draftMode === "forward" ? "forward" : "reply", body, attachments, forwardTo)
+            onSend={(body, attachments, forwardTo) => {
+              onSend(email, draftMode === "forward" ? "forward" : "reply", body, attachments, forwardTo)
               setDraftMode(null)
             }}
             onCancel={() => setDraftMode(null)}
@@ -339,9 +338,8 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
                 {archiving ? "…" : "Archive"}
               </button>
               <button
-                onClick={async () => {
-                  setDeleting(true)
-                  await onDelete(email)
+                onClick={() => {
+                  onDelete(email)
                   setDeleting(false)
                 }}
                 disabled={deleting}

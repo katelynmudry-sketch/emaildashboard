@@ -21,7 +21,7 @@ export interface ComposeAreaProps {
   initialBody?: string
   /** Pre-populate the forward-to field (forward mode only) */
   initialForwardTo?: string
-  onSend: (body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
+  onSend: (body: string, attachments: Attachment[], forwardTo?: string) => void
   onSaveDraft: (body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
   onCancel: () => void
   /** Called when AI Draft/Complete button is clicked; receives current body, returns new body */
@@ -155,16 +155,13 @@ export default function ComposeArea({
     }
   }
 
-  async function handleSend() {
+  function handleSend() {
     if (!canSend) return
-    setSending(true)
     setError(null)
     try {
-      await onSend(body, toApiAttachments(), mode === "forward" ? forwardTo : undefined)
+      onSend(body, toApiAttachments(), mode === "forward" ? forwardTo : undefined)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send")
-    } finally {
-      setSending(false)
     }
   }
 

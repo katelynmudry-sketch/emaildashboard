@@ -3,7 +3,7 @@
 import type { Email, CalendarEvent } from "@/lib/types"
 import type { ThemeConfig } from "./theme-config"
 
-const FIESTA_COLORS = ["#FF1F6E", "#FFD000", "#FF6B1A", "#00C4A7", "#8FC900", "#8B3FD8"]
+const CHART_COLORS = ["#FF1F6E", "#FFD000", "#FF6B1A", "#00C4A7", "#8FC900", "#8B3FD8"]
 
 function bucketEvent(title: string): string {
   const t = title.toLowerCase()
@@ -138,7 +138,7 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
                 {top5.map(([, count], i) => (
                   <div key={i} style={{
                     width: `${(count / totalEmails) * 100}%`,
-                    background: FIESTA_COLORS[i % FIESTA_COLORS.length],
+                    background: CHART_COLORS[i % CHART_COLORS.length],
                     transition: "width 0.6s ease",
                     flexShrink: 0,
                   }} />
@@ -152,7 +152,7 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
                       width: isFestival ? "10px" : "8px",
                       height: isFestival ? "10px" : "8px",
                       borderRadius: isFestival ? "2px" : "3px",
-                      background: FIESTA_COLORS[i % FIESTA_COLORS.length],
+                      background: CHART_COLORS[i % CHART_COLORS.length],
                       flexShrink: 0,
                     }} />
                     <span style={{
@@ -216,12 +216,12 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
                   <div key={cat} style={{
                     width: `${(mins / totalCalMins) * 100}%`,
                     background: cat === "Free"
-                      ? `${FIESTA_COLORS[i % FIESTA_COLORS.length]}38`
-                      : FIESTA_COLORS[i % FIESTA_COLORS.length],
+                      ? `${CHART_COLORS[i % CHART_COLORS.length]}38`
+                      : CHART_COLORS[i % CHART_COLORS.length],
                     transition: "width 0.6s ease",
                     flexShrink: 0,
                     border: cat === "Free" && isFestival
-                      ? `1px dashed ${FIESTA_COLORS[i % FIESTA_COLORS.length]}`
+                      ? `1px dashed ${CHART_COLORS[i % CHART_COLORS.length]}`
                       : undefined,
                     boxSizing: "border-box",
                   }} />
@@ -236,9 +236,9 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
                       height: isFestival ? "10px" : "8px",
                       borderRadius: isFestival ? "2px" : "3px",
                       background: cat === "Free"
-                        ? `${FIESTA_COLORS[i % FIESTA_COLORS.length]}38`
-                        : FIESTA_COLORS[i % FIESTA_COLORS.length],
-                      border: cat === "Free" ? `1px solid ${FIESTA_COLORS[i % FIESTA_COLORS.length]}60` : "none",
+                        ? `${CHART_COLORS[i % CHART_COLORS.length]}38`
+                        : CHART_COLORS[i % CHART_COLORS.length],
+                      border: cat === "Free" ? `1px solid ${CHART_COLORS[i % CHART_COLORS.length]}60` : "none",
                       flexShrink: 0,
                     }} />
                     <span style={{

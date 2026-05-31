@@ -135,42 +135,42 @@ export const THEMES: Record<DashboardTheme, ThemeConfig> = {
   // Mood: Tokyo design studio, precise, airy, intentional whitespace
   "wabi-sabi-studio": {
     id: "wabi-sabi-studio",
-    name: "Wabi-Sabi",
+    name: "Basic AF",
     emoji: "🎴",
     description: "Precise, editorial",
 
     cardBg: "#FFFFFF",
-    cardBorder: "1px solid rgba(26,10,53,0.08)",
+    cardBorder: "1px solid rgba(17,17,17,0.13)",
     cardRadius: "14px",
     cardShadow: "none",
     cardPadding: "22px",
 
-    panelBg: "#FAFAFA",
+    panelBg: "#FFFFFF",
     panelPaddingTop: "4px",
 
-    toggleBarBg: "#FAFAFA",
-    toggleBarTextColor: "#1A0A35",
-    toggleBarBorderBottom: "1px solid rgba(26,10,53,0.08)",
+    toggleBarBg: "#FFFFFF",
+    toggleBarTextColor: "#111111",
+    toggleBarBorderBottom: "1px solid rgba(17,17,17,0.10)",
 
-    titleFont: "'Syne', sans-serif",
-    bodyFont: "'Syne', sans-serif",
-    accentColor: "#8B3FD8",
+    titleFont: "var(--font-outfit, 'Outfit', sans-serif)",
+    bodyFont: "var(--font-outfit, 'Outfit', sans-serif)",
+    accentColor: "#111111",
     labelStyle: {
-      fontFamily: "'Syne', sans-serif",
-      letterSpacing: "0.25em",
+      fontFamily: "var(--font-outfit, 'Outfit', sans-serif)",
+      letterSpacing: "0.20em",
       textTransform: "uppercase",
       fontSize: "0.65rem",
       fontWeight: 700,
-      color: "#8B3FD8",
+      color: "#111111",
     },
 
     dayNameSize: "1.65rem",
     quoteFontSize: "0.92rem",
     insightBarHeight: "8px",
 
-    sectionDivider: "1px solid rgba(26,10,53,0.06)",
+    sectionDivider: "1px solid rgba(17,17,17,0.08)",
 
     fontImport:
-      "https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap",
+      "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap",
   },
 }

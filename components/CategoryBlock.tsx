@@ -24,7 +24,7 @@ interface Props {
   onMarkRead: (email: Email) => Promise<void>
   onArchive: (email: Email) => Promise<void>
   onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => void
   onStar: (email: Email) => Promise<void>
   onDelete: (email: Email) => Promise<void>
   onRecategorize: (email: Email, newCategory: string, teachClaude: boolean) => Promise<void>
@@ -34,9 +34,11 @@ interface Props {
   onToggleTodo: (email: Email) => void
   onSnooze: (email: Email) => void
   gmailAccount: AccountId
+  isPriority?: boolean
+  onTogglePriority?: () => void
 }
 
-function getCategoryAccent(name: string) {
+function getCategoryAccent(name: string, mode: PartyMode) {
   let hash = 0
   for (let i = 0; i < name.length; i++) {
     hash = ((hash << 5) - hash) + name.charCodeAt(i)
@@ -50,7 +52,29 @@ function getCategoryAccent(name: string) {
     { header: "#C084FC", text: "#0D0821", border: "rgba(192,132,252,0.30)", glow: "rgba(192,132,252,0.10)" },
     { header: "#B8F000", text: "#0D0821", border: "rgba(184,240,0,0.30)",   glow: "rgba(184,240,0,0.10)" },
   ]
-  return accents[Math.abs(hash) % accents.length]
+  const base = accents[Math.abs(hash) % accents.length]
+
+  if (mode === "party") return base
+
+  if (mode === "wabi-sabi") {
+    const strongBorder = base.border.replace(/[\d.]+\)$/, "0.55)")
+    return {
+      header: "#FFFFFF",
+      text: base.header,       // color used as text, not fill
+      border: strongBorder,
+      glow: "transparent"
+    }
+  }
+
+  // zen: pale tinted header
+  const paleHeader = base.glow.replace(/[\d.]+\)$/, "0.18)")
+  const softBorder = base.border.replace(/[\d.]+\)$/, "0.22)")
+  return {
+    header: paleHeader,
+    text: base.header,
+    border: softBorder,
+    glow: base.glow.replace(/[\d.]+\)$/, "0.05)")
+  }
 }
 
 export default function CategoryBlock({
@@ -60,9 +84,10 @@ export default function CategoryBlock({
   onStar, onDelete, onRecategorize, onMarkReplied,
   onMarkDeletable, onNewCategory,
   onToggleTodo, onSnooze, gmailAccount,
+  isPriority = false, onTogglePriority,
 }: Props) {
   const sorted = [...emails].sort((a, b) => a.internalDate - b.internalDate)
-  const accent = getCategoryAccent(category.name)
+  const accent = getCategoryAccent(category.name, mode)
 
   // Collapse state: default collapsed for noisy categories in zen mode
   const [collapsed, setCollapsed] = useState(
@@ -108,24 +133,50 @@ export default function CategoryBlock({
   const evo = getEvolutionStyle()
   const showEvolution = mode === "party" && initialCount.current > 0
 
-  return (
-    <div style={{ position: "relative" }}>
-      {/* Collapse toggle — always available, noisy cats default-closed in zen */}
+  const cardBg = mode === "zen" ? "#FFFEF9" : "#FFFFFF"
+  const cardShadow = mode === "wabi-sabi" ? "none" : (isFullyCleared && mode === "party"
+    ? "0 4px 28px rgba(0,196,167,0.22)"
+    : `0 4px 28px ${accent.glow}`)
+
+  const headerControls = (
+    <div style={{ display: "flex", alignItems: "center", gap: 1, marginLeft: 4 }}>
+      {onTogglePriority && category.id !== "__delete__" && (
+        <button
+          onClick={e => { e.stopPropagation(); onTogglePriority() }}
+          title={isPriority ? "Unpin from priority position" : "Pin to priority position (top-center)"}
+          style={{
+            background: "none", border: "none", cursor: "pointer",
+            fontSize: "0.72rem", lineHeight: 1, padding: "1px 3px",
+            opacity: isPriority ? 0.9 : 0.28,
+            filter: isPriority ? "none" : "grayscale(1)",
+            transition: "opacity 0.15s",
+            color: "inherit",
+          }}
+          aria-label={isPriority ? "unpin priority" : "pin priority"}
+        >
+          📌
+        </button>
+      )}
       <button
-        onClick={() => setCollapsed(v => !v)}
+        onClick={e => { e.stopPropagation(); setCollapsed(v => !v) }}
         title={collapsed ? `Expand ${category.name}` : `Collapse ${category.name}`}
         style={{
-          position: "absolute", top: 8, right: 8, zIndex: 10,
           background: "none", border: "none", cursor: "pointer",
-          fontSize: "0.7rem", color: "rgba(26,10,53,0.35)",
-          padding: "2px 4px", lineHeight: 1,
-          transition: "color 0.15s, transform 0.2s",
+          fontSize: "0.65rem", lineHeight: 1, padding: "1px 3px",
+          opacity: 0.55, color: "inherit",
+          transition: "transform 0.2s",
           transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
+          display: "inline-block",
         }}
         aria-label={collapsed ? "expand" : "collapse"}
       >
         ▼
       </button>
+    </div>
+  )
+
+  return (
+    <div style={{ position: "relative" }}>
 
       {/* Evolution progress bar (Party mode) */}
       {showEvolution && evolutionPct > 0 && (
@@ -151,12 +202,11 @@ export default function CategoryBlock({
         headerBg={accent.header}
         headerTextColor={accent.text}
         border={accent.border}
-        boxShadow={isFullyCleared && mode === "party"
-          ? "0 4px 28px rgba(0,196,167,0.22)"
-          : `0 4px 28px ${accent.glow}`
-        }
+        boxShadow={cardShadow}
+        cardBg={cardBg}
         headerOverlay={evo.headerOverlay}
         collapsed={collapsed}
+        headerSuffix={headerControls}
         emails={sorted}
         categories={categories}
         selectedEmail={selectedEmail}
@@ -181,6 +231,7 @@ export default function CategoryBlock({
         onToggleTodo={onToggleTodo}
         onSnooze={onSnooze}
         gmailAccount={gmailAccount}
+        mode={mode}
       />
     </div>
   )

@@ -29,6 +29,26 @@
 - [ ] End-to-end test: new user → onboarding → free sort → BYOK → unlimited sort
 - [ ] Push to GitHub (public repo)
 
+## Theme system — in progress
+
+### Karma flower (PlantHeader) — rebuild SVG per theme
+- [ ] Party mode — design TBD (currently magenta/pink plant)
+- [ ] Zen mode — sunrise illustration (replacing current amber plant)
+- [ ] Basic AF mode — cross-section of a PSL cup filling up as karma increases
+
+### Preset intentions
+- [ ] Quick-pick preset options in the Intentions widget (clickable chips, not just text fields)
+- [ ] "Generate from theme" button — Claude generates an intention based on the active mode vibe
+- [ ] Intentions display inline with the theme (serious and kind in every mode)
+
+### Header layout
+- [ ] Tighten dead space in header area — stats row feels sparse at mid widths
+
+### Mobile (future — bigger lift)
+- [ ] Responsive mobile layout pass
+
+---
+
 ## Morning briefing script (Morning email/)
 - [x] Fix N+1 API calls — use metadata-first, only full fetch for patient/ce_savings
 - [x] Raise unread cap from 50 → 500 with pagination

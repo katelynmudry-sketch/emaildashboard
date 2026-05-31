@@ -10,6 +10,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 export interface ClaudeSettings {
   customContext?: string  // per-account rules text
   systemContext?: string  // full CLINIC_CONTEXT override (user-edited via settings panel)
+  aiPastEventDelete?: boolean
 }
 
 // ── Sanitize strings (passthrough — kept for call-site compatibility) ─────────
@@ -18,7 +19,8 @@ export interface ClaudeSettings {
 // handled at the Gmail API decode boundary in lib/gmail.ts.
 
 function sanitizeUtf8(str: string): string {
-  return str
+  // Replace lone surrogates with replacement char — unpaired surrogates break JSON.stringify
+  return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�")
 }
 
 function timeAgo(internalDate: number): string {
@@ -113,10 +115,17 @@ export async function categorizeInbox(
     ? `\n## Custom instructions for this account\n${settings.customContext.trim()}`
     : ""
   const effectiveSystemContext = settings?.systemContext?.trim() || DEFAULT_SYSTEM_CONTEXT
+  const today = new Date().toLocaleDateString("en-CA") // YYYY-MM-DD
+
+  const pastEventCriterion = settings?.aiPastEventDelete !== false
+    ? `, calendar event invitations or meeting RSVP emails where the event date has already passed (today is ${today} — check the event date in the email body or subject)`
+    : ""
 
   const prompt = `
 Categorize each of these ${emails.length} emails into one of these categories: ${categoryList}
 ${rulesSection}${customContextSection}
+
+Today's date: ${today}
 
 Also assign:
 - priority: "urgent" (needs reply today/time-sensitive), "today" (action needed soon), or "fyi" (informational, no action needed)
@@ -128,7 +137,7 @@ Also assign:
   - "read" — newsletter, FYI, promotional, no action needed
 - summary: 1-2 sentence plain-English summary IF the body is >150 words OR contains a special offer/promotion. Otherwise null. Use one mention of the sender/brand/person at most. If the sender or subject already names the sender, omit that name and summarize the key action, date, deadline, or amount instead. Prefer short phrases like "Day 3 expires Fri 5pm" or "course 33% off until Jun 8".
 - draftReply: ${isWork ? "For patient emails needing a reply — write a reply in Dr. K's voice (warm, casual, 2-4 sentences, sign off 'Best, Dr. K'). For non-patient emails: null." : "null for all emails."}
-- deletable: true if the email is clearly no longer actionable and safe to delete. Flag: security login alerts, OTP/2FA codes, social media notifications (likes, follows), single-use promotional codes that have expired, shipping notifications where the package has already been delivered (status says "delivered").
+- deletable: true if the email is clearly no longer actionable and safe to delete. Flag: security login alerts, OTP/2FA codes, social media notifications (likes, follows), single-use promotional codes that have expired, shipping notifications where the package has already been delivered (status says "delivered")${pastEventCriterion}.
 - deletableReason: one short phrase explaining why (e.g. "Security login alert, no longer actionable"), or null if not deletable.
 - packageDelivered: true if this email confirms a package/parcel was successfully delivered. Look at subject AND body. Signs: "delivered", "arrived", "left at door", "delivery complete", "your parcel is here", "successfully delivered", "package received", "order delivered", "shipment delivered", "item delivered", "has been delivered", "delivery confirmation", "delivered to". "Out for delivery" or "on its way" are NOT enough — must confirm actual delivery happened.
 - orderSender: if packageDelivered is true, extract a short identifier for the sender (e.g. "amazon.ca", "Postmedia Parcel Services", "Canada Post" — use the display name if the domain isn't recognizable). Otherwise null.

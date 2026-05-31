@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { getStats, isWilted, checkAndUpdateStreak } from "@/lib/stats"
+import type { PartyMode } from "@/lib/party-mode"
 
 interface PlantHeaderProps {
   remaining: number
   total: number
+  mode?: PartyMode
 }
 
 type Stage = 0 | 1 | 2 | 3 | 4 | 5
@@ -21,12 +23,23 @@ function getStage(remaining: number, total: number): Stage {
   return 0
 }
 
-const STAGE_LABELS = ["Seedling", "Sprout", "Growing", "Thriving", "Flourishing", "Blooming!"]
+const STAGE_LABELS: Record<PartyMode, string[]> = {
+  party:      ["Seedling", "Sprout", "Growing", "Thriving", "Flourishing", "Blooming! 🎉"],
+  zen:        ["Resting", "Awakening", "Unfolding", "Flourishing", "In bloom", "🪷 Lotus"],
+  "wabi-sabi": ["Dormant", "Emerging", "Growing", "Present", "Complete", "Done."],
+}
 
-function PlantSVG({ stage, wilted }: { stage: Stage; wilted: boolean }) {
-  const s = wilted ? "#78350f" : "#16a34a"
-  const l1 = wilted ? "#a16207" : "#22c55e"
-  const l2 = wilted ? "#92400e" : "#15803d"
+function PlantSVG({ stage, wilted, mode = "party" }: { stage: Stage; wilted: boolean; mode?: PartyMode }) {
+  // Stem and leaf colors per mode
+  const s = wilted
+    ? "#78350f"
+    : mode === "zen" ? "#92700A" : mode === "wabi-sabi" ? "#111111" : "#8B3FD8"
+  const l1 = wilted
+    ? "#a16207"
+    : mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111111" : "#FF1F6E"
+  const l2 = wilted
+    ? "#92400e"
+    : mode === "zen" ? "#B07B0A" : mode === "wabi-sabi" ? "rgba(17,17,17,0.45)" : "#AFA9EC"
 
   const pot = (
     <>
@@ -119,6 +132,18 @@ function PlantSVG({ stage, wilted }: { stage: Stage; wilted: boolean }) {
     )
   }
 
+  // Flower dot colors for stage 5 (the blooming flowers) per mode
+  const flowerColors =
+    mode === "zen"     ? ["#C8960C", "#B07B0A", "#E8C04A", "#C8960C"]
+    : mode === "wabi-sabi" ? ["#1A0A35", "rgba(26,10,53,0.65)", "rgba(26,10,53,0.40)", "#1A0A35"]
+    :                        ["#FFD000", "#FF6B1A", "#FF1F6E", "#FFD000"]
+  const flowerDots = [
+    { cx: 50, cy: 3,  r: 5   },
+    { cx: 34, cy: 18, r: 3.5 },
+    { cx: 66, cy: 16, r: 3.5 },
+    { cx: 24, cy: 30, r: 3   },
+  ]
+
   return (
     <svg viewBox="0 0 100 140" className="w-full h-full">
       {pot}
@@ -130,15 +155,14 @@ function PlantSVG({ stage, wilted }: { stage: Stage; wilted: boolean }) {
       <ellipse cx="74" cy="29" rx="18" ry="15" fill={l2} />
       <ellipse cx="36" cy="10" rx="15" ry="12" fill={l1} opacity="0.9" />
       <ellipse cx="64" cy="8" rx="15" ry="12" fill={l1} opacity="0.9" />
-      <circle cx="50" cy="3" r="5" fill="#fbbf24" />
-      <circle cx="34" cy="18" r="3.5" fill="#fb923c" />
-      <circle cx="66" cy="16" r="3.5" fill="#f472b6" />
-      <circle cx="24" cy="30" r="3" fill="#fbbf24" />
+      {flowerDots.map((d, i) => (
+        <circle key={i} cx={d.cx} cy={d.cy} r={d.r} fill={flowerColors[i]} />
+      ))}
     </svg>
   )
 }
 
-export default function PlantHeader({ remaining, total }: PlantHeaderProps) {
+export default function PlantHeader({ remaining, total, mode = "party" }: PlantHeaderProps) {
   const [xp, setXp] = useState(0)
   const [streak, setStreak] = useState(0)
   const [wilted, setWilted] = useState(false)
@@ -163,30 +187,37 @@ export default function PlantHeader({ remaining, total }: PlantHeaderProps) {
   const stage = getStage(remaining, total)
   const hasLoaded = total > 0
   const pct = hasLoaded ? Math.round(((total - remaining) / total) * 100) : 0
-  const label = wilted ? "Wilting…" : STAGE_LABELS[stage]
+  const wiltedLabel = mode === "zen" ? "Resting…" : mode === "wabi-sabi" ? "Dormant." : "Wilting…"
+  const label = wilted ? wiltedLabel : STAGE_LABELS[mode][stage]
+  const accentColor = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111111" : "#8B3FD8"
+  const barColor = mode === "zen"
+    ? "linear-gradient(90deg,#C8960C,#B07B0A)"
+    : mode === "wabi-sabi"
+      ? "linear-gradient(90deg,#111,rgba(17,17,17,0.45))"
+      : "linear-gradient(90deg,#FF1F6E,#8B3FD8)"
 
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="w-16 h-20">
-        <PlantSVG stage={stage} wilted={wilted} />
+        <PlantSVG stage={stage} wilted={wilted} mode={mode} />
       </div>
-      <p className="text-xs font-semibold text-zinc-700 leading-none">{label}</p>
+      <p className="text-xs font-semibold leading-none" style={{ color: accentColor }}>{label}</p>
       {hasLoaded && (
         <div className="flex items-center gap-1.5 mt-0.5">
-          <div className="w-20 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+          <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(26,10,53,0.08)" }}>
             <div
-              className="h-full bg-green-400 rounded-full transition-all duration-700"
-              style={{ width: `${pct}%` }}
+              className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${pct}%`, background: barColor }}
             />
           </div>
-          <span className="text-xs text-zinc-400">{pct}%</span>
+          <span className="text-xs" style={{ color: "rgba(26,10,53,0.40)" }}>{pct}%</span>
         </div>
       )}
-      <div className="flex items-center gap-1 text-xs text-zinc-400 mt-0.5">
-        <span className="font-semibold text-violet-500">{xp} XP</span>
+      <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: "rgba(26,10,53,0.40)" }}>
+        <span className="font-semibold" style={{ color: accentColor }}>{xp} Karma</span>
         {streak >= 1 && (
           <>
-            <span className="text-zinc-300">·</span>
+            <span style={{ color: "rgba(26,10,53,0.20)" }}>·</span>
             <span>🔥 {streak}</span>
           </>
         )}

@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
-import { useSession, signIn } from "next-auth/react"
+import { useSession, signIn, signOut } from "next-auth/react"
 import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/types"
 import { ACCOUNTS } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
@@ -51,37 +51,19 @@ function formatFetchedAt(iso: string): string {
   return d.toLocaleDateString("en-CA", { month: "short", day: "numeric" })
 }
 
-// ── Festival stat sub-components ────────────────────────────────────────────
+// ── Stat sub-components (mode-aware) ─────────────────────────────────────────
 
-function StatTicket({ value, label, color }: { value: string; label: string; color: string }) {
+function MiniStat({ value, label, color, mode }: { value: number; label: string; color: string; mode: PartyMode }) {
+  const isZen = mode === "zen"
   return (
     <div style={{
-      border: `1px solid ${color}55`,
-      borderRadius: 10,
-      padding: "8px 16px",
-      background: `${color}14`,
-      minWidth: 72,
-    }}>
-      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color }}>
-        {value}
-      </div>
-      <div style={{ fontSize: "0.70rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.62)", marginTop: 3 }}>
-        {label}
-      </div>
-    </div>
-  )
-}
-
-function MiniStat({ value, label, color }: { value: number; label: string; color: string }) {
-  return (
-    <div style={{
-      border: `1px solid ${color}44`,
+      border: mode === "wabi-sabi" ? "1px solid rgba(17,17,17,0.18)" : isZen ? `1px solid ${color}33` : `1px solid ${color}44`,
       borderRadius: 8,
       padding: "5px 10px",
-      background: `${color}14`,
+      background: mode === "wabi-sabi" ? "transparent" : isZen ? `${color}0d` : `${color}14`,
       textAlign: "center",
     }}>
-      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem", lineHeight: 1, color }}>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem", lineHeight: 1, color: mode === "wabi-sabi" ? "#111" : color }}>
         {value}
       </div>
       <div style={{ fontSize: "0.82rem", textTransform: "uppercase", letterSpacing: "0.09em", color: "rgba(26,10,53,0.60)", marginTop: 1 }}>
@@ -91,21 +73,25 @@ function MiniStat({ value, label, color }: { value: number; label: string; color
   )
 }
 
-function TallyTicket({ loaded, total }: { loaded: number; total: number }) {
+function TallyTicket({ loaded, total, mode }: { loaded: number; total: number; mode: PartyMode }) {
   const pct = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0
   const allLoaded = total > 0 && loaded >= total
+  const isBasicAF = mode === "wabi-sabi"
+  const isZen = mode === "zen"
+  const accentColor = isZen ? "#C8960C" : isBasicAF ? "#111111" : "#FF1F6E"
+  const accentAlpha = "25"
+  const accentBg = isZen ? "rgba(200,150,12,0.06)" : isBasicAF ? "transparent" : "rgba(255,31,110,0.07)"
 
   return (
     <div style={{
-      border: "1px solid rgba(255,31,110,0.25)",
+      border: isBasicAF ? "1px solid rgba(17,17,17,0.18)" : `1px solid ${accentColor}${accentAlpha}`,
       borderRadius: 10,
       padding: "8px 16px",
-      background: "rgba(255,31,110,0.07)",
+      background: accentBg,
       minWidth: 160,
     }}>
-      {/* Number tally */}
       <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-        <span style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: "#FF1F6E" }}>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: accentColor }}>
           {loaded}
         </span>
         <span style={{ fontFamily: "var(--font-display)", fontSize: "1.1rem", lineHeight: 1, color: "rgba(26,10,53,0.30)" }}>
@@ -115,25 +101,19 @@ function TallyTicket({ loaded, total }: { loaded: number; total: number }) {
           {total}
         </span>
       </div>
-      {/* Label */}
       <div style={{ fontSize: "0.70rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.55)", marginTop: 3 }}>
         {allLoaded ? "✓ all loaded" : "emails loaded"}
       </div>
-      {/* Progress bar */}
-      <div style={{
-        marginTop: 6,
-        height: 3,
-        borderRadius: 99,
-        background: "rgba(26,10,53,0.10)",
-        overflow: "hidden",
-      }}>
+      <div style={{ marginTop: 6, height: 3, borderRadius: 99, background: "rgba(26,10,53,0.10)", overflow: "hidden" }}>
         <div style={{
-          height: "100%",
-          width: `${pct}%`,
-          borderRadius: 99,
+          height: "100%", width: `${pct}%`, borderRadius: 99,
           background: allLoaded
             ? "linear-gradient(90deg, #00E5C4, #00C4A7)"
-            : "linear-gradient(90deg, #FF1F6E, #FF6B1A)",
+            : isZen
+              ? "linear-gradient(90deg, #C8960C, #B07B0A)"
+              : isBasicAF
+                ? "linear-gradient(90deg, #1A0A35, rgba(26,10,53,0.55))"
+                : "linear-gradient(90deg, #FF1F6E, #FF6B1A)",
           transition: "width 0.6s cubic-bezier(0.16,1,0.3,1)",
         }} />
       </div>
@@ -145,11 +125,9 @@ function TallyTicket({ loaded, total }: { loaded: number; total: number }) {
 
 function KarmaPill({
   emoji, label, xp, nextThreshold, toast, mode,
-  onToggleMode, currentMode,
 }: {
   emoji: string; label: string; xp: number; nextThreshold: number
   toast: string | null; mode: PartyMode
-  onToggleMode: () => void; currentMode: PartyMode
 }) {
   const prevThreshold = (() => {
     const thresholds = [0, 25, 75, 150, 300, 9999]
@@ -160,30 +138,46 @@ function KarmaPill({
     ? Math.min(100, ((xp - prevThreshold) / (nextThreshold - prevThreshold)) * 100)
     : 100
 
+  const isParty = mode === "party"
+  const isZen = mode === "zen"
+  const isBasicAF = mode === "wabi-sabi"
+  const xpColor = isParty ? "#FFD000" : isZen ? "#C8960C" : isBasicAF ? "#111" : "#FFD000"
+  const labelColor = isParty ? "#FF6B1A" : isZen ? "rgba(200,150,12,0.65)" : isBasicAF ? "rgba(17,17,17,0.55)" : "#FF6B1A"
+  const barFill = isParty
+    ? "linear-gradient(90deg, #FFD000, #FF6B1A)"
+    : isZen
+      ? "linear-gradient(90deg, #C8960C, #B07B0A)"
+      : isBasicAF
+        ? "linear-gradient(90deg, #111, rgba(17,17,17,0.50))"
+        : "linear-gradient(90deg, #FFD000, #FF6B1A)"
+  const pillBg = isParty
+    ? "linear-gradient(135deg, rgba(255,208,0,0.14), rgba(139,63,216,0.10))"
+    : isZen
+      ? "rgba(200,150,12,0.07)"
+      : isBasicAF
+        ? "transparent"
+        : "rgba(200,150,12,0.07)"
+  const pillBorder = isParty
+    ? "1px solid rgba(255,208,0,0.35)"
+    : isZen
+      ? "1px solid rgba(200,150,12,0.22)"
+      : isBasicAF
+        ? "1.5px solid rgba(17,17,17,0.22)"
+        : "1px solid rgba(255,208,0,0.35)"
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
-      {/* Karma pill */}
+    <div style={{ display: "flex", alignItems: "center", position: "relative" }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
         padding: "6px 14px", borderRadius: 999,
-        background: mode === "party"
-          ? "linear-gradient(135deg, rgba(255,208,0,0.14), rgba(139,63,216,0.10))"
-          : "rgba(26,10,53,0.05)",
-        border: mode === "party"
-          ? "1px solid rgba(255,208,0,0.35)"
-          : "1px solid rgba(26,10,53,0.12)",
-        position: "relative",
+        background: pillBg, border: pillBorder, position: "relative",
       }}>
-        <span style={{ fontSize: "1.3rem", lineHeight: 1, filter: mode === "party" ? "drop-shadow(0 0 5px rgba(255,208,0,0.5))" : "none" }}>
+        <span style={{ fontSize: "1.3rem", lineHeight: 1, filter: isParty ? "drop-shadow(0 0 5px rgba(255,208,0,0.5))" : "none" }}>
           {emoji}
         </span>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-            <span style={{
-              fontSize: "1.1rem", fontWeight: 800, lineHeight: 1,
-              color: mode === "party" ? "#FFD000" : "rgba(26,10,53,0.65)",
-              fontFamily: "var(--font-display)",
-            }}>
+            <span style={{ fontSize: "1.1rem", fontWeight: 800, lineHeight: 1, color: xpColor, fontFamily: "var(--font-display)" }}>
               {xp}
             </span>
             <span style={{ fontSize: "0.62rem", textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(26,10,53,0.40)" }}>
@@ -191,56 +185,23 @@ function KarmaPill({
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: "0.65rem", color: mode === "party" ? "#FF6B1A" : "rgba(26,10,53,0.40)", fontWeight: 700 }}>
-              {label}
-            </span>
+            <span style={{ fontSize: "0.65rem", color: labelColor, fontWeight: 700 }}>{label}</span>
             <div style={{ width: 44, height: 3, background: "rgba(26,10,53,0.10)", borderRadius: 99, overflow: "hidden" }}>
-              <div style={{
-                height: "100%", borderRadius: 99,
-                width: `${pct}%`,
-                background: mode === "party"
-                  ? "linear-gradient(90deg, #FFD000, #FF6B1A)"
-                  : "rgba(26,10,53,0.30)",
-                transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)",
-              }} />
+              <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: barFill, transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)" }} />
             </div>
           </div>
         </div>
-        {/* Karma toast */}
-        {toast && mode === "party" && (
+        {toast && isParty && (
           <div className="karma-toast-anim" style={{
-            position: "absolute", top: -26, left: "50%",
-            transform: "translateX(-50%)",
+            position: "absolute", top: -26, left: "50%", transform: "translateX(-50%)",
             background: "#FFD000", color: "#1A0A35",
-            fontSize: "0.75rem", fontWeight: 800,
-            padding: "2px 8px", borderRadius: 6,
+            fontSize: "0.75rem", fontWeight: 800, padding: "2px 8px", borderRadius: 6,
             whiteSpace: "nowrap", pointerEvents: "none",
           }}>
             {toast} Karma
           </div>
         )}
       </div>
-
-      {/* Mode toggle */}
-      <button
-        onClick={onToggleMode}
-        title={`Switch to ${currentMode === "zen" ? "Party" : "Zen"} mode`}
-        style={{
-          padding: "6px 14px", borderRadius: 999, cursor: "pointer",
-          border: currentMode === "zen"
-            ? "1px solid rgba(147,197,253,0.40)"
-            : "1px solid rgba(255,31,110,0.35)",
-          background: currentMode === "zen"
-            ? "rgba(147,197,253,0.10)"
-            : "rgba(255,31,110,0.08)",
-          color: currentMode === "zen" ? "rgba(147,197,253,0.90)" : "#FF1F6E",
-          fontSize: "0.80rem", fontWeight: 600, letterSpacing: "0.06em",
-          display: "flex", alignItems: "center", gap: 6,
-          transition: "all 0.2s",
-        }}
-      >
-        {currentMode === "zen" ? "🧘 Zen" : "🎉 Party"}
-      </button>
     </div>
   )
 }
@@ -278,6 +239,19 @@ export default function Dashboard() {
   const [confetti, setConfetti] = useState(false)
   const [todoLabelId, setTodoLabelId] = useState<string | null>(null)
   const prevEmailCount = useRef<number | null>(null)
+
+  // ── Priority category pin ─────────────────────────────────────────────────
+  const [priorityCategory, setPriorityCategory] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null
+    return localStorage.getItem("inbox-ai:priority-category")
+  })
+
+  function handleTogglePriority(categoryName: string) {
+    const next = priorityCategory === categoryName ? null : categoryName
+    setPriorityCategory(next)
+    if (next) localStorage.setItem("inbox-ai:priority-category", next)
+    else localStorage.removeItem("inbox-ai:priority-category")
+  }
 
   // ── Email Party state ─────────────────────────────────────────────────────
   const [mode, setMode] = useState<PartyMode>("party")
@@ -618,6 +592,7 @@ export default function Dashboard() {
         account: activeAccountConfig.email,
         customContext: activeAccount === "work" ? catSettings.workRules : catSettings.personalRules,
         systemContext: catSettings.systemContext || undefined,
+        aiPastEventDelete: catSettings.aiPastEventDelete !== false,
       }),
     })
     if (!catRes.ok) {
@@ -689,15 +664,11 @@ export default function Dashboard() {
       importBatchSize: fetchMeta.importBatchSize,
     })
 
-    const parcelEmails = categorized.filter(e => e.category === "Orders" || e.packageDelivered || /parcel|ship|deliver|tracking/i.test(e.subject + " " + e.microSummary))
-    console.log("[inbox-ai] parcel candidates:", parcelEmails.map(e => ({ from: e.from, subject: e.subject, microSummary: e.microSummary, packageDelivered: e.packageDelivered, orderSender: e.orderSender, actionFlag: e.actionFlag })))
-
-    const deliveredFromInbox = categorized.find(e => e.packageDelivered && e.orderSender)
-    if (deliveredFromInbox?.orderSender) {
-      const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
-      console.log("[inbox-ai] about to fetch cleanup, id:", deliveredFromInbox.id, "dismissed:", dismissed)
-      if (!dismissed.includes(deliveredFromInbox.id)) {
-        console.log("[inbox-ai] firing package-cleanup fetch")
+    // ── Delivery chain cleanup (AI action — off via settings) ─────────────────
+    const deliveryCleanupEnabled = loadSettings().aiDeliveryChainCleanup !== false
+    if (deliveryCleanupEnabled) {
+      const deliveredFromInbox = categorized.find(e => e.packageDelivered && e.orderSender)
+      if (deliveredFromInbox?.orderSender) {
         fetch("/api/ai/package-cleanup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -709,39 +680,36 @@ export default function Dashboard() {
         })
           .then(r => r.json())
           .then(data => {
-            console.log("[inbox-ai] package-cleanup response:", data)
             if (data.emails?.length > 0) {
               setPackageCleanup({ emails: data.emails, sender: deliveredFromInbox.orderSender! })
               setCleanupChecked(new Set(data.emails.map((e: { id: string }) => e.id)))
             }
           })
-          .catch(err => console.error("[inbox-ai] package-cleanup error:", err))
-        return
-      }
-    }
-
-    fetch(`/api/gmail/recent-deliveries?${gmailAccountQuery}`)
-      .then(r => r.json())
-      .then((deliveries: { id: string; subject: string; from: string; sender: string }[]) => {
-        if (!deliveries?.length) return
-        const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
-        const first = deliveries.find(d => !dismissed.includes(d.id))
-        if (!first) return
-        fetch("/api/ai/package-cleanup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deliveredEmailId: first.id, orderSender: first.sender, account: activeAccount }),
-        })
+          .catch(() => {})
+      } else {
+        fetch(`/api/gmail/recent-deliveries?${gmailAccountQuery}`)
           .then(r => r.json())
-          .then(data => {
-            if (data.emails?.length > 0) {
-              setPackageCleanup({ emails: data.emails, sender: first.sender })
-              setCleanupChecked(new Set(data.emails.map((e: { id: string }) => e.id)))
-            }
+          .then((deliveries: { id: string; subject: string; from: string; sender: string }[]) => {
+            if (!deliveries?.length) return
+            const first = deliveries[0]
+            if (!first) return
+            fetch("/api/ai/package-cleanup", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ deliveredEmailId: first.id, orderSender: first.sender, account: activeAccount }),
+            })
+              .then(r => r.json())
+              .then(data => {
+                if (data.emails?.length > 0) {
+                  setPackageCleanup({ emails: data.emails, sender: first.sender })
+                  setCleanupChecked(new Set(data.emails.map((e: { id: string }) => e.id)))
+                }
+              })
+              .catch(() => {})
           })
           .catch(() => {})
-      })
-      .catch(() => {})
+      }
+    }
   }, [activeAccount, activeAccountConfig.email, gmailAccountQuery])
 
   const writeInboxCache = useCallback((next: Email[], cats: Category[], opt?: { totalUnreadEstimate?: number }) => {
@@ -787,12 +755,7 @@ export default function Dashboard() {
 
   // ── Email actions ────────────────────────────────────────────────────────────
 
-  async function handleArchive(email: Email) {
-    await fetch("/api/gmail/archive", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId: email.id, account: activeAccount }),
-    })
+  function handleArchive(email: Email) {
     recordAction("archive")
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
@@ -804,14 +767,14 @@ export default function Dashboard() {
       return next
     })
     setSelectedEmail(null)
-  }
-
-  async function handleMarkRead(email: Email) {
-    await fetch("/api/gmail/read", {
+    fetch("/api/gmail/archive", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: email.id, account: activeAccount }),
-    })
+    }).catch(() => {})
+  }
+
+  function handleMarkRead(email: Email) {
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
       const sess = sessionCache.current.get(activeAccountConfig.email)
@@ -822,6 +785,11 @@ export default function Dashboard() {
       return next
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
+    fetch("/api/gmail/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: email.id, account: activeAccount }),
+    }).catch(() => {})
   }
 
   async function handleSaveDraft(email: Email, body: string, attachments: Attachment[], forwardTo?: string) {
@@ -845,7 +813,7 @@ export default function Dashboard() {
     recordAction("saveDraft", { emailId: email.id, subject: email.subject, mode: isForward ? "forward" : "reply" })
   }
 
-  async function handleSendMessage(email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) {
+  function handleSendMessage(email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) {
     const to = mode === "forward" ? forwardTo?.trim() ?? "" : email.fromEmail
     if (mode === "forward" && !to) throw new Error("Forward recipient is required")
     if (!to) throw new Error("Recipient email address is missing")
@@ -853,7 +821,16 @@ export default function Dashboard() {
     const subject = mode === "forward"
       ? (email.subject.toLowerCase().startsWith("fwd:") ? email.subject : `Fwd: ${email.subject}`)
       : email.subject
-    const res = await fetch("/api/gmail/send", {
+
+    setEmails(prev => prev.map(e =>
+      e.id === email.id
+        ? { ...e, replied: mode === "reply" ? true : e.replied, forwarded: mode === "forward" ? true : e.forwarded }
+        : e
+    ))
+    recordAction(mode === "forward" ? "forwardSent" : "replySent", { emailId: email.id, subject: email.subject, mode })
+    handleMarkRead(email)
+
+    fetch("/api/gmail/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -866,32 +843,10 @@ export default function Dashboard() {
         account: activeAccount,
         attachments: attachments.length > 0 ? attachments : undefined,
       }),
-    })
-
-    if (!res.ok) {
-      try {
-        const error = await res.json()
-        throw new Error(error.error || `Failed to send: ${res.status}`)
-      } catch {
-        throw new Error(`Failed to send: ${res.status}`)
-      }
-    }
-
-    setEmails(prev => prev.map(e =>
-      e.id === email.id
-        ? { ...e, replied: mode === "reply" ? true : e.replied, forwarded: mode === "forward" ? true : e.forwarded }
-        : e
-    ))
-    recordAction(mode === "forward" ? "forwardSent" : "replySent", { emailId: email.id, subject: email.subject, mode })
-    await handleMarkRead(email)
+    }).catch(() => {})
   }
 
-  async function handleStar(email: Email) {
-    await fetch("/api/gmail/star", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId: email.id, account: activeAccount }),
-    })
+  function handleStar(email: Email) {
     recordAction("star")
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
@@ -899,14 +854,14 @@ export default function Dashboard() {
       return next
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
-  }
-
-  async function handleDelete(email: Email) {
-    await fetch("/api/gmail/delete", {
+    fetch("/api/gmail/star", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: email.id, account: activeAccount }),
-    })
+    }).catch(() => {})
+  }
+
+  function handleDelete(email: Email) {
     recordAction("delete")
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
@@ -918,6 +873,11 @@ export default function Dashboard() {
       return next
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
+    fetch("/api/gmail/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: email.id, account: activeAccount }),
+    }).catch(() => {})
   }
 
   function handleToggleTodo(email: Email) {
@@ -1021,12 +981,17 @@ export default function Dashboard() {
       const res = await fetch("/api/ai/roast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emails: payload }),
+        body: JSON.stringify({ emails: payload, mode }),
       })
       const data = await res.json()
       setRoast(data.roast ?? null)
     } catch {
-      setRoast("Claude took one look at your inbox and had nothing to say.")
+      const fallbacks: Record<PartyMode, string> = {
+        party: "Claude took one look at your inbox and had nothing to say.",
+        zen: "The inbox, like the mind, resists summary.",
+        "wabi-sabi": "Roast failed. Your inbox remains.",
+      }
+      setRoast(fallbacks[mode])
     } finally {
       setRoasting(false)
     }
@@ -1035,9 +1000,11 @@ export default function Dashboard() {
   const isLoading = appState === "fetching" || appState === "categorizing" || appState === "proposing"
 
   function handleToggleMode() {
-    const next: PartyMode = mode === "zen" ? "party" : "zen"
+    const cycle: PartyMode[] = ["zen", "party", "wabi-sabi"]
+    const next = cycle[(cycle.indexOf(mode) + 1) % cycle.length]
     setPartyMode(next)
     setMode(next)
+    setRoast(null)
   }
 
   async function handleMindfulPurge() {
@@ -1084,63 +1051,160 @@ export default function Dashboard() {
     )
   }
 
+  // ── Theme accent — use everywhere instead of hardcoded #FF1F6E ──────────────
+  const themeAccent = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111111" : "#FF1F6E"
+
   // ── FESTIVAL RENDER ──────────────────────────────────────────────────────────
 
+  const pageBg = mode === "zen"
+    ? "#FAF6EE"
+    : mode === "wabi-sabi"
+      ? "#FFFFFF"
+      : "#EEE4FF"
+
+  const ambientGlow = mode === "zen"
+    ? `radial-gradient(ellipse 90% 55% at 8% 0%, rgba(200,150,12,0.06) 0%, transparent 55%),
+       radial-gradient(ellipse 70% 50% at 92% 100%, rgba(0,200,160,0.04) 0%, transparent 55%),
+       radial-gradient(ellipse 50% 40% at 55% 55%, rgba(200,150,12,0.02) 0%, transparent 60%)`
+    : mode === "wabi-sabi"
+      ? `radial-gradient(ellipse 90% 55% at 8% 0%, rgba(26,10,53,0.03) 0%, transparent 55%),
+         radial-gradient(ellipse 70% 50% at 92% 100%, rgba(26,10,53,0.02) 0%, transparent 55%),
+         radial-gradient(ellipse 50% 40% at 55% 55%, rgba(26,10,53,0.01) 0%, transparent 60%)`
+      : `radial-gradient(ellipse 90% 55% at 8% 0%, rgba(255,31,110,0.07) 0%, transparent 55%),
+         radial-gradient(ellipse 70% 50% at 92% 100%, rgba(0,229,196,0.05) 0%, transparent 55%),
+         radial-gradient(ellipse 50% 40% at 55% 55%, rgba(255,208,0,0.03) 0%, transparent 60%)`
+
   return (
-    <div className={`relative min-h-screen mode-${mode}`} style={{ background: "#EEE4FF", color: "#1A0A35" }}>
+    <div className={`relative min-h-screen mode-${mode}`} style={{ background: pageBg, color: "#1A0A35" }}>
 
       {/* Ambient background glows */}
       <div
         className="pointer-events-none fixed inset-0"
-        style={{
-          background: `
-            radial-gradient(ellipse 90% 55% at 8% 0%,   rgba(255,31,110,0.07)  0%, transparent 55%),
-            radial-gradient(ellipse 70% 50% at 92% 100%, rgba(0,229,196,0.05)   0%, transparent 55%),
-            radial-gradient(ellipse 50% 40% at 55% 55%, rgba(255,208,0,0.03)   0%, transparent 60%)
-          `,
-        }}
+        style={{ background: ambientGlow }}
       />
 
       <div className="relative z-10 flex flex-col">
 
         {/* ══════════════════ HEADER ══════════════════════════════════════════ */}
         <header style={{ padding: "24px 28px 20px", borderBottom: "1px solid rgba(26,10,53,0.08)" }}>
+
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
 
             {/* Left: Logo + stats */}
             <div className="flex flex-col gap-5">
 
-              {/* Logo row */}
-              <div className="flex items-center gap-4">
-                <div style={{
-                  width: 52, height: 52, flexShrink: 0,
-                  borderRadius: 14,
-                  background: "linear-gradient(135deg, #FF1F6E 0%, #FF6B1A 100%)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 26,
-                  boxShadow: "0 8px 32px rgba(255,31,110,0.38)",
-                }}>
-                  ✉️
+              {/* Logo row + mode selector */}
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-4">
+                  <div style={{
+                    width: 52, height: 52, flexShrink: 0,
+                    borderRadius: 14,
+                    background: mode === "zen"
+                      ? "linear-gradient(135deg, #C8960C 0%, #B07B0A 100%)"
+                      : mode === "wabi-sabi"
+                        ? "transparent"
+                        : "linear-gradient(135deg, #FF1F6E 0%, #FF6B1A 100%)",
+                    border: mode === "wabi-sabi" ? "2px solid #111" : "none",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 26,
+                    boxShadow: mode === "zen"
+                      ? "0 8px 32px rgba(200,150,12,0.30)"
+                      : mode === "wabi-sabi"
+                        ? "none"
+                        : "0 8px 32px rgba(255,31,110,0.38)",
+                    transition: "all 0.3s ease",
+                  }}>
+                    ✉️
+                  </div>
+                  <div>
+                    <h1 style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: "clamp(2rem, 5vw, 3.2rem)",
+                      lineHeight: 1,
+                      color: mode === "zen" ? "#3D2800" : "#1A0A35",
+                      margin: 0,
+                      transition: "color 0.3s ease",
+                    }}>
+                      EMAIL PARTY
+                    </h1>
+                    <p style={{
+                      fontSize: "0.78rem",
+                      letterSpacing: "0.18em",
+                      textTransform: "uppercase",
+                      color: mode === "zen" ? "rgba(61,40,0,0.40)" : "rgba(26,10,53,0.35)",
+                      margin: "5px 0 0",
+                      transition: "color 0.3s ease",
+                    }}>
+                      {mode === "zen" ? "Your Mindful Inbox" : mode === "wabi-sabi" ? "ur inbox bestie ✨" : "Your AI-Powered Inbox"}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h1 style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: "clamp(2rem, 5vw, 3.2rem)",
-                    lineHeight: 1,
-                    color: "#1A0A35",
-                    margin: 0,
-                  }}>
-                    INBOX AI
-                  </h1>
-                  <p style={{
-                    fontSize: "0.78rem",
-                    letterSpacing: "0.18em",
-                    textTransform: "uppercase",
-                    color: "rgba(26,10,53,0.35)",
-                    margin: "5px 0 0",
-                  }}>
-                    Your AI-Powered Mail Fiesta
-                  </p>
+
+                {/* ── 3-way mode selector + Settings + Sign out ── */}
+                <div className="flex items-center gap-2">
+                  {([
+                    { id: "party",     emoji: "🎉", label: "Party",    activeBg: "#FF1F6E", activeText: "#1A0A35", accentHex: "#FF1F6E" },
+                    { id: "wabi-sabi", emoji: "☕", label: "Basic AF", activeBg: "transparent", activeText: "#111", accentHex: "#111" },
+                    { id: "zen",       emoji: "🧘", label: "Zen",      activeBg: "#C8960C", activeText: "#3D2800", accentHex: "#C8960C" },
+                  ] as { id: PartyMode; emoji: string; label: string; activeBg: string; activeText: string; accentHex: string }[]).map(m => {
+                    const isActive = mode === m.id
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => { setPartyMode(m.id); setMode(m.id); setRoast(null) }}
+                        style={{
+                          padding: "7px 16px", borderRadius: 999, cursor: "pointer",
+                          border: isActive
+                            ? (m.id === "party" ? `1.5px solid ${m.activeBg}` : `1.5px solid ${m.accentHex}55`)
+                            : `1px solid ${m.accentHex}44`,
+                          background: isActive
+                            ? (m.id === "party" ? m.activeBg : "#FFFFFF")
+                            : "transparent",
+                          color: isActive ? m.accentHex : m.accentHex,
+                          fontSize: "0.82rem", fontWeight: isActive ? 700 : 500,
+                          letterSpacing: "0.04em",
+                          display: "flex", alignItems: "center", gap: 5,
+                          transition: "all 0.18s ease",
+                          opacity: isActive ? 1 : 0.6,
+                          boxShadow: isActive
+                            ? (m.id === "party" ? `0 2px 12px ${m.activeBg}33` : "0 1px 4px rgba(0,0,0,0.08)")
+                            : "none",
+                        }}
+                      >
+                        {m.emoji} {m.label}
+                      </button>
+                    )
+                  })}
+                  <div style={{ width: 1, height: 20, background: "rgba(26,10,53,0.12)", margin: "0 2px" }} />
+                  <button
+                    type="button"
+                    onClick={() => setInstructionsOpen(true)}
+                    title="Settings & AI Instructions"
+                    style={{
+                      width: 34, height: 34, borderRadius: 9,
+                      border: mode === "zen" ? "1px solid rgba(200,150,12,0.28)" : mode === "wabi-sabi" ? "1.5px solid rgba(26,10,53,0.18)" : "1px solid rgba(139,63,216,0.30)",
+                      background: mode === "zen" ? "rgba(200,150,12,0.06)" : mode === "wabi-sabi" ? "#FFFFFF" : "rgba(139,63,216,0.08)",
+                      color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#8B3FD8",
+                      fontSize: "1rem", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    ⚙️
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => signOut({ redirectTo: "/" })}
+                    style={{
+                      padding: "7px 14px", borderRadius: 999, cursor: "pointer",
+                      border: mode === "zen" ? "1px solid rgba(200,150,12,0.28)" : mode === "wabi-sabi" ? "1.5px solid rgba(26,10,53,0.18)" : "1px solid rgba(139,63,216,0.30)",
+                      background: "transparent",
+                      color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#8B3FD8",
+                      fontSize: "0.82rem", fontWeight: 500,
+                      opacity: 0.7,
+                    }}
+                  >
+                    Sign out
+                  </button>
                 </div>
               </div>
 
@@ -1150,11 +1214,11 @@ export default function Dashboard() {
 
                   {/* Ticket stats */}
                   <div className="flex flex-wrap items-stretch gap-2">
-                    <TallyTicket loaded={emails.length} total={totalUnreadInbox} />
+                    <TallyTicket loaded={emails.length} total={totalUnreadInbox} mode={mode} />
                     <div className="flex items-stretch gap-1">
-                      <MiniStat value={urgentCount} label="urgent" color="#FF1F6E" />
-                      <MiniStat value={todayCount}  label="today"  color="#FFD000" />
-                      <MiniStat value={fyiCount}    label="fyi"    color="#00E5C4" />
+                      <MiniStat value={urgentCount} label="urgent" color={mode === "party" ? "#FF1F6E" : themeAccent} mode={mode} />
+                      <MiniStat value={todayCount}  label="today"  color={mode === "party" ? "#FFD000" : themeAccent} mode={mode} />
+                      <MiniStat value={fyiCount}    label="fyi"    color={mode === "party" ? "#00E5C4" : themeAccent} mode={mode} />
                     </div>
                     <div className="flex items-center">
                       <AccountToggle
@@ -1168,7 +1232,8 @@ export default function Dashboard() {
                   {/* Controls row */}
                   {!workNeedsLink && (
                     <div className="flex items-center gap-3 flex-wrap">
-                      {/* Batch size picker */}
+                      {/* Batch size picker + Refresh */}
+                      <div className="flex items-end gap-2">
                       <div className="flex flex-col gap-0.5">
                         <span style={{ fontSize: "0.70rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.56)" }}>
                           Per refresh
@@ -1182,11 +1247,13 @@ export default function Dashboard() {
                               onClick={() => updateImportBatchSize(n)}
                               className="min-w-9 px-2 py-1 rounded-full transition-colors disabled:opacity-40"
                               style={{
-                                background: importBatchSize === n ? "#FF1F6E" : "transparent",
-                                color: importBatchSize === n ? "#1A0A35" : "rgba(26,10,53,0.42)",
+                                background: mode === "wabi-sabi" ? "transparent" : (importBatchSize === n ? themeAccent : "transparent"),
+                                color: mode === "wabi-sabi"
+                                  ? (importBatchSize === n ? "#111" : "rgba(17,17,17,0.38)")
+                                  : (importBatchSize === n ? (mode === "zen" ? "#3D2800" : "#1A0A35") : "rgba(26,10,53,0.42)"),
                                 fontSize: "0.84rem",
-                                fontWeight: 600,
-                                border: "none",
+                                fontWeight: mode === "wabi-sabi" && importBatchSize === n ? 800 : 600,
+                                border: mode === "wabi-sabi" && importBatchSize === n ? "1.5px solid #111" : "none",
                                 cursor: "pointer",
                               }}
                             >
@@ -1195,31 +1262,73 @@ export default function Dashboard() {
                           ))}
                         </div>
                       </div>
-
-                      {/* Roast button */}
                       <button
-                        onClick={handleRoast}
-                        disabled={roasting || emails.length === 0}
+                        onClick={loadInbox}
+                        disabled={isLoading || workNeedsLink}
                         style={{
-                          display: "inline-flex", alignItems: "center", gap: 6,
-                          padding: "6px 14px", borderRadius: 999,
-                          border: "1px solid rgba(255,107,26,0.40)",
-                          background: "rgba(255,107,26,0.09)",
-                          color: "#FF6B1A",
-                          fontSize: "0.84rem", fontWeight: 600,
-                          cursor: "pointer",
-                          opacity: roasting || emails.length === 0 ? 0.4 : 1,
+                          padding: "6px 18px", borderRadius: 999,
+                          background: isLoading
+                            ? (mode === "zen" ? "rgba(200,150,12,0.30)" : "rgba(255,31,110,0.3)")
+                            : (mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "transparent" : "#FF1F6E"),
+                          color: mode === "zen" ? "#FFF8E0" : mode === "wabi-sabi" ? "#111" : "#1A0A35",
+                          fontSize: "0.82rem", fontWeight: mode === "wabi-sabi" ? 800 : 700,
+                          letterSpacing: "0.07em", textTransform: "uppercase",
+                          cursor: isLoading ? "not-allowed" : "pointer",
+                          border: mode === "wabi-sabi" ? "1.5px solid rgba(17,17,17,0.25)" : "none",
+                          fontFamily: "var(--font-body)",
+                          boxShadow: isLoading ? "none"
+                            : mode === "zen" ? "0 4px 20px rgba(200,150,12,0.30)"
+                            : mode === "wabi-sabi" ? "none"
+                            : "0 4px 20px rgba(255,31,110,0.45)",
+                          transition: "all 0.15s ease",
                         }}
                       >
-                        {roasting ? "Roasting…" : "🔥 Roast my inbox"}
+                        {appState === "fetching" ? "Fetching…"
+                          : appState === "proposing" ? "Analyzing…"
+                          : appState === "categorizing" ? "Sorting…"
+                          : "Refresh"}
                       </button>
+                      </div>
+
+                      {/* Roast button — theme-aware */}
+                      {(() => {
+                        const roastConfig = mode === "zen"
+                          ? { border: "1px solid rgba(200,150,12,0.35)", bg: "rgba(200,150,12,0.07)", color: "#C8960C", idle: "🪷 Read my inbox", busy: "Reading…" }
+                          : mode === "wabi-sabi"
+                            ? { border: "1px solid rgba(26,10,53,0.22)", bg: "rgba(26,10,53,0.05)", color: "#1A0A35", idle: "☕ Spill the tea", busy: "Spilling…" }
+                            : { border: "1px solid rgba(255,107,26,0.40)", bg: "rgba(255,107,26,0.09)", color: "#FF6B1A", idle: "🔥 Roast my inbox", busy: "Roasting…" }
+                        return (
+                          <button
+                            onClick={handleRoast}
+                            disabled={roasting || emails.length === 0}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              padding: "6px 14px", borderRadius: 999,
+                              border: roastConfig.border,
+                              background: roastConfig.bg,
+                              color: roastConfig.color,
+                              fontSize: "0.84rem", fontWeight: 600,
+                              cursor: "pointer",
+                              opacity: roasting || emails.length === 0 ? 0.4 : 1,
+                            }}
+                          >
+                            {roasting ? roastConfig.busy : roastConfig.idle}
+                          </button>
+                        )
+                      })()}
                     </div>
                   )}
 
-                  {/* Roast text */}
+                  {/* Roast text — theme-aware */}
                   {roast && (
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, maxWidth: 500 }}>
-                      <span style={{ fontSize: "0.85rem", fontStyle: "italic", color: "#FF6B1A", flex: 1 }}>
+                      <span style={{
+                        fontSize: "0.85rem",
+                        fontStyle: "italic",
+                        color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#FF6B1A",
+                        flex: 1,
+                        letterSpacing: mode === "wabi-sabi" ? "0.02em" : undefined,
+                      }}>
                         &ldquo;{roast}&rdquo;
                       </span>
                       <button
@@ -1253,8 +1362,6 @@ export default function Dashboard() {
                 nextThreshold={karmaNextThreshold}
                 toast={karmaToast}
                 mode={mode}
-                onToggleMode={handleToggleMode}
-                currentMode={mode}
               />
               <div className="flex items-center gap-2 flex-wrap">
                 {workNeedsLink && activeAccountConfig.email && (
@@ -1281,58 +1388,55 @@ export default function Dashboard() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setInstructionsOpen(true)}
-                  title="Settings & AI Instructions"
-                  style={{
-                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-                    border: "1px solid rgba(139,63,216,0.30)",
-                    background: "rgba(139,63,216,0.08)",
-                    color: "#8B3FD8", fontSize: "1.1rem",
-                    cursor: "pointer", display: "flex",
-                    alignItems: "center", justifyContent: "center",
-                  }}
-                >
-                  ⚙️
-                </button>
-                <button
-                  type="button"
                   onClick={() => setComposeOpen(true)}
                   disabled={workNeedsLink}
                   style={{
                     padding: "9px 20px", borderRadius: 999,
-                    border: "1px solid rgba(0,229,196,0.40)",
-                    background: "rgba(0,229,196,0.08)",
-                    color: "#00E5C4",
+                    border: mode === "zen"
+                      ? "1px solid rgba(200,150,12,0.35)"
+                      : mode === "wabi-sabi"
+                        ? "1.5px solid rgba(26,10,53,0.18)"
+                        : "1px solid rgba(0,229,196,0.40)",
+                    background: mode === "wabi-sabi" ? "transparent" : mode === "zen" ? "rgba(200,150,12,0.07)" : "rgba(0,229,196,0.08)",
+                    color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111" : "#00E5C4",
                     fontSize: "0.8rem", fontWeight: 600,
                     cursor: "pointer",
                     opacity: workNeedsLink ? 0.4 : 1,
+                    boxShadow: "none",
                   }}
                 >
                   Compose
                 </button>
-                <button
-                  onClick={loadInbox}
-                  disabled={isLoading || workNeedsLink}
-                  style={{
-                    padding: "9px 24px", borderRadius: 999,
-                    background: isLoading || workNeedsLink ? "rgba(255,31,110,0.3)" : "#FF1F6E",
-                    color: "#1A0A35",
-                    fontSize: "0.82rem", fontWeight: 700,
-                    letterSpacing: "0.07em",
-                    textTransform: "uppercase",
-                    cursor: isLoading || workNeedsLink ? "not-allowed" : "pointer",
-                    border: "none",
-                    fontFamily: "var(--font-body)",
-                    boxShadow: isLoading || workNeedsLink ? "none" : "0 4px 20px rgba(255,31,110,0.45)",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {appState === "fetching"     ? "Fetching…"
-                    : appState === "proposing"   ? "Analyzing…"
-                    : appState === "categorizing"? "Sorting…"
-                    : appState === "ready"       ? "Refresh"
-                    : "Load Inbox"}
-                </button>
+                {appState !== "ready" && (
+                  <button
+                    onClick={loadInbox}
+                    disabled={isLoading || workNeedsLink}
+                    style={{
+                      padding: "9px 24px", borderRadius: 999,
+                      background: mode === "wabi-sabi"
+                        ? "transparent"
+                        : isLoading || workNeedsLink
+                          ? (mode === "zen" ? "rgba(200,150,12,0.30)" : "rgba(255,31,110,0.3)")
+                          : (mode === "zen" ? "#C8960C" : "#FF1F6E"),
+                      color: mode === "zen" ? "#FFF8E0" : mode === "wabi-sabi" ? "#111" : "#1A0A35",
+                      fontSize: "0.82rem", fontWeight: mode === "wabi-sabi" ? 800 : 700,
+                      letterSpacing: "0.07em", textTransform: "uppercase",
+                      cursor: isLoading || workNeedsLink ? "not-allowed" : "pointer",
+                      border: mode === "wabi-sabi" ? "1.5px solid rgba(17,17,17,0.25)" : "none",
+                      fontFamily: "var(--font-body)",
+                      boxShadow: isLoading || workNeedsLink ? "none"
+                        : mode === "zen" ? "0 4px 20px rgba(200,150,12,0.30)"
+                        : mode === "wabi-sabi" ? "none"
+                        : "0 4px 20px rgba(255,31,110,0.45)",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    {appState === "fetching" ? "Fetching…"
+                      : appState === "proposing" ? "Analyzing…"
+                      : appState === "categorizing" ? "Sorting…"
+                      : "Load Inbox"}
+                  </button>
+                )}
               </div>
 
               {/* TODO widget */}
@@ -1340,21 +1444,25 @@ export default function Dashboard() {
                 <div
                   className="sticky top-4 self-start overflow-hidden"
                   style={{
-                    background: "#FFFFFF",
+                    background: mode === "zen" ? "#FFFEF9" : "#FFFFFF",
                     border: "1px solid rgba(255,208,0,0.28)",
                     borderRadius: 14,
-                    boxShadow: "0 4px 24px rgba(255,208,0,0.08)",
+                    boxShadow: mode === "wabi-sabi" ? "none" : "0 4px 24px rgba(255,208,0,0.08)",
                     minWidth: 220, maxWidth: 290,
                   }}
                 >
                   <div
                     className="flex items-center justify-between px-4 py-2.5"
-                    style={{ background: "rgba(255,208,0,0.08)", borderBottom: "1px solid rgba(255,208,0,0.12)" }}
+                    style={{
+                      background: "rgba(255,208,0,0.08)",
+                      borderBottom: "1px solid rgba(255,208,0,0.12)",
+                    }}
                   >
                     <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>★ TODO</span>
                     <span style={{
                       fontSize: "0.82rem", fontWeight: 700,
                       background: "rgba(255,208,0,0.18)",
+                      border: "none",
                       color: "#FFD000",
                       borderRadius: 99, padding: "1px 8px",
                     }}>
@@ -1369,10 +1477,11 @@ export default function Dashboard() {
                         selected={email.id === selectedEmail?.id}
                         isSelected={false}
                         selectionMode={false}
+                        mode={mode}
                         onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
                         onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                        onMarkRead={() => { void handleMarkRead(email) }}
-                        onDelete={() => { void handleDelete(email) }}
+                        onMarkRead={() => handleMarkRead(email)}
+                        onDelete={() => handleDelete(email)}
                         onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
                         onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
                         onToggleTodo={() => handleToggleTodo(email)}
@@ -1387,7 +1496,7 @@ export default function Dashboard() {
         </header>
 
         {/* ══════════════════ MORNING DASHBOARD ══════════════════════════════ */}
-        <DashboardPanel emails={emails} />
+        <DashboardPanel emails={emails} mode={mode} />
 
         {/* ══════════════════ LEGEND BAR ══════════════════════════════════════ */}
         <div
@@ -1403,7 +1512,12 @@ export default function Dashboard() {
             { color: "#00E5C4", label: "fyi" },
           ].map(({ color, label }) => (
             <span key={label} className="inline-flex items-center gap-1.5">
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+              {mode === "wabi-sabi"
+                ? <span style={{ width: 7, height: 7, borderRadius: "50%", border: `1.5px solid ${color}`, display: "inline-block", flexShrink: 0 }} />
+                : mode === "zen"
+                  ? <span style={{ width: 7, height: 7, borderRadius: "50%", background: `${color}55`, border: `1px solid ${color}88`, display: "inline-block", flexShrink: 0 }} />
+                  : <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+              }
               <span style={{ fontSize: "0.85rem", color: "rgba(26,10,53,0.60)" }}>{label}</span>
             </span>
           ))}
@@ -1419,7 +1533,7 @@ export default function Dashboard() {
                 <div className="text-center">
                   <p style={{ fontSize: "4rem", marginBottom: 14 }}>📬</p>
                   <p style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", color: "rgba(26,10,53,0.45)", margin: "0 0 10px" }}>
-                    Ready for the fiesta?
+                    {mode === "zen" ? "Ready when you are." : mode === "wabi-sabi" ? "ok bestie let's get into it 💅" : "Ready to sort?"}
                   </p>
                   <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.60)", margin: 0 }}>
                     Hit &ldquo;Load Inbox&rdquo; to fetch and sort your emails.
@@ -1434,15 +1548,19 @@ export default function Dashboard() {
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
                   <div className="fiesta-spinner" />
                   <div style={{ textAlign: "center" }}>
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", color: "#FF1F6E", margin: "0 0 6px", letterSpacing: "0.04em" }}>
-                      {appState === "fetching"      ? "FETCHING YOUR MAIL"
-                        : appState === "proposing"  ? "ANALYZING PATTERNS"
-                        : "SORTING THE FIESTA"}
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", color: themeAccent, margin: "0 0 6px", letterSpacing: "0.04em" }}>
+                      {appState === "fetching"
+                        ? mode === "zen" ? "Receiving your letters…" : mode === "wabi-sabi" ? "OMFG LOADING ✨" : "FETCHING YOUR MAIL"
+                        : appState === "proposing"
+                          ? mode === "zen" ? "Reading the patterns…" : mode === "wabi-sabi" ? "FIGURING IT OUT 💅" : "ANALYZING PATTERNS"
+                          : mode === "zen" ? "Arranging with care…" : mode === "wabi-sabi" ? "ORGANIZING YOUR LIFE ☕" : "SORTING YOUR MAIL"}
                     </p>
                     <p style={{ fontSize: "0.84rem", color: "rgba(26,10,53,0.56)", margin: 0 }}>
-                      {appState === "fetching"      ? "Checking your inbox…"
-                        : appState === "proposing"  ? "Analyzing your email patterns…"
-                        : "Claude is categorizing your emails…"}
+                      {appState === "fetching"
+                        ? mode === "zen" ? "Gathering your inbox with care." : mode === "wabi-sabi" ? "hang on bestie, getting your emails rn…" : "Checking your inbox…"
+                        : appState === "proposing"
+                          ? mode === "zen" ? "Observing the shape of your correspondence." : mode === "wabi-sabi" ? "literally analyzing your vibe rn, so exciting…" : "Analyzing your email patterns…"
+                          : mode === "zen" ? "Placing each email where it belongs." : mode === "wabi-sabi" ? "Claude is sorting your whole life, you're doing amazing sweetie…" : "Claude is categorizing your emails…"}
                     </p>
                   </div>
                 </div>
@@ -1453,13 +1571,13 @@ export default function Dashboard() {
             {appState === "error" && (
               <div className="h-64 flex items-center justify-center">
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
-                  <p style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", color: "#FF1F6E", margin: 0 }}>
-                    ¡Ay, Caramba!
+                  <p style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", color: themeAccent, margin: 0 }}>
+                    {mode === "wabi-sabi" ? "ok something broke bestie 😬" : "Something went wrong"}
                   </p>
                   <p style={{ fontSize: "0.82rem", color: "rgba(26,10,53,0.48)", margin: 0, maxWidth: 420 }}>{errorMsg}</p>
                   <button
                     onClick={loadInbox}
-                    style={{ color: "#FF1F6E", fontSize: "0.8rem", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginTop: 4 }}
+                    style={{ color: themeAccent, fontSize: "0.8rem", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginTop: 4 }}
                   >
                     Try again
                   </button>
@@ -1524,12 +1642,6 @@ export default function Dashboard() {
                   </button>
                   <button
                     onClick={() => {
-                      const dismissed: string[] = JSON.parse(localStorage.getItem("inbox-ai:dismissed-cleanups") ?? "[]")
-                      const deliveredEmail = emails.find(e => e.packageDelivered && e.orderSender === packageCleanup.sender)
-                      if (deliveredEmail) {
-                        localStorage.setItem("inbox-ai:dismissed-cleanups", JSON.stringify([...dismissed, deliveredEmail.id]))
-                        recordAction("cleanupDismiss", { emailId: deliveredEmail.id, subject: deliveredEmail.subject })
-                      }
                       setPackageCleanup(null)
                       setCleanupExpanded(false)
                     }}
@@ -1638,7 +1750,9 @@ export default function Dashboard() {
 
             {/* ── Daily Briefing ── */}
             {appState === "ready" && briefingEmails.length > 0 && (
+              <div className="mb-6">
               <BriefingSection
+                mode={mode}
                 emails={briefingEmails}
                 categories={categories}
                 selectedEmail={selectedEmail}
@@ -1662,6 +1776,7 @@ export default function Dashboard() {
                 onSnooze={email => setSnoozeTarget(email)}
                 gmailAccount={activeAccount}
               />
+              </div>
             )}
 
             {/* ── Mindful Purge boulder ── */}
@@ -1715,48 +1830,73 @@ export default function Dashboard() {
             )}
 
             {/* ── Category grid ── */}
-            {appState === "ready" && categories.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {[
-                  ...categories,
-                  ...(deletableEmails.length > 0 ? [DELETE_CATEGORY] : []),
-                ].map(cat => (
-                  <CategoryBlock
-                    key={cat.id}
-                    category={cat}
-                    categories={categories}
-                    mode={mode}
-                    emails={cat.id === "__delete__"
-                      ? deletableEmails
-                      : emails.filter(e => e.category === cat.name)}
-                    selectedEmail={
-                      cat.id === "__delete__"
-                        ? (selectedEmail?.deletable ? selectedEmail : null)
-                        : (selectedEmail?.category === cat.name ? selectedEmail : null)
-                    }
-                    onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
-                    onExpand={(email, composeMode) => {
-                      setExpandedEmail(email)
-                      setExpandedComposeMode(composeMode ?? null)
-                    }}
-                    onClose={() => setSelectedEmail(null)}
-                    onMarkRead={handleMarkRead}
-                    onArchive={handleArchive}
-                    onSaveDraft={handleSaveDraft}
-                    onSend={handleSendMessage}
-                    onStar={handleStar}
-                    onDelete={handleDelete}
-                    onRecategorize={handleRecategorize}
-                    onMarkReplied={handleMarkReplied}
-                    onMarkDeletable={handleMarkDeletable}
-                    onNewCategory={handleNewCategory}
-                    onToggleTodo={handleToggleTodo}
-                    onSnooze={email => setSnoozeTarget(email)}
-                    gmailAccount={activeAccount}
-                  />
-                ))}
-              </div>
-            )}
+            {appState === "ready" && categories.length > 0 && (() => {
+              // Sort: priority at index 1, non-empty first, empty to bottom
+              const emailCount = (cat: Category) => emails.filter(e => e.category === cat.name).length
+              const priorityCat = categories.find(c => c.name === priorityCategory)
+              const nonPriority = categories.filter(c => c.name !== priorityCategory)
+              const withEmails = nonPriority.filter(c => emailCount(c) > 0)
+              const withoutEmails = nonPriority.filter(c => emailCount(c) === 0)
+
+              let sorted: Category[]
+              if (!priorityCat) {
+                sorted = [...withEmails, ...withoutEmails]
+              } else if (withEmails.length >= 1) {
+                sorted = [withEmails[0], priorityCat, ...withEmails.slice(1), ...withoutEmails]
+              } else {
+                sorted = [priorityCat, ...withoutEmails]
+              }
+
+              const allCats: Category[] = [
+                ...sorted,
+                ...(deletableEmails.length > 0 ? [DELETE_CATEGORY] : []),
+              ]
+
+              return (
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                  style={{ alignItems: "start" }}
+                >
+                  {allCats.map(cat => (
+                    <CategoryBlock
+                      key={cat.id}
+                      category={cat}
+                      categories={categories}
+                      mode={mode}
+                      emails={cat.id === "__delete__"
+                        ? deletableEmails
+                        : emails.filter(e => e.category === cat.name)}
+                      selectedEmail={
+                        cat.id === "__delete__"
+                          ? (selectedEmail?.deletable ? selectedEmail : null)
+                          : (selectedEmail?.category === cat.name ? selectedEmail : null)
+                      }
+                      onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                      onExpand={(email, composeMode) => {
+                        setExpandedEmail(email)
+                        setExpandedComposeMode(composeMode ?? null)
+                      }}
+                      onClose={() => setSelectedEmail(null)}
+                      onMarkRead={handleMarkRead}
+                      onArchive={handleArchive}
+                      onSaveDraft={handleSaveDraft}
+                      onSend={handleSendMessage}
+                      onStar={handleStar}
+                      onDelete={handleDelete}
+                      onRecategorize={handleRecategorize}
+                      onMarkReplied={handleMarkReplied}
+                      onMarkDeletable={handleMarkDeletable}
+                      onNewCategory={handleNewCategory}
+                      onToggleTodo={handleToggleTodo}
+                      onSnooze={email => setSnoozeTarget(email)}
+                      gmailAccount={activeAccount}
+                      isPriority={cat.name === priorityCategory}
+                      onTogglePriority={cat.id !== "__delete__" ? () => handleTogglePriority(cat.name) : undefined}
+                    />
+                  ))}
+                </div>
+              )
+            })()}
 
 
           </div>

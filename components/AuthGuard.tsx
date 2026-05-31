@@ -18,7 +18,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-8">
         <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-10 text-center max-w-sm w-full">
           <div className="text-4xl mb-4">📬</div>
-          <h1 className="text-xl font-semibold text-zinc-900 mb-1">Inbox AI</h1>
+          <h1 className="text-xl font-semibold text-zinc-900 mb-1">Email Party</h1>
           <p className="text-sm text-zinc-500 mb-6">
             Sign in with Google to connect your Gmail and start triaging.
           </p>

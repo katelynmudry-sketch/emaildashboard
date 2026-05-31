@@ -8,12 +8,16 @@ export interface InboxSettings {
   personalRules: string
   workRules: string
   systemContext: string // overrides CLINIC_CONTEXT if non-empty
+  aiPastEventDelete: boolean    // suggest deleting calendar event emails after the event has passed
+  aiDeliveryChainCleanup: boolean // suggest deleting shipping emails once a package is delivered
 }
 
 const DEFAULTS: InboxSettings = {
   personalRules: "",
   workRules: "",
   systemContext: "",
+  aiPastEventDelete: true,
+  aiDeliveryChainCleanup: true,
 }
 
 export function loadSettings(): InboxSettings {

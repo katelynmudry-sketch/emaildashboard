@@ -19,7 +19,7 @@ interface Props {
   mode?: "reply" | "forward"
   initialBody?: string
   onSaveDraft: (body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onSend: (body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
+  onSend: (body: string, attachments: Attachment[], forwardTo?: string) => void
   onCancel: () => void
 }
 
@@ -79,8 +79,8 @@ export default function DraftEditor({ email, gmailAccount, mode = "reply", initi
           await onSaveDraft(body, attachments, forwardTo)
           setSaved(true)
         }}
-        onSend={async (body, attachments, forwardTo) => {
-          await onSend(body, attachments, forwardTo)
+        onSend={(body, attachments, forwardTo) => {
+          onSend(body, attachments, forwardTo)
           setSent(true)
         }}
         onCancel={onCancel}

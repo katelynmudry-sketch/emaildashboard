@@ -1,6 +1,7 @@
 "use client"
 
 import type { Email } from "@/lib/types"
+import type { PartyMode } from "@/lib/party-mode"
 
 function formatEmailDate(iso: string): string {
   const date = new Date(iso)
@@ -12,6 +13,7 @@ interface Props {
   selected: boolean
   isSelected?: boolean
   selectionMode?: boolean
+  mode?: PartyMode
   onClick: () => void
   onDoubleClick?: () => void
   onMarkRead: () => void
@@ -26,6 +28,10 @@ const PRIORITY_COLOR: Record<string, string> = {
   urgent: "#FF1F6E",
   today:  "#FFD000",
   fyi:    "#00E5C4",
+}
+
+function getPriorityColor(priority: string | undefined, mode: PartyMode): string {
+  return PRIORITY_COLOR[priority ?? "fyi"] ?? "#00E5C4"
 }
 
 function actionBtn(bg?: string, color?: string): React.CSSProperties {
@@ -44,11 +50,11 @@ function actionBtn(bg?: string, color?: string): React.CSSProperties {
 }
 
 export default function EmailRow({
-  email, selected, isSelected, selectionMode,
+  email, selected, isSelected, selectionMode, mode = "party",
   onClick, onDoubleClick, onMarkRead, onDelete,
   onReply, onForward, onToggleTodo, onSnooze,
 }: Props) {
-  const priorityColor = PRIORITY_COLOR[email.priority ?? "fyi"] ?? "#00E5C4"
+  const priorityColor = getPriorityColor(email.priority, mode)
 
   const bgColor = isSelected
     ? "rgba(255,208,0,0.12)"

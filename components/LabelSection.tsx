@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import type { AccountId, Email, Category, Attachment } from "@/lib/types"
+import type { PartyMode } from "@/lib/party-mode"
 import EmailRow from "./EmailRow"
 import DetailPanel from "./DetailPanel"
 
@@ -23,10 +24,15 @@ export interface LabelSectionProps {
   // Collapse state (controlled externally by CategoryBlock)
   collapsed?: boolean
 
+  // Optional controls rendered at the far right of the header (pin, collapse toggle)
+  headerSuffix?: React.ReactNode
+
   // Data
   emails: Email[]
   categories: Category[]
   selectedEmail: Email | null
+
+  cardBg?: string
 
   // Optional slot between header and email list (e.g. briefing summary)
   children?: React.ReactNode
@@ -38,12 +44,12 @@ export interface LabelSectionProps {
   onSelect: (email: Email) => void
   onExpand: (email: Email, composeMode?: "reply" | "forward") => void
   onClose: () => void
-  onMarkRead: (email: Email) => Promise<void>
-  onArchive: (email: Email) => Promise<void>
+  onMarkRead: (email: Email) => void
+  onArchive: (email: Email) => void
   onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onStar: (email: Email) => Promise<void>
-  onDelete: (email: Email) => Promise<void>
+  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => void
+  onStar: (email: Email) => void
+  onDelete: (email: Email) => void
   onRecategorize: (email: Email, newCategory: string, teachClaude: boolean) => Promise<void>
   onMarkReplied: (email: Email) => void
   onMarkDeletable: (email: Email) => void
@@ -54,6 +60,7 @@ export interface LabelSectionProps {
 
   emptyText?: string
   className?: string
+  mode?: PartyMode
 }
 
 export default function LabelSection({
@@ -62,6 +69,8 @@ export default function LabelSection({
   boxShadow = "0 4px 28px rgba(26,10,53,0.05)",
   headerOverlay,
   collapsed = false,
+  headerSuffix,
+  cardBg = "#FFFFFF",
   emails, categories, selectedEmail,
   children,
   bulkActions = [],
@@ -72,6 +81,7 @@ export default function LabelSection({
   onToggleTodo, onSnooze, gmailAccount,
   emptyText = "All clear ✓",
   className = "",
+  mode = "party",
 }: LabelSectionProps) {
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
   const [moveToOpen, setMoveToOpen] = useState(false)
@@ -108,7 +118,7 @@ export default function LabelSection({
     <div
       className={`flex flex-col overflow-hidden ${className}`}
       style={{
-        background: "#FFFFFF",
+        background: cardBg,
         border: `1px solid ${border}`,
         borderRadius: 16,
         boxShadow,
@@ -168,6 +178,7 @@ export default function LabelSection({
               {allSelected ? "Deselect all" : "Select all"}
             </button>
           )}
+          {headerSuffix}
         </div>
       </div>
 
@@ -307,6 +318,7 @@ export default function LabelSection({
                 selected={!selectionMode && email.id === selectedEmail?.id}
                 isSelected={bulkSelected.has(email.id)}
                 selectionMode={selectionMode}
+                mode={mode}
                 onClick={selectionMode ? () => toggleEmail(email.id) : () => onSelect(email)}
                 onDoubleClick={selectionMode ? undefined : () => onExpand(email)}
                 onMarkRead={() => onMarkRead(email)}

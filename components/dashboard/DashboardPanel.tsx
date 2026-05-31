@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { Email, DashboardTheme, CalendarEvent } from "@/lib/types"
+import type { PartyMode } from "@/lib/party-mode"
 import { getDashboardPrefs, setDashboardOpen } from "@/lib/dashboard-prefs"
 import { THEMES } from "./theme-config"
 import CalendarWidget from "./CalendarWidget"
@@ -9,22 +10,28 @@ import DharmaWidget from "./DharmaWidget"
 import ManifestationWidget from "./ManifestationWidget"
 import BreathworkWidget from "./BreathworkWidget"
 import InsightWidget from "./InsightWidget"
-import ThemeSelector from "./ThemeSelector"
+
+const MODE_TO_THEME: Record<PartyMode, DashboardTheme> = {
+  "zen": "morning-altar",
+  "party": "festival-stage",
+  "wabi-sabi": "wabi-sabi-studio",
+}
 
 interface DashboardPanelProps {
   emails: Email[]
+  mode: PartyMode
 }
 
-export default function DashboardPanel({ emails }: DashboardPanelProps) {
+export default function DashboardPanel({ emails, mode }: DashboardPanelProps) {
   const [open, setOpen] = useState(true)
-  const [theme, setTheme] = useState<DashboardTheme>("morning-altar")
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
   const fontLinkRef = useRef<HTMLLinkElement | null>(null)
   const [mounted, setMounted] = useState(false)
 
+  const theme = MODE_TO_THEME[mode]
+
   useEffect(() => {
     const prefs = getDashboardPrefs()
-    setTheme(prefs.theme)
     setOpen(prefs.dashboardOpen)
     setMounted(true)
   }, [])
@@ -49,10 +56,6 @@ export default function DashboardPanel({ emails }: DashboardPanelProps) {
     setDashboardOpen(next)
   }
 
-  function handleThemeChange(t: DashboardTheme) {
-    setTheme(t)
-  }
-
   if (!mounted) return null
 
   const tc = THEMES[theme]
@@ -63,26 +66,15 @@ export default function DashboardPanel({ emails }: DashboardPanelProps) {
       <style>{`
         .db-grid-top {
           display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 16px;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          gap: 12px;
+          align-items: start;
         }
         .db-grid-bottom {
           display: grid;
-          grid-template-columns: 220px 1fr;
-          gap: 16px;
-        }
-        @media (max-width: 900px) {
-          .db-grid-top {
-            grid-template-columns: 1fr;
-          }
-          .db-grid-bottom {
-            grid-template-columns: 1fr;
-          }
-        }
-        @media (min-width: 901px) and (max-width: 1200px) {
-          .db-grid-top {
-            grid-template-columns: 1fr 1fr;
-          }
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+          gap: 12px;
+          align-items: start;
         }
       `}</style>
 
@@ -128,7 +120,6 @@ export default function DashboardPanel({ emails }: DashboardPanelProps) {
             }}>▼</span>
             {isFestival ? "MORNING DASHBOARD" : "✨ Morning Dashboard"}
           </button>
-          <ThemeSelector current={theme} onChange={handleThemeChange} isFestival={isFestival} />
         </div>
 
         {/* ── Collapsible panel ── */}
@@ -138,17 +129,16 @@ export default function DashboardPanel({ emails }: DashboardPanelProps) {
           transition: "max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
         }}>
           <div style={{
-            padding: `${tc.panelPaddingTop} 20px 20px`,
-            paddingTop: `calc(${tc.panelPaddingTop} + 20px)`,
+            padding: "16px 20px 20px",
             background: tc.panelBg,
             display: "flex",
             flexDirection: "column",
-            gap: "16px",
+            gap: "12px",
           }}>
             {/* Top row — Calendar | Dharma | Manifestation */}
             <div className="db-grid-top">
               <CalendarWidget theme={tc} onEventsLoaded={setCalendarEvents} />
-              <DharmaWidget theme={tc} />
+              <DharmaWidget theme={tc} mode={mode} />
               <ManifestationWidget theme={tc} />
             </div>
 

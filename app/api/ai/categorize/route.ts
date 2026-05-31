@@ -12,8 +12,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { emails, categories, account, customContext, systemContext }: CategorizeRequest & { customContext?: string; systemContext?: string } = await request.json()
-    const result = await categorizeInbox(emails, categories, account, { customContext, systemContext })
+    const { emails, categories, account, customContext, systemContext, aiPastEventDelete }: CategorizeRequest & { customContext?: string; systemContext?: string; aiPastEventDelete?: boolean } = await request.json()
+    const result = await categorizeInbox(emails, categories, account, { customContext, systemContext, aiPastEventDelete })
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Categorization failed" }, { status: 500 })
