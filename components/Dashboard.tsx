@@ -122,6 +122,7 @@ function TallyTicket({ loaded, total, mode }: { loaded: number; total: number; m
 }
 
 // ── Karma pill sub-component ─────────────────────────────────────────────────
+// KarmaPill — preserved but not rendered in new header
 
 function KarmaPill({
   emoji, label, xp, nextThreshold, toast, mode,
@@ -1439,59 +1440,60 @@ export default function Dashboard() {
             </div>
           )}
 
-              {/* TODO widget */}
-              {appState === "ready" && todoEmails.length > 0 && (
-                <div
-                  className="sticky top-4 self-start overflow-hidden"
-                  style={{
-                    background: mode === "zen" ? "#FFFEF9" : "#FFFFFF",
-                    border: "1px solid rgba(255,208,0,0.28)",
-                    borderRadius: 14,
-                    boxShadow: mode === "wabi-sabi" ? "none" : "0 4px 24px rgba(255,208,0,0.08)",
-                    minWidth: 220, maxWidth: 290,
-                  }}
-                >
-                  <div
-                    className="flex items-center justify-between px-4 py-2.5"
-                    style={{
-                      background: "rgba(255,208,0,0.08)",
-                      borderBottom: "1px solid rgba(255,208,0,0.12)",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>★ TODO</span>
-                    <span style={{
-                      fontSize: "0.82rem", fontWeight: 700,
-                      background: "rgba(255,208,0,0.18)",
-                      border: "none",
-                      color: "#FFD000",
-                      borderRadius: 99, padding: "1px 8px",
-                    }}>
-                      {todoEmails.length}
-                    </span>
-                  </div>
-                  <div className="px-2 py-1 space-y-0.5 overflow-y-auto" style={{ maxHeight: 240 }}>
-                    {todoEmails.map(email => (
-                      <EmailRow
-                        key={email.id}
-                        email={email}
-                        selected={email.id === selectedEmail?.id}
-                        isSelected={false}
-                        selectionMode={false}
-                        mode={mode}
-                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
-                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                        onMarkRead={() => handleMarkRead(email)}
-                        onDelete={() => handleDelete(email)}
-                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                        onToggleTodo={() => handleToggleTodo(email)}
-                        onSnooze={() => setSnoozeTarget(email)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
         </header>
+
+        {/* ══════════════════ TODO WIDGET (sticky, outside header) ══════════ */}
+        {appState === "ready" && todoEmails.length > 0 && (
+          <div
+            className="sticky top-4 self-start overflow-hidden mx-7 mt-3"
+            style={{
+              background: mode === "zen" ? "#FFFEF9" : "#FFFFFF",
+              border: "1px solid rgba(255,208,0,0.28)",
+              borderRadius: 14,
+              boxShadow: mode === "wabi-sabi" ? "none" : "0 4px 24px rgba(255,208,0,0.08)",
+              minWidth: 220, maxWidth: 290,
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-2.5"
+              style={{
+                background: "rgba(255,208,0,0.08)",
+                borderBottom: "1px solid rgba(255,208,0,0.12)",
+              }}
+            >
+              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>★ TODO</span>
+              <span style={{
+                fontSize: "0.82rem", fontWeight: 700,
+                background: "rgba(255,208,0,0.18)",
+                border: "none",
+                color: "#FFD000",
+                borderRadius: 99, padding: "1px 8px",
+              }}>
+                {todoEmails.length}
+              </span>
+            </div>
+            <div className="px-2 py-1 space-y-0.5 overflow-y-auto" style={{ maxHeight: 240 }}>
+              {todoEmails.map(email => (
+                <EmailRow
+                  key={email.id}
+                  email={email}
+                  selected={email.id === selectedEmail?.id}
+                  isSelected={false}
+                  selectionMode={false}
+                  mode={mode}
+                  onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
+                  onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                  onMarkRead={() => handleMarkRead(email)}
+                  onDelete={() => handleDelete(email)}
+                  onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                  onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                  onToggleTodo={() => handleToggleTodo(email)}
+                  onSnooze={() => setSnoozeTarget(email)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ══════════════════ MORNING DASHBOARD ══════════════════════════════ */}
         <DashboardPanel emails={emails} mode={mode} />
