@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import type { AccountId, Email, Category, Attachment } from "@/lib/types"
-import { recordAction } from "@/lib/stats"
-import { loadSettings } from "@/lib/settings-storage"
 import { downloadAttachment } from "@/lib/attachment-download"
-import DraftEditor from "./DraftEditor"
+import ComposeWindow from "./ComposeWindow"
 
 const TAG_COLORS = [
   "bg-violet-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500",
@@ -40,9 +38,8 @@ const btnBase =
   "text-[11px] font-medium px-2 py-1 rounded-md bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75 whitespace-nowrap"
 
 export default function DetailPanel({ email, gmailAccount, categories, onClose, onArchive, onMarkRead, onSaveDraft, onSend, onStar, onDelete, onRecategorize, onMarkReplied, onMarkDeletable, onNewCategory }: Props) {
-  const [draftMode, setDraftMode] = useState<"ai" | "manual" | "forward" | null>(null)
-  const [aiDraftBody, setAiDraftBody] = useState<string | null>(null)
-  const [aiDraftLoading, setAiDraftLoading] = useState(false)
+  const [draftMode, setDraftMode] = useState<"reply" | "forward" | null>(null)
+  const [autoAiDraft, setAutoAiDraft] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [archived, setArchived] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -178,7 +175,7 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
                 ? htmlBody.replace(/<head>/i, `<head>${inject}`)
                 : `${inject}${htmlBody}`
             })()}
-            sandbox="allow-same-origin allow-popups"
+            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
             className="w-full border-0 rounded"
             style={{ minHeight: "200px" }}
             onLoad={e => {
@@ -242,20 +239,23 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
         )}
 
         {draftMode && (
-          <DraftEditor
-            email={email}
+          <ComposeWindow
+            mode={draftMode}
+            presentation="inline"
             gmailAccount={gmailAccount}
-            mode={draftMode === "forward" ? "forward" : "reply"}
-            initialBody={draftMode === "ai" ? (aiDraftBody ?? "") : undefined}
+            email={email}
+            autoAiDraft={autoAiDraft}
+            onSend={(body, attachments, forwardTo) => {
+              onSend(email, draftMode, body, attachments, forwardTo)
+              setDraftMode(null)
+              setAutoAiDraft(false)
+            }}
             onSaveDraft={async (body, attachments, forwardTo) => {
               await onSaveDraft(email, body, attachments, forwardTo)
               setDraftMode(null)
+              setAutoAiDraft(false)
             }}
-            onSend={(body, attachments, forwardTo) => {
-              onSend(email, draftMode === "forward" ? "forward" : "reply", body, attachments, forwardTo)
-              setDraftMode(null)
-            }}
-            onCancel={() => setDraftMode(null)}
+            onClose={() => { setDraftMode(null); setAutoAiDraft(false) }}
           />
         )}
       </div>
@@ -274,44 +274,19 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
                 Mark read
               </button>
               <button
-                disabled={aiDraftLoading}
-                onClick={async () => {
-                  if (draftMode === "ai") { setDraftMode(null); return }
-                  setAiDraftLoading(true)
-                  setDraftMode(null)
-                  recordAction("aiDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
-                  try {
-                    const settings = loadSettings()
-                    const isWork = gmailAccount === "work"
-                    const customContext = isWork ? settings.workRules : settings.personalRules
-                    const res = await fetch("/api/ai/draft", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
-                        systemContext: settings.systemContext || undefined,
-                        customContext: customContext || undefined,
-                      }),
-                    })
-                    const data = await res.json()
-                    setAiDraftBody(data.draft ?? "")
-                  } finally {
-                    setAiDraftLoading(false)
-                    setDraftMode("ai")
-                  }
-                }}
-                className={`${btnBase} disabled:opacity-50`}
+                onClick={() => { setAutoAiDraft(true); setDraftMode("reply") }}
+                className={btnBase}
               >
-                {aiDraftLoading ? "Drafting…" : "AI Draft"}
+                AI Draft
               </button>
               <button
-                onClick={() => setDraftMode(m => m === "manual" ? null : "manual")}
+                onClick={() => { setAutoAiDraft(false); setDraftMode(m => m === "reply" ? null : "reply") }}
                 className={btnBase}
               >
                 Reply
               </button>
               <button
-                onClick={() => setDraftMode(m => m === "forward" ? null : "forward")}
+                onClick={() => { setAutoAiDraft(false); setDraftMode(m => m === "forward" ? null : "forward") }}
                 className={btnBase}
               >
                 Forward

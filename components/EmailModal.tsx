@@ -2,21 +2,17 @@
 
 import { useState, useEffect } from "react"
 import type { AccountId, Email, Attachment } from "@/lib/types"
-import { recordAction } from "@/lib/stats"
-import { loadSettings } from "@/lib/settings-storage"
 import { downloadAttachment } from "@/lib/attachment-download"
-import ComposeArea from "./ComposeArea"
-
-// ── Props ─────────────────────────────────────────────────────────────────────
+import ComposeWindow from "./ComposeWindow"
 
 interface Props {
   email: Email
   gmailAccount: AccountId
   onClose: () => void
-  onMarkRead: (email: Email) => Promise<void>
-  onStar: (email: Email) => Promise<void>
-  onArchive: (email: Email) => Promise<void>
-  onDelete: (email: Email) => Promise<void>
+  onMarkRead: (email: Email) => void
+  onStar: (email: Email) => void
+  onArchive: (email: Email) => void
+  onDelete: (email: Email) => void
   onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
   onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => void
   onToggleTodo?: (email: Email) => void
@@ -50,15 +46,6 @@ function injectStyles(html: string): string {
     : `${inject}${html}`
 }
 
-function forwardBody(email: Email): string {
-  const subject = email.subject.toLowerCase().startsWith("fwd:")
-    ? email.subject
-    : `Fwd: ${email.subject}`
-  return `\n\n---------- Forwarded message ----------\nFrom: ${email.from} <${email.fromEmail}>\nSubject: ${subject}\n\n${email.body}`
-}
-
-// ── Shared button class ───────────────────────────────────────────────────────
-
 const btn = "text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75"
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -70,8 +57,7 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
     extractUnsubscribeUrl(email.htmlBody ?? null, email.body)
   )
   const [composeMode, setComposeMode] = useState<"reply" | "forward" | null>(null)
-  const [initialBody, setInitialBody] = useState<string | undefined>(undefined)
-  const [aiDraftLoading, setAiDraftLoading] = useState(false)
+  const [autoAiDraft, setAutoAiDraft] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   // ── Load HTML body ──────────────────────────────────────────────────────────
@@ -105,76 +91,21 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
 
   useEffect(() => {
     if (!initialComposeMode) return
-    void openCompose(initialComposeMode)
+    openCompose(initialComposeMode)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialComposeMode, email.id])
 
   // ── Compose helpers ─────────────────────────────────────────────────────────
 
-  async function openCompose(mode: "ai" | "reply" | "forward") {
-    if (mode === "forward") {
-      setInitialBody(forwardBody(email))
-      setComposeMode("forward")
-      return
-    }
-    if (mode === "reply") {
-      setInitialBody(undefined)
-      setComposeMode("reply")
-      return
-    }
-    // AI Draft — fetch first, then open compose with pre-filled body
-    recordAction("aiDraft", { emailId: email.id, subject: email.subject, mode: "reply" })
-    setAiDraftLoading(true)
-    try {
-      const settings = loadSettings()
-      const isWork = gmailAccount === "work"
-      const customContext = isWork ? settings.workRules : settings.personalRules
-      const res = await fetch("/api/ai/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
-          systemContext: settings.systemContext || undefined,
-          customContext: customContext || undefined,
-        }),
-      })
-      const data = await res.json()
-      setInitialBody(data.draft ?? "")
-      setComposeMode("reply")
-    } finally {
-      setAiDraftLoading(false)
-    }
+  function openCompose(mode: "ai" | "reply" | "forward") {
+    setAutoAiDraft(mode === "ai")
+    setComposeMode(mode === "ai" ? "reply" : mode)
   }
 
   function closeCompose() {
     setComposeMode(null)
-    setInitialBody(undefined)
+    setAutoAiDraft(false)
   }
-
-  async function handleAiDraftInCompose(partialBody: string): Promise<string> {
-    const settings = loadSettings()
-    const isWork = gmailAccount === "work"
-    const customContext = isWork ? settings.workRules : settings.personalRules
-    const res = await fetch("/api/ai/draft", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: { from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body },
-        partialDraft: partialBody,
-        systemContext: settings.systemContext || undefined,
-        customContext: customContext || undefined,
-      }),
-    })
-    const data = await res.json()
-    return data.draft ?? ""
-  }
-
-  // ── Email actions ───────────────────────────────────────────────────────────
-
-  async function handleMarkRead() { await onMarkRead(email) }
-  async function handleArchive() { await onArchive(email); onClose() }
-  async function handleDelete() { await onDelete(email); onClose() }
-  async function handleStar() { await onStar(email) }
 
   // ── Attachment download ──────────────────────────────────────────────────────
 
@@ -220,10 +151,10 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
 
         {/* Action bar */}
         <div className="flex items-center gap-2 px-5 py-2.5 border-b border-zinc-100 shrink-0 flex-wrap">
-          <button onClick={handleMarkRead} className={btn}>Mark read</button>
-          <button onClick={handleArchive} className={`${btn} text-zinc-900 font-semibold`}>Archive</button>
-          <button onClick={handleStar} className={btn}>Star</button>
-          <button onClick={handleDelete} className={`${btn} text-rose-600`}>Delete</button>
+          <button onClick={() => onMarkRead(email)} className={btn}>Mark read</button>
+          <button onClick={() => { onArchive(email); onClose() }} className={`${btn} text-zinc-900 font-semibold`}>Archive</button>
+          <button onClick={() => onStar(email)} className={btn}>Star</button>
+          <button onClick={() => { onDelete(email); onClose() }} className={`${btn} text-rose-600`}>Delete</button>
           {onToggleTodo && (
             <button
               onClick={() => onToggleTodo(email)}
@@ -236,15 +167,9 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
             <button onClick={() => onSnooze(email)} className={btn}>💤 Snooze</button>
           )}
           <div className="flex-1" />
-          <button
-            onClick={() => void openCompose("ai")}
-            disabled={aiDraftLoading}
-            className={`${btn} disabled:opacity-50`}
-          >
-            {aiDraftLoading ? "Drafting…" : "AI Draft"}
-          </button>
-          <button onClick={() => void openCompose("reply")} className={btn}>Reply</button>
-          <button onClick={() => void openCompose("forward")} className={btn}>Forward</button>
+          <button onClick={() => openCompose("ai")} className={btn}>AI Draft</button>
+          <button onClick={() => openCompose("reply")} className={btn}>Reply</button>
+          <button onClick={() => openCompose("forward")} className={btn}>Forward</button>
         </div>
 
         {/* Unsubscribe banner */}
@@ -279,7 +204,7 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
           ) : htmlBody ? (
             <iframe
               srcDoc={injectStyles(htmlBody)}
-              sandbox="allow-same-origin allow-popups"
+              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
               className="w-full border-0"
               style={{ minHeight: "500px" }}
               onLoad={e => {
@@ -332,7 +257,6 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
                 )
               })}
 
-              {/* Work-only: Save all attachments to admin */}
               {gmailAccount === "work" && email.attachments.length > 1 && (
                 <button
                   type="button"
@@ -344,7 +268,6 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
                 </button>
               )}
 
-              {/* Work-only: Save single attachment with admin label */}
               {gmailAccount === "work" && email.attachments.length === 1 && (
                 <button
                   type="button"
@@ -361,24 +284,23 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
 
         {/* Compose area */}
         {composeMode && (
-          <div className="border-t border-zinc-100 px-5 py-4 shrink-0">
-            <ComposeArea
-              mode={composeMode}
-              initialBody={initialBody}
-              onAiDraft={composeMode === "reply" ? handleAiDraftInCompose : undefined}
-              showUploadButton={gmailAccount === "work"}
-              onSaveDraft={async (body, attachments, forwardTo) => {
-                await onSaveDraft(email, body, attachments, forwardTo)
-                closeCompose()
-              }}
-              onSend={(body, attachments, forwardTo) => {
-                onSend(email, composeMode, body, attachments, forwardTo)
-                closeCompose()
-                onClose()
-              }}
-              onCancel={closeCompose}
-            />
-          </div>
+          <ComposeWindow
+            mode={composeMode}
+            presentation="inline"
+            gmailAccount={gmailAccount}
+            email={email}
+            autoAiDraft={autoAiDraft}
+            onSend={(body, attachments, forwardTo) => {
+              onSend(email, composeMode, body, attachments, forwardTo)
+              closeCompose()
+              onClose()
+            }}
+            onSaveDraft={async (body, attachments, forwardTo) => {
+              await onSaveDraft(email, body, attachments, forwardTo)
+              closeCompose()
+            }}
+            onClose={closeCompose}
+          />
         )}
       </div>
     </div>
