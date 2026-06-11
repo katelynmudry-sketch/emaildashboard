@@ -283,6 +283,46 @@ Two new components (`LogDrawer`, `SentDrawer`), one new API route (`/api/gmail/s
 
 ---
 
+### Chunk 3.0 — Add unarchiveMessage + /api/gmail/unarchive route
+
+- **Modify:** `lib/gmail.ts` — add after `archiveMessage` (~L399):
+  ```ts
+  export async function unarchiveMessage(accessToken: string, messageId: string): Promise<void> {
+    const gmail = getGmailService(accessToken)
+    await gmail.users.messages.modify({
+      userId: "me", id: messageId,
+      requestBody: { addLabelIds: ["INBOX"] },
+    })
+  }
+  ```
+- **Create:** `app/api/gmail/unarchive/route.ts` — exact mirror of `app/api/gmail/archive/route.ts`, calling `unarchiveMessage` instead:
+  ```ts
+  import { NextResponse } from "next/server"
+  import { auth } from "@/lib/auth"
+  import { unarchiveMessage } from "@/lib/gmail"
+  import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
+  import type { ArchiveRequest } from "@/lib/types"
+
+  export async function POST(request: Request) {
+    const session = await auth()
+    const { messageId, account }: ArchiveRequest = await request.json()
+    const accountId = parseAccountId(account)
+    const authz = requireGmailAccess(session, accountId)
+    if (!authz.success) return authz.response
+
+    try {
+      await unarchiveMessage(authz.accessToken, messageId)
+      return NextResponse.json({ ok: true })
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Unarchive failed" }, { status: 500 })
+    }
+  }
+  ```
+- **Test:** `curl -X POST http://localhost:3000/api/gmail/unarchive -d '{"messageId":"...","account":"personal"}'` → 200 `{ ok: true }`. Email reappears in Gmail inbox.
+- **Commit:** `feat: add unarchiveMessage and /api/gmail/unarchive route`
+
+---
+
 ### Chunk 3.1 — Data model (`lib/action-log.ts`)
 
 - **Create:** `lib/action-log.ts`
@@ -589,7 +629,7 @@ Two new components (`LogDrawer`, `SentDrawer`), one new API route (`/api/gmail/s
 
 | Item | Location | Notes |
 |------|----------|-------|
-| `/api/gmail/unarchive` doesn't exist | `Dashboard.tsx` handleArchive undoFn | Undo button shows but 404s on click. Add to BUGS.md. |
+| `/api/gmail/unarchive` | Fixed in Chunk 3.0 — no longer technical debt. |
 | Sent drawer shows snippet only, not full body | `SentDrawer.tsx` | Full body fetch on expand is v2 |
 | Send undo (delayed send) | `LogDrawer` | Send entries logged but no undoFn — v2 |
 | `SentEmail` type duplicated in route + component | `app/api/gmail/sent/route.ts` + `SentDrawer.tsx` | Move to `lib/types.ts` when the type stabilizes |

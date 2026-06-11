@@ -405,6 +405,17 @@ export async function archiveMessage(accessToken: string, messageId: string): Pr
   })
 }
 
+// ── Unarchive a message (restore to INBOX) ───────────────────────────────────
+
+export async function unarchiveMessage(accessToken: string, messageId: string): Promise<void> {
+  const gmail = getGmailService(accessToken)
+  await gmail.users.messages.modify({
+    userId: "me",
+    id: messageId,
+    requestBody: { addLabelIds: ["INBOX"] },
+  })
+}
+
 // ── Mark as read ─────────────────────────────────────────────────────────────
 
 export async function markAsRead(accessToken: string, messageId: string): Promise<void> {

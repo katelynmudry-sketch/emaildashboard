@@ -12,5 +12,12 @@
     "fromPattern": "mike.ostrzenski@nbc.ca",
     "category": "Finance",
     "createdAt": "2026-05-27T18:48:03.266Z"
+  },
+  {
+    "id": "cgoodwin@abacuskimberley.ca->business",
+    "description": "Claudia Goodwin → Business",
+    "fromPattern": "cgoodwin@abacuskimberley.ca",
+    "category": "Business",
+    "createdAt": "2026-06-11T15:57:37.501Z"
   }
 ]

@@ -1217,8 +1217,8 @@ export default function Dashboard() {
           </div>
           {/* end Row A */}
 
-          {/* ── Row B: only when ready ── */}
-          {appState === "ready" && (
+          {/* ── Row B: always visible ── */}
+          {(
             <div className="flex items-center justify-between gap-4 flex-wrap mt-5">
 
               {/* Left cluster */}
@@ -1241,72 +1241,68 @@ export default function Dashboard() {
               <div className="flex items-center gap-3 flex-wrap">
 
                 {/* Batch picker + Refresh */}
-                {!workNeedsLink && (
-                  <div className="flex items-end gap-2">
-                    <div className="flex flex-col gap-0.5">
-                      <span style={{ fontSize: "0.70rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.56)" }}>
-                        per refresh
-                      </span>
-                      <div className="flex rounded-full p-0.5" style={{ border: "1px solid rgba(26,10,53,0.10)", background: "rgba(26,10,53,0.03)" }}>
-                        {IMPORT_BATCH_OPTIONS.map(n => (
-                          <button
-                            key={n}
-                            type="button"
-                            disabled={isLoading}
-                            onClick={() => updateImportBatchSize(n)}
-                            className="min-w-9 px-2 py-1 rounded-full transition-colors disabled:opacity-40"
-                            style={{
-                              background: mode === "wabi-sabi" ? "transparent" : (importBatchSize === n ? themeAccent : "transparent"),
-                              color: mode === "wabi-sabi"
-                                ? (importBatchSize === n ? "#111" : "rgba(17,17,17,0.38)")
-                                : (importBatchSize === n ? (mode === "zen" ? "#3D2800" : "#1A0A35") : "rgba(26,10,53,0.42)"),
-                              fontSize: "0.84rem",
-                              fontWeight: mode === "wabi-sabi" && importBatchSize === n ? 800 : 600,
-                              border: mode === "wabi-sabi" && importBatchSize === n ? "1.5px solid #111" : "none",
-                              cursor: "pointer",
-                            }}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                      </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <span style={{ fontSize: "0.70rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(26,10,53,0.56)" }}>
+                      per refresh
+                    </span>
+                    <div className="flex rounded-full p-0.5" style={{ border: "1px solid rgba(26,10,53,0.10)", background: "rgba(26,10,53,0.03)" }}>
+                      {IMPORT_BATCH_OPTIONS.map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => updateImportBatchSize(n)}
+                          className="min-w-9 px-2 py-1 rounded-full transition-colors disabled:opacity-40"
+                          style={{
+                            background: mode === "wabi-sabi" ? "transparent" : (importBatchSize === n ? themeAccent : "transparent"),
+                            color: mode === "wabi-sabi"
+                              ? (importBatchSize === n ? "#111" : "rgba(17,17,17,0.38)")
+                              : (importBatchSize === n ? (mode === "zen" ? "#3D2800" : "#1A0A35") : "rgba(26,10,53,0.42)"),
+                            fontSize: "0.84rem",
+                            fontWeight: mode === "wabi-sabi" && importBatchSize === n ? 800 : 600,
+                            border: mode === "wabi-sabi" && importBatchSize === n ? "1.5px solid #111" : "none",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {n}
+                        </button>
+                      ))}
                     </div>
-                    <button
-                      onClick={loadInbox}
-                      disabled={isLoading || workNeedsLink}
-                      style={{
-                        padding: "6px 18px", borderRadius: 999,
-                        background: isLoading
-                          ? (mode === "zen" ? "rgba(200,150,12,0.30)" : "rgba(255,31,110,0.3)")
-                          : (mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "transparent" : "#FF1F6E"),
-                        color: mode === "zen" ? "#FFF8E0" : mode === "wabi-sabi" ? "#111" : "#1A0A35",
-                        fontSize: "0.82rem", fontWeight: mode === "wabi-sabi" ? 800 : 700,
-                        letterSpacing: "0.07em", textTransform: "uppercase",
-                        cursor: isLoading ? "not-allowed" : "pointer",
-                        border: mode === "wabi-sabi" ? "1.5px solid rgba(17,17,17,0.25)" : "none",
-                        fontFamily: "var(--font-body)",
-                        boxShadow: isLoading ? "none"
-                          : mode === "zen" ? "0 4px 20px rgba(200,150,12,0.30)"
-                          : mode === "wabi-sabi" ? "none"
-                          : "0 4px 20px rgba(255,31,110,0.45)",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {isLoading
-                        ? (appState === "fetching" ? "Fetching"
-                          : appState === "proposing" ? "Analyzing"
-                          : appState === "categorizing" ? "Sorting"
-                          : "Refresh")
-                        : "Refresh"}
-                    </button>
                   </div>
-                )}
+                  <button
+                    onClick={loadInbox}
+                    disabled={isLoading}
+                    style={{
+                      padding: "6px 18px", borderRadius: 999,
+                      background: isLoading
+                        ? (mode === "zen" ? "rgba(200,150,12,0.30)" : "rgba(255,31,110,0.3)")
+                        : (mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "transparent" : "#FF1F6E"),
+                      color: mode === "zen" ? "#FFF8E0" : mode === "wabi-sabi" ? "#111" : "#1A0A35",
+                      fontSize: "0.82rem", fontWeight: mode === "wabi-sabi" ? 800 : 700,
+                      letterSpacing: "0.07em", textTransform: "uppercase",
+                      cursor: isLoading ? "not-allowed" : "pointer",
+                      border: mode === "wabi-sabi" ? "1.5px solid rgba(17,17,17,0.25)" : "none",
+                      fontFamily: "var(--font-body)",
+                      boxShadow: isLoading ? "none"
+                        : mode === "zen" ? "0 4px 20px rgba(200,150,12,0.30)"
+                        : mode === "wabi-sabi" ? "none"
+                        : "0 4px 20px rgba(255,31,110,0.45)",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    {appState === "fetching" ? "Fetching"
+                      : appState === "proposing" ? "Analyzing"
+                      : appState === "categorizing" ? "Sorting"
+                      : appState === "ready" ? "Refresh"
+                      : "Load Inbox"}
+                  </button>
+                </div>
 
                 {/* Compose */}
                 <button
                   type="button"
                   onClick={() => setComposeOpen(true)}
-                  disabled={workNeedsLink}
                   style={{
                     padding: "6px 18px", borderRadius: 999,
                     border: mode === "zen"
@@ -1318,7 +1314,6 @@ export default function Dashboard() {
                     color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111" : "#00E5C4",
                     fontSize: "0.82rem", fontWeight: 600,
                     cursor: "pointer",
-                    opacity: workNeedsLink ? 0.4 : 1,
                     fontFamily: "var(--font-body)",
                   }}
                 >
@@ -1326,42 +1321,64 @@ export default function Dashboard() {
                 </button>
 
                 {/* Roast — words only, no emojis */}
-                {!workNeedsLink && (
+                <button
+                  onClick={handleRoast}
+                  disabled={roasting || emails.length === 0}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "6px 14px", borderRadius: 999,
+                    border: mode === "zen"
+                      ? "1px solid rgba(200,150,12,0.35)"
+                      : mode === "wabi-sabi"
+                        ? "1px solid rgba(26,10,53,0.22)"
+                        : "1px solid rgba(255,107,26,0.40)",
+                    background: mode === "zen"
+                      ? "rgba(200,150,12,0.07)"
+                      : mode === "wabi-sabi"
+                        ? "rgba(26,10,53,0.05)"
+                        : "rgba(255,107,26,0.09)",
+                    color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#FF6B1A",
+                    fontSize: "0.84rem", fontWeight: 600,
+                    cursor: "pointer",
+                    opacity: roasting || emails.length === 0 ? 0.4 : 1,
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  {mode === "zen"
+                    ? (roasting ? "Reading" : "Read my inbox")
+                    : mode === "wabi-sabi"
+                      ? (roasting ? "Spilling" : "Spill the tea")
+                      : (roasting ? "Roasting" : "Roast my inbox")}
+                </button>
+
+                {/* Connect work Gmail — only when not linked */}
+                {workNeedsLink && activeAccountConfig.email && (
                   <button
-                    onClick={handleRoast}
-                    disabled={roasting || emails.length === 0}
+                    type="button"
+                    onClick={() =>
+                      signIn(
+                        "google",
+                        { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
+                        { login_hint: activeAccountConfig.email, prompt: "select_account consent" },
+                      )
+                    }
                     style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "6px 14px", borderRadius: 999,
-                      border: mode === "zen"
-                        ? "1px solid rgba(200,150,12,0.35)"
-                        : mode === "wabi-sabi"
-                          ? "1px solid rgba(26,10,53,0.22)"
-                          : "1px solid rgba(255,107,26,0.40)",
-                      background: mode === "zen"
-                        ? "rgba(200,150,12,0.07)"
-                        : mode === "wabi-sabi"
-                          ? "rgba(26,10,53,0.05)"
-                          : "rgba(255,107,26,0.09)",
-                      color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#FF6B1A",
-                      fontSize: "0.84rem", fontWeight: 600,
+                      padding: "6px 20px", borderRadius: 999,
+                      border: "1px solid rgba(255,208,0,0.5)",
+                      background: "rgba(255,208,0,0.10)",
+                      color: "#FFD000",
+                      fontSize: "0.8rem", fontWeight: 600,
                       cursor: "pointer",
-                      opacity: roasting || emails.length === 0 ? 0.4 : 1,
-                      fontFamily: "var(--font-body)",
                     }}
                   >
-                    {mode === "zen"
-                      ? (roasting ? "Reading" : "Read my inbox")
-                      : mode === "wabi-sabi"
-                        ? (roasting ? "Spilling" : "Spill the tea")
-                        : (roasting ? "Roasting" : "Roast my inbox")}
+                    Connect work Gmail
                   </button>
                 )}
 
               </div>
             </div>
           )}
-          {/* end Row B — ready state */}
+          {/* end Row B */}
 
           {/* Roast text — full width, below both rows */}
           {roast && appState === "ready" && (
@@ -1384,61 +1401,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Row B — not-ready state: Load Inbox only */}
-          {appState !== "ready" && (
-            <div className="flex items-center justify-end gap-3 mt-5">
-              {workNeedsLink && activeAccountConfig.email && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    signIn(
-                      "google",
-                      { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
-                      { login_hint: activeAccountConfig.email, prompt: "select_account consent" },
-                    )
-                  }
-                  style={{
-                    padding: "9px 20px", borderRadius: 999,
-                    border: "1px solid rgba(255,208,0,0.5)",
-                    background: "rgba(255,208,0,0.10)",
-                    color: "#FFD000",
-                    fontSize: "0.8rem", fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Connect work Gmail
-                </button>
-              )}
-              <button
-                onClick={loadInbox}
-                disabled={isLoading || workNeedsLink}
-                style={{
-                  padding: "9px 24px", borderRadius: 999,
-                  background: mode === "wabi-sabi"
-                    ? "transparent"
-                    : isLoading || workNeedsLink
-                      ? (mode === "zen" ? "rgba(200,150,12,0.30)" : "rgba(255,31,110,0.3)")
-                      : (mode === "zen" ? "#C8960C" : "#FF1F6E"),
-                  color: mode === "zen" ? "#FFF8E0" : mode === "wabi-sabi" ? "#111" : "#1A0A35",
-                  fontSize: "0.82rem", fontWeight: mode === "wabi-sabi" ? 800 : 700,
-                  letterSpacing: "0.07em", textTransform: "uppercase",
-                  cursor: isLoading || workNeedsLink ? "not-allowed" : "pointer",
-                  border: mode === "wabi-sabi" ? "1.5px solid rgba(17,17,17,0.25)" : "none",
-                  fontFamily: "var(--font-body)",
-                  boxShadow: isLoading || workNeedsLink ? "none"
-                    : mode === "zen" ? "0 4px 20px rgba(200,150,12,0.30)"
-                    : mode === "wabi-sabi" ? "none"
-                    : "0 4px 20px rgba(255,31,110,0.45)",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {appState === "fetching" ? "Fetching"
-                  : appState === "proposing" ? "Analyzing"
-                  : appState === "categorizing" ? "Sorting"
-                  : "Load Inbox"}
-              </button>
-            </div>
-          )}
 
         </header>
 

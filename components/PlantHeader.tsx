@@ -29,17 +29,112 @@ const STAGE_LABELS: Record<PartyMode, string[]> = {
   "wabi-sabi": ["Dormant", "Emerging", "Growing", "Present", "Complete", "Done."],
 }
 
+function ZenSVG({ stage, wilted }: { stage: Stage; wilted: boolean }) {
+  const effectiveStage: Stage = wilted ? 0 : stage
+
+  const gradients: Record<Stage, [string, string]> = {
+    0: ["#1A1040", "#2D1B6E"],
+    1: ["#2D1B6E", "#6B3FA0"],
+    2: ["#4A2882", "#E8956A"],
+    3: ["#7B5EA7", "#FFB347"],
+    4: ["#FFB347", "#FFD700"],
+    5: ["#FFF8E0", "#FFE566"],
+  }
+  const [gradTop, gradBottom] = gradients[effectiveStage]
+
+  // Sun params per stage
+  type SunParams = { cy: number; r: number; opacity?: number } | null
+  const sunParams: Record<Stage, SunParams> = {
+    0: null,
+    1: { cy: 115, r: 10, opacity: 0.5 },
+    2: { cy: 106, r: 14 },
+    3: { cy: 88,  r: 18 },
+    4: { cy: 68,  r: 20 },
+    5: { cy: 50,  r: 22 },
+  }
+  const sun = sunParams[effectiveStage]
+
+  // Ray outer-radius extension per stage
+  const rayExtension: Record<Stage, number> = { 0: 0, 1: 0, 2: 10, 3: 13, 4: 16, 5: 20 }
+  const rayExt = rayExtension[effectiveStage]
+
+  const gradId = `zenSkyGrad-${effectiveStage}`
+  const clipId = "zenSkyClip"
+
+  return (
+    <svg viewBox="0 0 100 140" className="w-full h-full">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={gradTop} />
+          <stop offset="100%" stopColor={gradBottom} />
+        </linearGradient>
+        <clipPath id={clipId}>
+          <rect x="0" y="0" width="100" height="110" />
+        </clipPath>
+      </defs>
+
+      {/* Sky */}
+      <rect x="0" y="0" width="100" height="110" fill={`url(#${gradId})`} />
+
+      {/* Ground */}
+      <rect x="0" y="110" width="100" height="30" fill="#4A7C59" />
+
+      {/* Stars — stage 0 only */}
+      {effectiveStage === 0 && (
+        <g>
+          <circle cx="15" cy="15" r="1" fill="#fff" opacity="0.8" />
+          <circle cx="35" cy="8"  r="1" fill="#fff" opacity="0.8" />
+          <circle cx="70" cy="20" r="1" fill="#fff" opacity="0.8" />
+          <circle cx="85" cy="10" r="1" fill="#fff" opacity="0.8" />
+          <circle cx="55" cy="30" r="1" fill="#fff" opacity="0.8" />
+        </g>
+      )}
+
+      {/* Sun + rays — clipped to sky */}
+      {sun && (
+        <g clipPath={`url(#${clipId})`}>
+          {/* Rays stages 2–5 */}
+          {effectiveStage >= 2 && Array.from({ length: 8 }, (_, i) => {
+            const angle = (i * 45 * Math.PI) / 180
+            const innerR = sun.r + 4
+            const outerR = sun.r + 4 + rayExt
+            const x1 = 50 + innerR * Math.cos(angle)
+            const y1 = sun.cy + innerR * Math.sin(angle)
+            const x2 = 50 + outerR * Math.cos(angle)
+            const y2 = sun.cy + outerR * Math.sin(angle)
+            return (
+              <line
+                key={i}
+                x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke="#FFD700" strokeWidth="1.5" strokeLinecap="round"
+              />
+            )
+          })}
+          {/* Sun circle */}
+          <circle cx="50" cy={sun.cy} r={sun.r} fill="#FFD700" opacity={sun.opacity ?? 1} />
+        </g>
+      )}
+
+      {/* Lotus — stage 5 only */}
+      {effectiveStage === 5 && (
+        <text x="50" y="70" textAnchor="middle" fontSize="18">🪷</text>
+      )}
+    </svg>
+  )
+}
+
 function PlantSVG({ stage, wilted, mode = "party" }: { stage: Stage; wilted: boolean; mode?: PartyMode }) {
-  // Stem and leaf colors per mode
+  if (mode === "zen") return <ZenSVG stage={stage} wilted={wilted} />
+  // Stem and leaf colors per mode (zen handled by early return above)
   const s = wilted
     ? "#78350f"
-    : mode === "zen" ? "#92700A" : mode === "wabi-sabi" ? "#111111" : "#8B3FD8"
+    : mode === "wabi-sabi" ? "#111111" : "#8B3FD8"
   const l1 = wilted
     ? "#a16207"
-    : mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111111" : "#FF1F6E"
+    : mode === "wabi-sabi" ? "#111111" : "#FF1F6E"
   const l2 = wilted
     ? "#92400e"
-    : mode === "zen" ? "#B07B0A" : mode === "wabi-sabi" ? "rgba(17,17,17,0.45)" : "#AFA9EC"
+    : mode === "wabi-sabi" ? "rgba(17,17,17,0.45)" : "#AFA9EC"
 
   const pot = (
     <>
@@ -132,11 +227,10 @@ function PlantSVG({ stage, wilted, mode = "party" }: { stage: Stage; wilted: boo
     )
   }
 
-  // Flower dot colors for stage 5 (the blooming flowers) per mode
+  // Flower dot colors for stage 5 (the blooming flowers) per mode (zen handled by early return)
   const flowerColors =
-    mode === "zen"     ? ["#C8960C", "#B07B0A", "#E8C04A", "#C8960C"]
-    : mode === "wabi-sabi" ? ["#1A0A35", "rgba(26,10,53,0.65)", "rgba(26,10,53,0.40)", "#1A0A35"]
-    :                        ["#FFD000", "#FF6B1A", "#FF1F6E", "#FFD000"]
+    mode === "wabi-sabi" ? ["#1A0A35", "rgba(26,10,53,0.65)", "rgba(26,10,53,0.40)", "#1A0A35"]
+    :                      ["#FFD000", "#FF6B1A", "#FF1F6E", "#FFD000"]
   const flowerDots = [
     { cx: 50, cy: 3,  r: 5   },
     { cx: 34, cy: 18, r: 3.5 },

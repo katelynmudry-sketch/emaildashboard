@@ -16,7 +16,10 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\Katelyn\\\\Documents\\\\AI projects\\\\inbox-ai\\\\app\\\\api\\\\rules\")",
       "Bash(Out-Null)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(Sort-Object LastWriteTime -Descending)",
+      "Bash(Select-Object -First 2)",
+      "Bash(Select-Object Name)"
     ]
   }
 }
