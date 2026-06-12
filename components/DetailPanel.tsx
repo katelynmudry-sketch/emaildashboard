@@ -3,8 +3,15 @@
 import { useState, useEffect, useRef } from "react"
 import type { AccountId, Email, Category, Attachment } from "@/lib/types"
 import { downloadAttachment, attachmentUrl } from "@/lib/attachment-download"
+import { pickSaveFolder } from "@/lib/save-folder"
 import ComposeWindow from "./ComposeWindow"
 import ImageLightbox from "./ImageLightbox"
+
+// Gmail omits body.data for large inline images, leaving an unresolved
+// cid: reference in the html until /api/gmail/html fetches it separately.
+function hasUnresolvedCid(html: string): boolean {
+  return /src=["']cid:/i.test(html)
+}
 
 const TAG_COLORS = [
   "bg-violet-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500",
@@ -68,16 +75,22 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
     setNewTagOpen(false)
     setNewTagName("")
     setNewTagColor(TAG_COLORS[0])
-    if (email.htmlBody) {
+    if (email.htmlBody && !hasUnresolvedCid(email.htmlBody)) {
       setHtmlBody(email.htmlBody)
       return
     }
-    setHtmlBody(null)
-    setHtmlLoading(true)
+    if (email.htmlBody) {
+      // Show what we have immediately; fetch the enriched version (with
+      // large inline cid: images resolved) in the background.
+      setHtmlBody(email.htmlBody)
+    } else {
+      setHtmlBody(null)
+      setHtmlLoading(true)
+    }
     fetch(`/api/gmail/html?id=${encodeURIComponent(email.id)}&account=${gmailAccount}`)
       .then(r => r.json())
-      .then(data => { setHtmlBody(data.htmlBody ?? null) })
-      .catch(() => { setHtmlBody(null) })
+      .then(data => { if (data.htmlBody) setHtmlBody(data.htmlBody) })
+      .catch(() => {})
       .finally(() => setHtmlLoading(false))
   }, [email?.id, gmailAccount])
 
@@ -275,11 +288,20 @@ document.addEventListener('click',function(e){var t=e.target;if(t.tagName!=='IMG
                         type="button"
                         disabled={isDownloading}
                         onClick={() => void handleDownloadAttachment(att)}
-                        className="shrink-0 text-violet-300 hover:text-violet-600 disabled:opacity-50 text-xs px-1 transition-colors"
+                        className="shrink-0 text-violet-400 hover:text-violet-600 disabled:opacity-50 text-sm px-1 transition-colors"
                         title="Save to folder"
-                        aria-label={`Save ${att.filename}`}
+                        aria-label={`Save ${att.filename} to folder`}
                       >
-                        {isDownloading ? "↓…" : "↓"}
+                        {isDownloading ? "💾…" : "💾"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void pickSaveFolder(gmailAccount)}
+                        className="shrink-0 text-violet-300 hover:text-violet-600 text-xs px-1 transition-colors"
+                        title="Choose save folder"
+                        aria-label="Choose save folder"
+                      >
+                        ↓
                       </button>
                     </div>
                   )

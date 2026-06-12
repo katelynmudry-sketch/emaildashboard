@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import type { AccountId, Email, Attachment } from "@/lib/types"
 import { downloadAttachment, attachmentUrl } from "@/lib/attachment-download"
+import { pickSaveFolder } from "@/lib/save-folder"
 import ComposeWindow from "./ComposeWindow"
 import ImageLightbox from "./ImageLightbox"
 
@@ -40,6 +41,12 @@ function extractUnsubscribeUrl(html: string | null, body: string): string | null
   return match ? match[0] : null
 }
 
+// Gmail omits body.data for large inline images, leaving an unresolved
+// cid: reference in the html until /api/gmail/html fetches it separately.
+function hasUnresolvedCid(html: string): boolean {
+  return /src=["']cid:/i.test(html)
+}
+
 function injectStyles(html: string): string {
   const script = `<script>(function(){
 document.addEventListener('contextmenu',function(e){if(e.target.tagName==='IMG')e.preventDefault()},true);
@@ -71,19 +78,31 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
   // ── Load HTML body ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (email.htmlBody) {
+    if (email.htmlBody && !hasUnresolvedCid(email.htmlBody)) {
       setHtmlBody(email.htmlBody)
       setUnsubscribeUrl(extractUnsubscribeUrl(email.htmlBody, email.body))
       return
     }
-    setLoading(true)
+    if (email.htmlBody) {
+      // Show what we have immediately; fetch the enriched version (with
+      // large inline cid: images resolved) in the background.
+      setHtmlBody(email.htmlBody)
+      setUnsubscribeUrl(extractUnsubscribeUrl(email.htmlBody, email.body))
+    } else {
+      setLoading(true)
+    }
     fetch(`/api/gmail/html?id=${encodeURIComponent(email.id)}&account=${gmailAccount}`)
       .then(r => r.json())
       .then(data => {
-        setHtmlBody(data.htmlBody ?? null)
-        setUnsubscribeUrl(extractUnsubscribeUrl(data.htmlBody ?? null, email.body))
+        if (data.htmlBody) {
+          setHtmlBody(data.htmlBody)
+          setUnsubscribeUrl(extractUnsubscribeUrl(data.htmlBody, email.body))
+        } else if (!email.htmlBody) {
+          setHtmlBody(null)
+          setUnsubscribeUrl(extractUnsubscribeUrl(null, email.body))
+        }
       })
-      .catch(() => setHtmlBody(null))
+      .catch(() => { if (!email.htmlBody) setHtmlBody(null) })
       .finally(() => setLoading(false))
   }, [email.id, gmailAccount])
 
@@ -318,9 +337,18 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
                         onClick={() => void handleDownloadAttachment(att)}
                         className="shrink-0 text-violet-400 hover:text-violet-700 disabled:opacity-50 text-xs transition-colors"
                         title="Save to folder"
-                        aria-label={`Save ${att.filename}`}
+                        aria-label={`Save ${att.filename} to folder`}
                       >
-                        {isDownloading ? "↓…" : "↓"}
+                        {isDownloading ? "💾…" : "💾"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void pickSaveFolder(gmailAccount)}
+                        className="shrink-0 text-violet-300 hover:text-violet-700 text-xs transition-colors"
+                        title="Choose save folder"
+                        aria-label="Choose save folder"
+                      >
+                        ↓
                       </button>
                     </div>
                   )

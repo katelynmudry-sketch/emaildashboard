@@ -5,18 +5,19 @@ import type { Email } from "@/lib/types"
 
 interface Props {
   email: Email
-  onConfirm: (note: string) => void
+  onConfirm: (note: string, includeLink: boolean) => void
   onClose: () => void
 }
 
 export default function TodoNoteModal({ email, onConfirm, onClose }: Props) {
   const fromName = (email.from?.split("<")[0] ?? email.from ?? "").trim()
   const [note, setNote] = useState(`${email.subject} — ${fromName}`)
+  const [includeLink, setIncludeLink] = useState(true)
 
   function submit() {
     const trimmed = note.trim()
     if (!trimmed) return
-    onConfirm(trimmed)
+    onConfirm(trimmed, includeLink)
   }
 
   return (
@@ -43,6 +44,16 @@ export default function TodoNoteModal({ email, onConfirm, onClose }: Props) {
             className="text-sm border border-zinc-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 resize-none"
           />
         </div>
+
+        <label className="flex items-center gap-2 text-xs font-medium text-zinc-500 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeLink}
+            onChange={e => setIncludeLink(e.target.checked)}
+            className="rounded border-zinc-300 text-violet-600 focus:ring-violet-300"
+          />
+          Include link back to this email
+        </label>
 
         <div className="flex justify-end gap-2">
           <button
