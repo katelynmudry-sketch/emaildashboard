@@ -2,10 +2,8 @@ import { NextResponse } from "next/server"
 import type { Session } from "next-auth"
 import type { AccountId } from "./types"
 
-const WORK_CONFIGURED = !!(process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL ?? "").trim()
-
 export function parseAccountId(value: string | null | undefined): AccountId {
-  if (value === "work" && WORK_CONFIGURED) return "work"
+  if (value === "work") return "work"
   return "personal"
 }
 
@@ -19,15 +17,6 @@ export function requireGmailAccess(session: Session | null, accountId: AccountId
   }
 
   if (accountId === "work") {
-    if (!WORK_CONFIGURED) {
-      return {
-        success: false,
-        response: NextResponse.json(
-          { error: "Work inbox is not configured.", code: "WORK_ACCOUNT_NOT_CONFIGURED" as const },
-          { status: 403 },
-        ),
-      }
-    }
     if (!session.work_refresh_token) {
       return {
         success: false,

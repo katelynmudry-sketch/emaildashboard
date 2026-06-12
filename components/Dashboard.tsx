@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/types"
-import { ACCOUNTS } from "@/lib/types"
+import { getAccounts } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction, getKarmaLevel } from "@/lib/stats"
 import { getPartyMode, setPartyMode, hasSeenGate, type PartyMode } from "@/lib/party-mode"
@@ -335,7 +335,8 @@ export default function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const activeAccountConfig = ACCOUNTS.find(a => a.id === activeAccount)!
+  const accounts = getAccounts(session)
+  const activeAccountConfig = accounts.find(a => a.id === activeAccount)!
   const gmailAccountQuery = `account=${activeAccount}`
   const workNeedsLink = activeAccount === "work" && !session?.workAccountLinked
 
@@ -764,7 +765,7 @@ export default function Dashboard() {
     setProposedCategories(null)
     setErrorMsg("")
 
-    const accountEmail = ACCOUNTS.find(a => a.id === id)!.email
+    const accountEmail = accounts.find(a => a.id === id)?.email ?? id
     const restoredInbox = restoreCache(accountEmail)
     if (!restoredInbox) {
       const restoredCategories = restoreCategories(accountEmail)
@@ -1002,6 +1003,7 @@ export default function Dashboard() {
         docId: settings.todoExportDocId,
         note,
         threadId: email.threadId,
+        accountEmail: activeAccountConfig.email,
       }),
     }).catch(() => {})
   }
@@ -1278,17 +1280,17 @@ export default function Dashboard() {
                   </p>
                 </div>
               </div>
-              <AccountToggle active={activeAccount} onChange={handleAccountSwitch} loading={isLoading} />
+              <AccountToggle active={activeAccount} accounts={accounts} onChange={handleAccountSwitch} loading={isLoading} />
 
               {/* Connect work Gmail — only when not linked, sits right below the account toggle */}
-              {workNeedsLink && activeAccountConfig.email && (
+              {workNeedsLink && (
                 <button
                   type="button"
                   onClick={() =>
                     signIn(
                       "google",
                       { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
-                      { login_hint: activeAccountConfig.email, prompt: "select_account consent" },
+                      { prompt: "select_account consent" },
                     )
                   }
                   style={{

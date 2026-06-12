@@ -51,22 +51,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   callbacks: {
     async jwt({ token, account, user }) {
-      const workEmail = (process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL ?? "").trim().toLowerCase()
-
       if (account && user?.email) {
-        const u = user.email.toLowerCase()
-        const isWork = !!workEmail && u === workEmail
-        if (isWork) {
+        const newEmail = user.email.toLowerCase()
+        const primaryEmail = (token.email as string | undefined)?.toLowerCase()
+
+        // Second account: a different email signed in while a primary is already stored
+        const isSecondAccount = !!primaryEmail && newEmail !== primaryEmail
+        if (isSecondAccount) {
           return {
             ...token,
+            work_email: newEmail,
             work_access_token: account.access_token,
             work_refresh_token: account.refresh_token ?? token.work_refresh_token,
             work_expires_at: account.expires_at,
             work_error: undefined,
           }
         }
+
+        // Primary account (first sign-in, or re-authenticating same email)
         return {
           ...token,
+          email: user.email,
           access_token: account.access_token,
           refresh_token: account.refresh_token ?? token.refresh_token,
           expires_at: account.expires_at,
@@ -108,6 +113,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         refresh_token: token.refresh_token as string,
         expires_at: token.expires_at as number,
         error: token.error as "RefreshTokenError" | undefined,
+        work_email: token.work_email as string | undefined,
         work_access_token: token.work_access_token as string | undefined,
         work_refresh_token: token.work_refresh_token as string | undefined,
         work_expires_at: token.work_expires_at as number | undefined,

@@ -102,6 +102,35 @@ Once personal works, add your work account:
 
 ---
 
+## Sharing with Others
+
+### Option A — Self-hosted (recommended)
+Each person clones the repo and sets up their own Google OAuth credentials and `.env.local`.
+They get full privacy — their tokens never touch your server.
+
+Steps for each person:
+1. Clone the repo
+2. Follow the setup steps above (each person needs their own Google OAuth client ID + Anthropic key)
+3. In Google Cloud Console, add their redirect URI: `https://<their-domain>/api/auth/callback/google`
+4. Deploy to Vercel, Railway, or run locally
+
+### Option B — You host it, others log in
+You run one instance and others sign in via Google OAuth.
+
+**Required:** Move your Google OAuth app from "Testing" to "Published":
+1. Google Cloud Console → APIs & Services → OAuth consent screen
+2. Click **Publish App** → confirm
+3. (Optional) If your app uses sensitive scopes like Gmail, submit for Google verification — or add testers manually under "Test users" for up to 100 people without full verification.
+
+**Note:** The Anthropic API key is shared in this model — all users' AI calls bill to your account.
+
+### Two-account setup (for any user)
+1. Sign in with your primary Gmail account → this becomes "Account 1"
+2. Click **"Connect second Gmail"** in the header → sign in with your second account
+3. The account toggle in the header lets you switch between both inboxes
+
+---
+
 ## Deployment to Vercel (Later)
 
 When ready to make it public:

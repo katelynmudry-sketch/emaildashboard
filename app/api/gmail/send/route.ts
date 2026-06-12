@@ -16,8 +16,7 @@ export async function POST(request: Request) {
   const authz = requireGmailAccess(session, accountId)
   if (!authz.success) return authz.response
 
-  const workEmail = (process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL ?? "").trim().toLowerCase()
-  const from = account === "work" && workEmail ? workEmail : (session?.user?.email ?? "")
+  const from = account === "work" && session?.work_email ? session.work_email : (session?.user?.email ?? "")
 
   try {
     await sendEmail(authz.accessToken, to, subject, body, threadId, inReplyTo, messageId, from, attachments)

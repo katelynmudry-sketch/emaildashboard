@@ -1,4 +1,4 @@
-import type { DefaultSession } from "next-auth"
+import type { DefaultSession, Session } from "next-auth"
 
 // ── next-auth session augmentation ──────────────────────────────────────────
 
@@ -8,6 +8,7 @@ declare module "next-auth" {
     refresh_token?: string
     expires_at?: number
     error?: "RefreshTokenError"
+    work_email?: string
     work_access_token?: string
     work_refresh_token?: string
     work_expires_at?: number
@@ -19,6 +20,7 @@ declare module "next-auth" {
 
 declare module "@auth/core/jwt" {
   interface JWT {
+    work_email?: string
     work_access_token?: string
     work_refresh_token?: string
     work_expires_at?: number
@@ -188,10 +190,22 @@ export interface AccountConfig {
   label: string
 }
 
-export const ACCOUNTS: AccountConfig[] = [
-  { id: "personal", email: process.env.NEXT_PUBLIC_OWNER_EMAIL ?? "", label: process.env.NEXT_PUBLIC_OWNER_EMAIL?.split("@")[0] ?? "personal" },
-  { id: "work",     email: process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL ?? "", label: process.env.NEXT_PUBLIC_OWNER_WORK_EMAIL?.split("@")[0] ?? "work" },
-]
+export function getAccounts(session: Session | null): AccountConfig[] {
+  const personalEmail = session?.user?.email ?? ""
+  const workEmail = session?.work_email ?? ""
+  return [
+    {
+      id: "personal",
+      email: personalEmail,
+      label: personalEmail ? personalEmail.split("@")[0] : "Account 1",
+    },
+    {
+      id: "work",
+      email: workEmail,
+      label: workEmail ? workEmail.split("@")[0] : "Account 2",
+    },
+  ]
+}
 
 // ── Morning Dashboard ─────────────────────────────────────────────────────────
 

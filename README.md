@@ -70,12 +70,8 @@ ANTHROPIC_API_KEY=
 **Optional — personalize the AI for your own inbox:**
 
 ```env
-# If set, these addresses get your personal AI context and bypass the free tier
-NEXT_PUBLIC_OWNER_EMAIL=you@gmail.com
-NEXT_PUBLIC_OWNER_WORK_EMAIL=you@work.com
-
 # Your personal system prompt for the AI (use \n for line breaks)
-# If blank, a generic prompt is used
+# If blank, a generic prompt is used. Can also be overridden per-session in Settings.
 CLINIC_CONTEXT=You are an AI assistant helping [your name] triage their email...
 ```
 
