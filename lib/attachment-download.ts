@@ -2,6 +2,25 @@ import type { AccountId } from "./types"
 import { getSaveFolderHandle, saveToFolder } from "./save-folder"
 
 /**
+ * Builds the URL for fetching an attachment's raw bytes via /api/gmail/attachment.
+ * Used both for downloads and for <img src> thumbnails of image attachments.
+ */
+export function attachmentUrl(
+  messageId: string,
+  att: { filename: string; mimeType: string; attachmentId: string },
+  account: AccountId
+): string {
+  const params = new URLSearchParams({
+    messageId,
+    attachmentId: att.attachmentId,
+    account,
+    mimeType: att.mimeType,
+    filename: att.filename,
+  })
+  return `/api/gmail/attachment?${params}`
+}
+
+/**
  * Fetches a Gmail attachment and either:
  *   (a) writes it to the account's configured save folder (if set + permission OK), or
  *   (b) triggers a standard browser download as fallback.
@@ -13,16 +32,7 @@ export async function downloadAttachment(
   att: { filename: string; mimeType: string; attachmentId: string },
   account: AccountId
 ): Promise<"folder" | "browser"> {
-  // Build URL — pass mimeType and filename so the server sets correct headers
-  const params = new URLSearchParams({
-    messageId,
-    attachmentId: att.attachmentId,
-    account,
-    mimeType: att.mimeType,
-    filename: att.filename,
-  })
-
-  const res = await fetch(`/api/gmail/attachment?${params}`)
+  const res = await fetch(attachmentUrl(messageId, att, account))
   if (!res.ok) {
     const text = await res.text().catch(() => "")
     throw new Error(`Attachment fetch failed (${res.status})${text ? `: ${text}` : ""}`)

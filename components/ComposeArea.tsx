@@ -147,9 +147,12 @@ export default function ComposeArea({
   async function handleAiDraftClick() {
     if (!onAiDraft) return
     setAiLoading(true)
+    setError(null)
     try {
       const draft = await onAiDraft(body)
       if (draft) setBody(draft)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI draft failed")
     } finally {
       setAiLoading(false)
     }

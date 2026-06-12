@@ -17,7 +17,7 @@ export default function AccountToggle({ active, onChange, loading }: Props) {
           key={account.id}
           onClick={() => !loading && onChange(account.id)}
           disabled={loading}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+          className={`px-2.5 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
             active === account.id
               ? "bg-white text-zinc-900 shadow-sm"
               : "text-zinc-500 hover:text-zinc-700"

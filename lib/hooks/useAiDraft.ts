@@ -15,6 +15,7 @@ interface EmailContext {
 
 export function useAiDraft(emailCtx: EmailContext | null, gmailAccount: AccountId) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function fetchDraft(partialBody?: string): Promise<string> {
     if (!emailCtx) return ""
@@ -32,6 +33,7 @@ export function useAiDraft(emailCtx: EmailContext | null, gmailAccount: AccountI
       }),
     })
     const data = await res.json()
+    if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : `AI draft failed (${res.status})`)
     return data.draft ?? ""
   }
 
@@ -39,13 +41,16 @@ export function useAiDraft(emailCtx: EmailContext | null, gmailAccount: AccountI
     if (!emailCtx) return
     recordAction("aiDraft", { emailId: emailCtx.id, subject: emailCtx.subject, mode: "reply" })
     setLoading(true)
+    setError(null)
     try {
       const draft = await fetchDraft()
       onDone(draft)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI draft failed")
     } finally {
       setLoading(false)
     }
   }
 
-  return { loading, generateDraft, fetchDraft }
+  return { loading, error, generateDraft, fetchDraft }
 }

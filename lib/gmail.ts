@@ -194,8 +194,26 @@ export function extractAttachments(payload: any): EmailAttachment[] {
 export function parseMessage(msg: any): RawEmail {
   const headers: { name?: string | null; value?: string | null }[] = msg.payload?.headers ?? []
   const body = extractPlainText(msg.payload).slice(0, 2000)
-  const htmlBody = extractHtmlBody(msg.payload)
+  const rawHtmlBody = extractHtmlBody(msg.payload)
+  const inlineImages = extractInlineImages(msg.payload)
+  const htmlBody = rawHtmlBody ? replaceCidImages(rawHtmlBody, inlineImages) : rawHtmlBody
   const attachments = extractAttachments(msg.payload)
+
+  if (process.env.DEBUG_IMG && attachments.some(a => a.mimeType.startsWith("image/"))) {
+    function walk(part: any): any {
+      if (!part) return null
+      return {
+        mimeType: part.mimeType,
+        filename: part.filename,
+        headers: (part.headers ?? []).map((h: any) => `${h.name}: ${h.value}`),
+        attachmentId: part.body?.attachmentId,
+        parts: part.parts?.map((p: any) => walk(p)),
+      }
+    }
+    console.log(`DEBUG_IMG msg ${msg.id} payload:`, JSON.stringify(walk(msg.payload), null, 2))
+    console.log(`DEBUG_IMG msg ${msg.id} cid refs in html:`, rawHtmlBody?.match(/src=["']cid:[^"'\s>]+["']/gi))
+    console.log(`DEBUG_IMG msg ${msg.id} inlineImages keys:`, [...inlineImages.keys()])
+  }
   const fromRaw = getHeader(headers, "from")
   // Extract display name vs email
   const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/)
@@ -374,7 +392,9 @@ export function extractInlineImages(payload: any): Map<string, InlineImage> {
 export function replaceCidImages(html: string, images: Map<string, InlineImage>): string {
   if (!images.size) return html
   return html.replace(/src=(["'])cid:([^"'\s>]+)\1/gi, (match, quote, cid) => {
-    const img = images.get(cid) ?? images.get(cid.split("@")[0])
+    const bareCid = cid.split("@")[0]
+    const img = images.get(cid) ?? images.get(bareCid)
+      ?? [...images.entries()].find(([key]) => key.split("@")[0] === bareCid)?.[1]
     if (!img) return match
     return `src=${quote}data:${img.mimeType};base64,${img.b64}${quote}`
   })

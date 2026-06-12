@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { getGmailService, extractHtmlBody } from "@/lib/gmail"
+import { getGmailService, extractHtmlBody, extractInlineImages, replaceCidImages } from "@/lib/gmail"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
 export async function GET(request: Request) {
@@ -17,7 +17,9 @@ export async function GET(request: Request) {
 
   const gmail = getGmailService(authz.accessToken)
   const msg = await gmail.users.messages.get({ userId: "me", id, format: "full" })
-  const htmlBody = extractHtmlBody(msg.data.payload)
+  const rawHtml = extractHtmlBody(msg.data.payload)
+  const inlineImages = extractInlineImages(msg.data.payload)
+  const htmlBody = rawHtml ? replaceCidImages(rawHtml, inlineImages) : null
 
   return NextResponse.json({ htmlBody: htmlBody || null })
 }

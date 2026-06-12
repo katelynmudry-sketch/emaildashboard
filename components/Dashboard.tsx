@@ -8,6 +8,7 @@ import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction, getKarmaLevel } from "@/lib/stats"
 import { getPartyMode, setPartyMode, hasSeenGate, type PartyMode } from "@/lib/party-mode"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
+import { createEntry, type LogEntry } from "@/lib/action-log"
 import { snoozeEmail } from "@/lib/todo-snooze"
 import { loadSettings } from "@/lib/settings-storage"
 import AccountToggle from "./AccountToggle"
@@ -23,6 +24,8 @@ import SnoozeModal from "./SnoozeModal"
 import TodoNoteModal from "./TodoNoteModal"
 import ConfettiBlast from "./ConfettiBlast"
 import InstructionsPanel from "./InstructionsPanel"
+import LogDrawer from "./LogDrawer"
+import SentDrawer from "./SentDrawer"
 import QuoteGate from "./QuoteGate"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
@@ -239,6 +242,18 @@ export default function Dashboard() {
   const [instructionsOpen, setInstructionsOpen] = useState(false)
   const [sentDrawerOpen, setSentDrawerOpen] = useState(false)
   const [logDrawerOpen, setLogDrawerOpen] = useState(false)
+  const [actionLog, setActionLog] = useState<LogEntry[]>([])
+
+  const appendLog = useCallback((fields: Omit<LogEntry, "id" | "undone">) => {
+    setActionLog(prev => [createEntry(fields), ...prev])
+  }, [])
+
+  const handleUndo = useCallback(async (id: string) => {
+    const entry = actionLog.find(e => e.id === id)
+    if (!entry || entry.undone || !entry.undoFn) return
+    await entry.undoFn()
+    setActionLog(prev => prev.map(e => e.id === id ? { ...e, undone: true } : e))
+  }, [actionLog])
   const [roast, setRoast] = useState<string | null>(null)
   const [roasting, setRoasting] = useState(false)
   const [confetti, setConfetti] = useState(false)
@@ -781,6 +796,24 @@ export default function Dashboard() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: email.id, account: activeAccount }),
     }).catch(() => {})
+    appendLog({
+      type: "archive",
+      emailId: email.id,
+      emailSubject: email.subject,
+      timestamp: Date.now(),
+      undoFn: async () => {
+        await fetch("/api/gmail/unarchive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messageId: email.id, account: activeAccount }),
+        })
+        setEmails(prev => {
+          const next = [email, ...prev]
+          writeInboxCache(next, categories)
+          return next
+        })
+      },
+    })
   }
 
   async function handleUnsubscribe(email: Email) {
@@ -901,6 +934,12 @@ export default function Dashboard() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: email.id, account: activeAccount }),
     }).catch(() => {})
+    appendLog({
+      type: "delete",
+      emailId: email.id,
+      emailSubject: email.subject,
+      timestamp: Date.now(),
+    })
   }
 
   function handleToggleTodo(email: Email) {
@@ -926,6 +965,27 @@ export default function Dashboard() {
         setTodoNoteTarget(email)
       }
     }
+
+    appendLog({
+      type: next ? "todo-add" : "todo-remove",
+      emailId: email.id,
+      emailSubject: email.subject,
+      timestamp: Date.now(),
+      undoFn: async () => {
+        const data = await fetch("/api/gmail/todo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messageId: email.id, value: !next, account: activeAccount }),
+        }).then(r => r.json()).catch(() => null)
+        if (data?.labelId) setTodoLabelId(data.labelId)
+        setEmails(prev => {
+          const updated = prev.map(e => e.id === email.id ? { ...e, todo: !next } : e)
+          writeInboxCache(updated, categories)
+          return updated
+        })
+        if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, todo: !next } : null)
+      },
+    })
   }
 
   function handleConfirmTodoNote(note: string) {
@@ -955,6 +1015,13 @@ export default function Dashboard() {
     })
     setSnoozeTarget(null)
     if (selectedEmail?.id === email.id) setSelectedEmail(null)
+    appendLog({
+      type: "snooze",
+      emailId: email.id,
+      emailSubject: email.subject,
+      detail: until,
+      timestamp: Date.now(),
+    })
   }
 
   function handleMarkDeletable(email: Email) {
@@ -1018,6 +1085,30 @@ export default function Dashboard() {
         body: JSON.stringify(rule),
       }).catch(() => {})
     }
+
+    appendLog({
+      type: "move",
+      emailId: email.id,
+      emailSubject: email.subject,
+      detail: newCategory,
+      timestamp: Date.now(),
+      undoFn: async () => {
+        const oldCat = categories.find(c => c.name === email.category)
+        if (oldCat?.gmailLabelId) {
+          await fetch("/api/gmail/label", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messageId: email.id, gmailLabelId: oldCat.gmailLabelId, account: activeAccount }),
+          }).catch(() => {})
+        }
+        setEmails(prev => {
+          const updated = prev.map(e => e.id === email.id ? { ...e, category: email.category } : e)
+          writeInboxCache(updated, categories)
+          return updated
+        })
+        if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, category: email.category } : null)
+      },
+    })
   }
 
   async function handleRoast() {
@@ -1188,6 +1279,30 @@ export default function Dashboard() {
                 </div>
               </div>
               <AccountToggle active={activeAccount} onChange={handleAccountSwitch} loading={isLoading} />
+
+              {/* Connect work Gmail — only when not linked, sits right below the account toggle */}
+              {workNeedsLink && activeAccountConfig.email && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    signIn(
+                      "google",
+                      { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
+                      { login_hint: activeAccountConfig.email, prompt: "select_account consent" },
+                    )
+                  }
+                  style={{
+                    alignSelf: "flex-start",
+                    padding: "2px 4px", marginTop: 2,
+                    background: "none", border: "none",
+                    color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111" : "#FF1F6E",
+                    fontSize: "0.70rem", fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  Connect work Gmail
+                </button>
+              )}
             </div>
 
             {/* Right column: utility links (top) + mode pills (bottom), right-aligned */}
@@ -1205,9 +1320,16 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setLogDrawerOpen(true)}
-                  style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+                  style={{ position: "relative", fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
                 >
                   Log
+                  {actionLog.length > 0 && (
+                    <span style={{
+                      position: "absolute", top: 2, right: 2,
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#C17D3C" : "#FF1F6E",
+                    }} />
+                  )}
                 </button>
                 <div style={{ width: 1, height: 16, background: "rgba(26,10,53,0.14)", margin: "0 2px" }} />
                 <button
@@ -1344,30 +1466,6 @@ export default function Dashboard() {
                     : "Load Inbox"}
                 </button>
               </div>
-
-              {/* Connect work Gmail — only when not linked */}
-              {workNeedsLink && activeAccountConfig.email && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    signIn(
-                      "google",
-                      { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
-                      { login_hint: activeAccountConfig.email, prompt: "select_account consent" },
-                    )
-                  }
-                  style={{
-                    padding: "6px 20px", borderRadius: 999,
-                    border: "1px solid rgba(255,208,0,0.5)",
-                    background: "rgba(255,208,0,0.10)",
-                    color: "#FFD000",
-                    fontSize: "0.8rem", fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Connect work Gmail
-                </button>
-              )}
             </div>
           </div>
           {/* end Row B */}
@@ -2014,6 +2112,21 @@ export default function Dashboard() {
         <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} gmailAccount={activeAccount} />
 
         <InstructionsPanel open={instructionsOpen} onClose={() => setInstructionsOpen(false)} />
+
+        <LogDrawer
+          open={logDrawerOpen}
+          onClose={() => setLogDrawerOpen(false)}
+          entries={actionLog}
+          onUndo={handleUndo}
+          mode={mode}
+        />
+
+        <SentDrawer
+          open={sentDrawerOpen}
+          onClose={() => setSentDrawerOpen(false)}
+          account={activeAccount}
+          mode={mode}
+        />
 
         {snoozeTarget && (
           <SnoozeModal

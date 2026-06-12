@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Header mockups — Party mode</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #F3EEFF;
+    margin: 0;
+    padding: 40px 20px;
+    color: #1A0A35;
+  }
+  .label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(26,10,53,0.5);
+    margin: 0 0 8px;
+  }
+  .mock {
+    background: #F3EEFF;
+    border: 1px solid rgba(26,10,53,0.10);
+    border-radius: 16px;
+    padding: 24px 28px 20px;
+    margin-bottom: 48px;
+    max-width: 1000px;
+  }
+  .row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .row + .row { margin-top: 18px; }
+  .between { justify-content: space-between; }
+
+  /* logo */
+  .logo {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, #FF1F6E 0%, #FF6B1A 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; box-shadow: 0 8px 32px rgba(255,31,110,0.38);
+  }
+  .wordmark h1 {
+    font-family: Georgia, serif; font-size: 2.6rem; line-height: 1; margin: 0;
+  }
+  .wordmark p {
+    font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(26,10,53,0.35); margin: 5px 0 0;
+  }
+
+  /* mode pills */
+  .pill {
+    padding: 7px 16px; border-radius: 999px; font-size: 0.82rem;
+    font-weight: 500; letter-spacing: 0.04em; opacity: 0.6;
+    border: 1px solid rgba(255,31,110,0.27);
+    color: #FF1F6E; background: transparent;
+  }
+  .pill.active {
+    font-weight: 700; opacity: 1;
+    border: 1.5px solid #FF1F6E;
+    background: #FF1F6E;
+    color: #FFFFFF; /* FIXED: was same as bg */
+    box-shadow: 0 2px 12px rgba(255,31,110,0.33);
+  }
+  .pill.basic { border-color: rgba(17,17,17,0.27); color: #111; }
+  .pill.zen { border-color: rgba(200,150,12,0.27); color: #C8960C; }
+
+  /* utility text links */
+  .util {
+    font-size: 0.70rem; font-weight: 500; opacity: 0.55;
+    padding: 4px 8px; cursor: pointer;
+  }
+  .divider { width: 1px; height: 16px; background: rgba(26,10,53,0.14); }
+
+  /* account toggle */
+  .acct-group {
+    display: flex; gap: 4px; background: #fff;
+    border-radius: 999px; padding: 4px;
+    border: 1px solid rgba(26,10,53,0.08);
+  }
+  .acct {
+    padding: 6px 16px; border-radius: 999px; font-size: 0.85rem; font-weight: 500;
+    color: rgba(26,10,53,0.45);
+  }
+  .acct.active {
+    background: #1A0A35; color: #fff; font-weight: 600;
+    box-shadow: 0 2px 8px rgba(26,10,53,0.18);
+  }
+
+  /* batch picker */
+  .batch-wrap { display: flex; flex-direction: column; gap: 3px; }
+  .batch-label {
+    font-size: 0.70rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.12em; color: rgba(26,10,53,0.56);
+  }
+  .batch-group {
+    display: flex; border-radius: 999px; padding: 2px;
+    border: 1px solid rgba(26,10,53,0.10); background: rgba(26,10,53,0.03);
+  }
+  .batch-opt {
+    min-width: 36px; text-align: center; padding: 4px 8px; border-radius: 999px;
+    font-size: 0.84rem; font-weight: 600; color: rgba(26,10,53,0.42);
+  }
+  .batch-opt.active { background: #FF1F6E; color: #1A0A35; }
+
+  /* refresh button */
+  .refresh-btn {
+    padding: 8px 20px; border-radius: 999px; background: #FF1F6E;
+    color: #1A0A35; font-size: 0.82rem; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    box-shadow: 0 4px 20px rgba(255,31,110,0.45);
+  }
+
+  /* compose / roast */
+  .compose-btn {
+    padding: 8px 20px; border-radius: 999px;
+    border: 1px solid rgba(0,229,196,0.40);
+    background: rgba(0,229,196,0.08);
+    color: #00B89E; font-size: 0.85rem; font-weight: 600;
+  }
+  .roast-btn {
+    padding: 8px 18px; border-radius: 999px;
+    border: 1px solid rgba(255,107,26,0.40);
+    background: rgba(255,107,26,0.09);
+    color: #FF6B1A; font-size: 0.85rem; font-weight: 600;
+  }
+
+  /* stats row */
+  .plant {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; color: #00B89E;
+  }
+  .plant .pct {
+    font-size: 0.78rem; font-weight: 600; color: rgba(26,10,53,0.45);
+  }
+  .tally {
+    border: 1px solid rgba(255,31,110,0.25); border-radius: 10px;
+    padding: 8px 16px; background: rgba(255,31,110,0.07); min-width: 160px;
+  }
+  .tally .num { font-family: Georgia, serif; font-size: 1.75rem; line-height: 1; }
+  .tally .big { color: #FF1F6E; }
+  .tally .slash { color: rgba(26,10,53,0.30); }
+  .tally .small { color: rgba(26,10,53,0.55); }
+  .tally .sub {
+    font-size: 0.70rem; text-transform: uppercase; letter-spacing: 0.12em;
+    color: rgba(26,10,53,0.55); margin-top: 3px;
+  }
+  .tally .bar {
+    margin-top: 6px; height: 3px; border-radius: 99px;
+    background: rgba(26,10,53,0.10); overflow: hidden;
+  }
+  .tally .bar > div {
+    height: 100%; width: 35%; border-radius: 99px;
+    background: linear-gradient(90deg, #FF1F6E, #FF6B1A);
+  }
+
+  .ministats { display: flex; gap: 4px; }
+  .ministat {
+    border-radius: 8px; padding: 5px 10px; text-align: center;
+  }
+  .ministat .v { font-family: Georgia, serif; font-size: 1.2rem; line-height: 1; }
+  .ministat .l {
+    font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.09em;
+    color: rgba(26,10,53,0.60); margin-top: 1px;
+  }
+  .ms-urgent { border: 1px solid rgba(255,31,110,0.44); background: rgba(255,31,110,0.14); }
+  .ms-urgent .v { color: #FF1F6E; }
+  .ms-today { border: 1px solid rgba(255,208,0,0.44); background: rgba(255,208,0,0.14); }
+  .ms-today .v { color: #FFD000; }
+  .ms-fyi { border: 1px solid rgba(0,229,196,0.44); background: rgba(0,229,196,0.14); }
+  .ms-fyi .v { color: #00E5C4; }
+
+  .todo {
+    background: #fff; border: 1px solid rgba(255,208,0,0.28); border-radius: 14px;
+    padding: 8px 16px; font-size: 0.78rem; font-weight: 700; color: #FFD000;
+    box-shadow: 0 4px 24px rgba(255,208,0,0.08);
+  }
+
+  hr.sep { border: none; border-top: 1px solid rgba(26,10,53,0.08); margin: 18px 0 0; }
+</style>
+</head>
+<body>
+
+<p class="label">New layout — account under logo, utility+mode+refresh stacked on right, compose/roast/todo under stats</p>
+<div class="mock">
+  <!-- Row A: two columns -->
+  <div class="row between" style="align-items: flex-start;">
+
+    <!-- Col 1: logo + wordmark + account switcher -->
+    <div class="row" style="gap:16px; align-items: flex-start;">
+      <div class="logo">✉️</div>
+      <div class="wordmark">
+        <h1>EMAIL PARTY</h1>
+        <p>Your AI-Powered Inbox</p>
+        <div class="acct-group" style="margin-top:10px;">
+          <div class="acct active">katelynmudry</div>
+          <div class="acct">drkmudry</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: utility links, mode pills stacked -->
+    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
+      <div class="row" style="gap:2px;">
+        <span class="util">Sent</span>
+        <span class="util">Log</span>
+        <div class="divider"></div>
+        <span class="util">Settings</span>
+        <span class="util">Sign out</span>
+      </div>
+      <div class="row" style="gap:8px;">
+        <div class="pill active">Party</div>
+        <div class="pill basic">Basic AF</div>
+        <div class="pill zen">Zen</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep" />
+
+  <!-- Stats row -->
+  <div class="row between" style="margin-top:18px;">
+    <div class="row" style="gap:16px;">
+      <div class="plant">
+        🌱 Thriving
+        <span class="pct">69%</span>
+      </div>
+      <div class="tally">
+        <div class="num"><span class="big">50</span><span class="slash">/</span><span class="small">159</span></div>
+        <div class="sub">emails loaded</div>
+        <div class="bar"><div></div></div>
+      </div>
+      <div class="ministats">
+        <div class="ministat ms-urgent"><div class="v">1</div><div class="l">urgent</div></div>
+        <div class="ministat ms-today"><div class="v">14</div><div class="l">today</div></div>
+        <div class="ministat ms-fyi"><div class="v">35</div><div class="l">fyi</div></div>
+      </div>
+    </div>
+    <div class="row" style="gap:10px; align-items:flex-end;">
+      <div class="batch-wrap">
+        <span class="batch-label">per refresh</span>
+        <div class="batch-group">
+          <div class="batch-opt">30</div>
+          <div class="batch-opt active">50</div>
+          <div class="batch-opt">100</div>
+        </div>
+      </div>
+      <div class="refresh-btn">Refresh</div>
+    </div>
+  </div>
+
+  <!-- Compose / Roast / TODO row, under stats -->
+  <div class="row between" style="margin-top:14px;">
+    <div class="row" style="gap:10px;">
+      <div class="compose-btn">Compose</div>
+      <div class="roast-btn">Roast my inbox</div>
+    </div>
+    <div class="todo">★ TODO · 1</div>
+  </div>
+</div>
+
+
+<p class="label">Bug fix preview — Party pill text color</p>
+<div class="mock" style="max-width: 400px;">
+  <div class="row" style="gap:8px;">
+    <div class="pill active">Party</div>
+    <div class="pill basic">Basic AF</div>
+    <div class="pill zen">Zen</div>
+  </div>
+  <p style="font-size:0.8rem; opacity:0.6; margin-top:10px;">
+    Active "Party" pill now uses white text on the pink fill (was pink-on-pink, invisible).
+  </p>
+</div>
+
+</body>
+</html>

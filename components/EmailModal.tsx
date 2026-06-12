@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import type { AccountId, Email, Attachment } from "@/lib/types"
-import { downloadAttachment } from "@/lib/attachment-download"
+import { downloadAttachment, attachmentUrl } from "@/lib/attachment-download"
 import ComposeWindow from "./ComposeWindow"
 import ImageLightbox from "./ImageLightbox"
 
@@ -62,6 +62,7 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
     extractUnsubscribeUrl(email.htmlBody ?? null, email.body)
   )
   const [imgPreview, setImgPreview] = useState<{ src: string; name: string } | null>(null)
+  const [imgLoadErrors, setImgLoadErrors] = useState<Set<string>>(new Set())
   const [composeMode, setComposeMode] = useState<"reply" | "forward" | null>(null)
   const [autoAiDraft, setAutoAiDraft] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -286,6 +287,45 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
                 const kb = att.size > 0 ? (att.size < 1024 * 1024
                   ? `${Math.round(att.size / 1024)} KB`
                   : `${(att.size / (1024 * 1024)).toFixed(1)} MB`) : ""
+
+                const isImage = att.mimeType.startsWith("image/") && !imgLoadErrors.has(att.attachmentId)
+                if (isImage) {
+                  const url = attachmentUrl(email.id, att, gmailAccount)
+                  return (
+                    <div
+                      key={att.attachmentId}
+                      className="inline-flex items-center gap-1.5 pr-1.5 rounded-full border border-violet-200 bg-violet-50"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setImgPreview({ src: url, name: att.filename })}
+                        className="shrink-0"
+                        title="Preview image"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={att.filename}
+                          className="w-7 h-7 rounded-full object-cover"
+                          onError={() => setImgLoadErrors(prev => new Set(prev).add(att.attachmentId))}
+                        />
+                      </button>
+                      <span className="text-xs font-medium text-violet-700 max-w-[100px] truncate">{att.filename}</span>
+                      {kb && <span className="text-xs opacity-60 text-violet-700">{kb}</span>}
+                      <button
+                        type="button"
+                        disabled={isDownloading}
+                        onClick={() => void handleDownloadAttachment(att)}
+                        className="shrink-0 text-violet-400 hover:text-violet-700 disabled:opacity-50 text-xs transition-colors"
+                        title="Save to folder"
+                        aria-label={`Save ${att.filename}`}
+                      >
+                        {isDownloading ? "↓…" : "↓"}
+                      </button>
+                    </div>
+                  )
+                }
+
                 return (
                   <button
                     key={att.attachmentId}

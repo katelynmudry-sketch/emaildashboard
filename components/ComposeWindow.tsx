@@ -57,7 +57,7 @@ export default function ComposeWindow({
     ? { id: email.id, from: email.from, fromEmail: email.fromEmail, subject: email.subject, body: email.body }
     : null
 
-  const { loading: aiLoading, generateDraft, fetchDraft } = useAiDraft(emailCtx, gmailAccount)
+  const { loading: aiLoading, error: aiError, generateDraft, fetchDraft } = useAiDraft(emailCtx, gmailAccount)
 
   // Auto-generate draft on mount when requested (e.g. "AI Draft" button in parent)
   useEffect(() => {
@@ -138,7 +138,7 @@ export default function ComposeWindow({
           )}
 
           {mode !== "new" && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 disabled={aiLoading}
@@ -147,6 +147,9 @@ export default function ComposeWindow({
               >
                 {aiLoading ? "Drafting…" : "AI Draft"}
               </button>
+              {aiError && (
+                <p className="text-xs text-rose-600">{aiError}</p>
+              )}
             </div>
           )}
 

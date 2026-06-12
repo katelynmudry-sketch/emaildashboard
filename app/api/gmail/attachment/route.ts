@@ -35,11 +35,14 @@ export async function GET(request: Request) {
     const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4)
     const binary = Buffer.from(padded, "base64")
 
+    // Inline disposition lets images render directly in <img src>; other types still download.
+    const disposition = mimeType.startsWith("image/") ? "inline" : "attachment"
+
     return new Response(binary, {
       status: 200,
       headers: {
         "Content-Type": mimeType,
-        "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"`,
+        "Content-Disposition": `${disposition}; filename="${encodeURIComponent(filename)}"`,
         "Content-Length": String(binary.length),
         "Cache-Control": "private, max-age=300",
       },
