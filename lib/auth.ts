@@ -50,16 +50,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
 
   callbacks: {
-    async jwt({ token, account, user }) {
+    async jwt({ token, account, user, trigger, session }) {
+      // Swap which linked account is "personal" vs "work" — triggered via
+      // useSession().update({ swapAccounts: true }) from the Accounts settings tab.
+      if (trigger === "update" && (session as { swapAccounts?: boolean } | null)?.swapAccounts) {
+        const workEmail = token.work_email as string | undefined
+        if (!workEmail) return token
+
+        return {
+          ...token,
+          email: workEmail,
+          primary_email: workEmail,
+          access_token: token.work_access_token,
+          refresh_token: token.work_refresh_token,
+          expires_at: token.work_expires_at,
+          error: token.work_error,
+          work_email: token.primary_email,
+          work_access_token: token.access_token,
+          work_refresh_token: token.refresh_token,
+          work_expires_at: token.expires_at,
+          work_error: token.error,
+        }
+      }
+
       if (account && user?.email) {
         const newEmail = user.email.toLowerCase()
-        const primaryEmail = (token.email as string | undefined)?.toLowerCase()
+        const primaryEmail = token.primary_email?.toLowerCase()
 
         // Second account: a different email signed in while a primary is already stored
         const isSecondAccount = !!primaryEmail && newEmail !== primaryEmail
         if (isSecondAccount) {
           return {
             ...token,
+            // Auth.js overwrites token.email with the new sign-in's email before this
+            // callback runs — restore the primary's email so it doesn't get clobbered.
+            email: primaryEmail,
             work_email: newEmail,
             work_access_token: account.access_token,
             work_refresh_token: account.refresh_token ?? token.work_refresh_token,
@@ -72,6 +97,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return {
           ...token,
           email: user.email,
+          primary_email: newEmail,
           access_token: account.access_token,
           refresh_token: account.refresh_token ?? token.refresh_token,
           expires_at: account.expires_at,

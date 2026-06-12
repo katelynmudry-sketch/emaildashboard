@@ -150,6 +150,14 @@ export default function QuoteGate({ onEnter }: QuoteGateProps) {
           </button>
         </div>
 
+        {/* Reassurance: vibe is changeable anytime */}
+        <p style={{
+          fontSize: "0.72rem", color: "rgba(255,255,255,0.30)",
+          letterSpacing: "0.04em", textAlign: "center", margin: 0,
+        }}>
+          You can change this anytime from the header.
+        </p>
+
         {/* Skip link */}
         <button
           onClick={() => enter("party")}

@@ -13,8 +13,9 @@ import {
 import { Hint, SectionLabel, SaveOk, ToggleSwitch } from "./shared"
 
 export default function AccountsSettings() {
-  const { data: session } = useSession()
+  const { data: session, update } = useSession()
   const accounts = getAccounts(session)
+  const [swapping, setSwapping] = useState(false)
 
   // TODO export (beta)
   const [todoExportEnabled, setTodoExportEnabled] = useState(false)
@@ -91,6 +92,16 @@ export default function AccountsSettings() {
     window.location.reload()
   }
 
+  async function handleSwapAccounts() {
+    setSwapping(true)
+    try {
+      await update({ swapAccounts: true })
+      window.location.reload()
+    } catch {
+      setSwapping(false)
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
 
@@ -144,6 +155,30 @@ export default function AccountsSettings() {
           >
             Connect second Gmail
           </button>
+        )}
+
+        {session?.workAccountLinked && (
+          <>
+            <button
+              type="button"
+              onClick={handleSwapAccounts}
+              disabled={swapping}
+              style={{
+                marginTop: 10,
+                padding: "9px 24px", borderRadius: 999,
+                background: "rgba(139,63,216,0.08)", color: "#8B3FD8",
+                border: "1px solid rgba(139,63,216,0.30)",
+                fontSize: "0.82rem", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase",
+                cursor: swapping ? "wait" : "pointer", fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+                opacity: swapping ? 0.6 : 1,
+              }}
+            >
+              {swapping ? "Swapping…" : "⇄ Swap personal & work"}
+            </button>
+            <Hint>
+              Picked the wrong one as &quot;personal&quot; during setup? This swaps which account is which everywhere in the app — including per-account rules, save folders, and TODO docs.
+            </Hint>
+          </>
         )}
       </div>
 

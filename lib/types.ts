@@ -20,6 +20,8 @@ declare module "next-auth" {
 
 declare module "@auth/core/jwt" {
   interface JWT {
+    /** The first account's email — tracked separately because Auth.js overwrites `token.email` with the new sign-in's email before the jwt callback runs. */
+    primary_email?: string
     work_email?: string
     work_access_token?: string
     work_refresh_token?: string
