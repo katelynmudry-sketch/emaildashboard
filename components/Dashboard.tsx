@@ -1351,16 +1351,9 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setLogDrawerOpen(true)}
-                  style={{ position: "relative", fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+                  style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
                 >
                   Log
-                  {actionLog.length > 0 && (
-                    <span style={{
-                      position: "absolute", top: 2, right: 2,
-                      width: 8, height: 8, borderRadius: "50%",
-                      background: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#C17D3C" : "#FF1F6E",
-                    }} />
-                  )}
                 </button>
                 <div style={{ width: 1, height: 16, background: "rgba(26,10,53,0.14)", margin: "0 2px" }} />
                 <button
