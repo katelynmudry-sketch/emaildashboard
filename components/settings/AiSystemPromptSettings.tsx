@@ -29,7 +29,8 @@ interface Props {
 }
 
 export default function AiSystemPromptSettings({ data }: Props) {
-  // System prompt state
+  // System prompt state — blank until the user writes or uploads their own.
+  // Never pre-filled from the server default, which is shared across all accounts.
   const [systemContextText, setSystemContextText] = useState("")
   const [saveOk, setSaveOk] = useState(false)
 
@@ -38,10 +39,11 @@ export default function AiSystemPromptSettings({ data }: Props) {
   const [chatInput, setChatInput] = useState("")
   const [chatLoading, setChatLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const stored = loadSettings()
-    setSystemContextText(stored.systemContext || data?.systemContext || "")
+    setSystemContextText(stored.systemContext || "")
   }, [data])
 
   // Scroll chat to bottom
@@ -59,11 +61,27 @@ export default function AiSystemPromptSettings({ data }: Props) {
     flashSaveOk()
   }
 
-  function handleResetSystemContext() {
+  function handleLoadDefault() {
     if (!data) return
     setSystemContextText(data.systemContext)
+  }
+
+  function handleClearSystemContext() {
+    setSystemContextText("")
     saveSettings({ systemContext: "" })
     flashSaveOk()
+  }
+
+  function handleContextFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === "string") setSystemContextText(reader.result)
+    }
+    reader.readAsText(file)
+    // Reset so the same file can be re-selected later
+    e.target.value = ""
   }
 
   // Apply a suggested change from the chat editor
@@ -151,19 +169,54 @@ export default function AiSystemPromptSettings({ data }: Props) {
       {/* ── System prompt editor ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <Hint>
-          The full system prompt Claude receives — tone, summary style, group logic. Your edits override
-          the default on every refresh and are saved in your browser.
-          Or ask Claude to edit it in the <strong>Chat Editor</strong> below.
+          The full system prompt Claude receives — tone, summary style, group logic. This is empty by
+          default (a generic prompt is used). Write your own, upload a file, or ask Claude to draft one
+          in the <strong>Chat Editor</strong> below. Your version is saved only in your browser and is
+          never shared with other accounts.
         </Hint>
 
         <div>
-          <SectionLabel color="#8B3FD8">System prompt (CLINIC_CONTEXT)</SectionLabel>
+          <SectionLabel color="#8B3FD8">Your system prompt</SectionLabel>
           <textarea
             value={systemContextText}
             onChange={e => setSystemContextText(e.target.value)}
             rows={16}
+            placeholder="Leave blank to use the generic default, or describe how you'd like Claude to triage your inbox — tone, summary style, anything personal it should know…"
             style={TEXTAREA_STYLE}
           />
+          <div style={{ marginTop: 6, display: "flex", gap: 14 }}>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                background: "none", border: "none", padding: 0,
+                color: "#8B3FD8", fontSize: "0.76rem", fontWeight: 600,
+                cursor: "pointer", textDecoration: "underline",
+                fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+              }}
+            >
+              Load from .txt or .md file…
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.markdown"
+              onChange={handleContextFile}
+              style={{ display: "none" }}
+            />
+            <button
+              type="button"
+              onClick={handleLoadDefault}
+              style={{
+                background: "none", border: "none", padding: 0,
+                color: "rgba(26,10,53,0.50)", fontSize: "0.76rem", fontWeight: 600,
+                cursor: "pointer", textDecoration: "underline",
+                fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+              }}
+            >
+              Load generic default as a starting point
+            </button>
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -176,14 +229,14 @@ export default function AiSystemPromptSettings({ data }: Props) {
           }}>
             Save Context
           </button>
-          <button onClick={handleResetSystemContext} style={{
+          <button onClick={handleClearSystemContext} style={{
             padding: "9px 16px", borderRadius: 999,
             background: "rgba(26,10,53,0.06)", color: "rgba(26,10,53,0.65)",
             border: "1px solid rgba(26,10,53,0.14)",
             fontSize: "0.82rem", fontWeight: 600,
             cursor: "pointer", fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
           }}>
-            Reset to default
+            Clear
           </button>
           <SaveOk show={saveOk} />
         </div>

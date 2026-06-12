@@ -1,11 +1,14 @@
 // lib/claude-utils.ts
 // Shared utilities and constants for Claude API calls.
 
-// ── Default system context (CLINIC_CONTEXT) ──────────────────────────────────
+// ── Default system context ────────────────────────────────────────────────────
 // Single source of truth — imported by lib/claude.ts and app/api/ai/context/route.ts.
-// Override at runtime with the CLINIC_CONTEXT env var or via user settings in localStorage.
+// This is a generic, non-personal default shared by every new account. It is NOT
+// sourced from an env var — personal context belongs to each user individually,
+// entered (or uploaded as a .txt/.md file) via Settings -> AI System Prompt, where
+// it's stored in that user's browser and sent only with their own requests.
 
-export const DEFAULT_SYSTEM_CONTEXT = (process.env.CLINIC_CONTEXT ?? `You are an AI assistant helping the user triage their email.
+export const DEFAULT_SYSTEM_CONTEXT = (`You are an AI assistant helping the user triage their email.
 
 ## Summary rules
 Only generate a summary if the email body is longer than ~150 words or contains a special offer/promotion. Otherwise set summary to null.

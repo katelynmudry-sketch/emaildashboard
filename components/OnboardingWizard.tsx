@@ -8,6 +8,7 @@ import QuoteGate from "./QuoteGate"
 import AccountsSettings from "./settings/AccountsSettings"
 import InboxDisplaySettings from "./settings/InboxDisplaySettings"
 import AiRulesSettings from "./settings/AiRulesSettings"
+import AiSystemPromptSettings from "./settings/AiSystemPromptSettings"
 import FullPromptPreview from "./settings/FullPromptPreview"
 
 interface ContextData {
@@ -113,10 +114,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           ? "tell claude ur whole personality"
           : "AI RULES & ABOUT YOU",
       description: mode === "zen"
-        ? "Optional, and skippable — the defaults work fine. If you'd like, add custom rules per account and a short note about who you are, so Claude's suggestions fit your life."
+        ? "Optional, and skippable — the defaults work fine. If you'd like, add custom rules per account, a short note about who you are, and your own system prompt (write it, upload a file, or ask Claude to draft one)."
         : mode === "wabi-sabi"
-          ? "This step is literally optional, the defaults are already great. But if you want, tell Claude a lil bit about yourself and ur rules so it gets your whole vibe, bestie."
-          : "Totally optional — defaults work great out of the box. Add custom per-account rules and a quick \"About You\" note so Claude's suggestions match how you actually work.",
+          ? "This step is literally optional, the defaults are already great. But if you want, tell Claude a lil bit about yourself, ur rules, and even upload ur own system prompt so it gets your whole vibe, bestie."
+          : "Totally optional — defaults work great out of the box. Add custom per-account rules, a quick \"About You\" note, and your own system prompt — type it, upload a file, or ask Claude to write it for you.",
     },
     5: {
       title: mode === "zen"
@@ -223,7 +224,13 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         }}>
           {step === 2 && <AccountsSettings />}
           {step === 3 && <InboxDisplaySettings />}
-          {step === 4 && <AiRulesSettings />}
+          {step === 4 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              <AiRulesSettings />
+              <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)" }} />
+              <AiSystemPromptSettings data={contextData} />
+            </div>
+          )}
           {step === 5 && (
             <FullPromptPreview data={contextData} />
           )}

@@ -2,11 +2,6 @@
 
 ## Low – DEBT (added 2026-05-27 — settings panel audit)
 
-### `""` used as sentinel for "reset to default" in settings storage
-`handleResetSystemContext` saves `""` to localStorage to mean "use the server default."
-This is implicit. A named constant (`RESET_TO_DEFAULT = ""`) or an explicit `null` field would make the intent clear to future readers.
-File: `components/InstructionsPanel.tsx` line ~159, `lib/settings-storage.ts`
-
 ### `CATEGORIZE_INSTRUCTIONS` was exported from a route file (now moved to `lib/claude-utils.ts`)
 Already fixed in this session. Noting for posterity: constants should live in `lib/`, not route files.
 

@@ -111,14 +111,6 @@ GOOGLE_CLIENT_SECRET=
 ANTHROPIC_API_KEY=
 ```
 
-**Optional — personalize the AI for your own inbox:**
-
-```env
-# Your personal system prompt for the AI (use \n for line breaks)
-# If blank, a generic prompt is used. Can also be overridden per-session in Settings.
-CLINIC_CONTEXT=You are an AI assistant helping [your name] triage their email...
-```
-
 ### 5. Run
 
 ```bash
@@ -135,11 +127,11 @@ On first use, Claude reads your inbox and proposes categories based on your actu
 
 You can tune how the AI behaves three ways, all from the **Settings** panel (no redeploy needed):
 
-- **System prompt** — override the base instructions Claude follows, or edit it via chat
+- **System prompt** — write your own from scratch, upload a `.txt`/`.md` file, or edit it via chat. Empty by default (a generic prompt is used) — nothing personal is shared between accounts.
 - **Per-account rules** — free-text instructions specific to your personal vs. work inbox (tone, signoff, what counts as urgent, etc.)
 - **About You** — a reference doc (paste or upload `.txt`/`.md`) describing who you are, included in every prompt
 
-The "Full Prompt" tab shows exactly what gets sent to Claude for categorization and for draft replies, so there's no guessing. `CLINIC_CONTEXT` (env var) only sets the *initial default* system prompt — Settings always take precedence once configured.
+The "Full Prompt" tab shows exactly what gets sent to Claude for categorization and for draft replies, so there's no guessing. Everything is stored in your own browser and sent only with your own requests.
 
 ---
 

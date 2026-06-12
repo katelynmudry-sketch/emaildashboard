@@ -22,8 +22,8 @@
 - [ ] Free tier block UI — "resets Monday, or add your Anthropic key"
 
 ### AI
-- [ ] Dynamic system prompt builder — builds from user persona instead of hardcoded clinic context
-- [ ] Owner email bypass — Katelyn's accounts skip free tier + load clinic context from env
+- [x] Dynamic system prompt builder — default prompt is now generic; each user writes/uploads their own via Settings -> AI System Prompt (no more shared `CLINIC_CONTEXT` env var)
+- [ ] Owner email bypass — free tier / BYOK still TBD (no longer tied to system prompt)
 
 ### Launch
 - [ ] End-to-end test: new user → onboarding → free sort → BYOK → unlimited sort
