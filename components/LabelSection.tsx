@@ -56,6 +56,7 @@ export interface LabelSectionProps {
   onNewCategory: (name: string, color: string) => Promise<string>
   onToggleTodo: (email: Email) => void
   onSnooze: (email: Email) => void
+  onUnsubscribe?: (email: Email) => void
   gmailAccount: AccountId
 
   emptyText?: string
@@ -78,7 +79,7 @@ export default function LabelSection({
   onMarkRead, onArchive, onSaveDraft, onSend,
   onStar, onDelete, onRecategorize, onMarkReplied,
   onMarkDeletable, onNewCategory,
-  onToggleTodo, onSnooze, gmailAccount,
+  onToggleTodo, onSnooze, onUnsubscribe, gmailAccount,
   emptyText = "All clear ✓",
   className = "",
   mode = "party",
@@ -327,6 +328,7 @@ export default function LabelSection({
                 onForward={() => onExpand(email, "forward")}
                 onToggleTodo={() => onToggleTodo(email)}
                 onSnooze={() => onSnooze(email)}
+                onUnsubscribe={onUnsubscribe ? () => onUnsubscribe(email) : undefined}
               />
               {!selectionMode && email.id === selectedEmail?.id && (
                 <div className="mt-1 mb-2">

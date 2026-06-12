@@ -12,7 +12,8 @@ type ActionKind =
   | "markRead"
   | "aiDraft"
   | "cleanupDelete"
-  | "cleanupDismiss";
+  | "cleanupDismiss"
+  | "unsubscribe";
 
 export interface ActionEvent {
   action: ActionKind;
@@ -73,6 +74,7 @@ const XP_VALUES: Record<ActionKind, number> = {
   aiDraft: 1,
   cleanupDelete: 2,
   cleanupDismiss: 0,
+  unsubscribe: 2,
 };
 
 function today(): string {

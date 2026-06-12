@@ -33,6 +33,7 @@ interface Props {
   onNewCategory: (name: string, color: string) => Promise<string>
   onToggleTodo: (email: Email) => void
   onSnooze: (email: Email) => void
+  onUnsubscribe: (email: Email) => void
   gmailAccount: AccountId
   isPriority?: boolean
   onTogglePriority?: () => void
@@ -83,7 +84,7 @@ export default function CategoryBlock({
   onMarkRead, onArchive, onSaveDraft, onSend,
   onStar, onDelete, onRecategorize, onMarkReplied,
   onMarkDeletable, onNewCategory,
-  onToggleTodo, onSnooze, gmailAccount,
+  onToggleTodo, onSnooze, onUnsubscribe, gmailAccount,
   isPriority = false, onTogglePriority,
 }: Props) {
   const sorted = [...emails].sort((a, b) => a.internalDate - b.internalDate)
@@ -214,6 +215,14 @@ export default function CategoryBlock({
           { label: "Mark read", handler: async (targets) => { for (const e of targets) await onMarkRead(e) } },
           { label: "Archive",   handler: async (targets) => { for (const e of targets) await onArchive(e) } },
           { label: "Delete",    handler: async (targets) => { for (const e of targets) await onDelete(e) }, danger: true },
+          {
+            label: "Unsubscribe",
+            handler: async (targets) => {
+              for (const e of targets.filter(e => e.unsubscribeOneClick && e.unsubscribeUrl)) {
+                await onUnsubscribe(e)
+              }
+            },
+          },
         ]}
         onSelect={onSelect}
         onExpand={onExpand}
@@ -230,6 +239,7 @@ export default function CategoryBlock({
         onNewCategory={onNewCategory}
         onToggleTodo={onToggleTodo}
         onSnooze={onSnooze}
+        onUnsubscribe={onUnsubscribe}
         gmailAccount={gmailAccount}
         mode={mode}
       />

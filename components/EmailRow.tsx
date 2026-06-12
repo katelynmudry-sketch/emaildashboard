@@ -22,6 +22,7 @@ interface Props {
   onForward?: () => void
   onToggleTodo?: () => void
   onSnooze?: () => void
+  onUnsubscribe?: () => void
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -52,7 +53,7 @@ function actionBtn(bg?: string, color?: string): React.CSSProperties {
 export default function EmailRow({
   email, selected, isSelected, selectionMode, mode = "party",
   onClick, onDoubleClick, onMarkRead, onDelete,
-  onReply, onForward, onToggleTodo, onSnooze,
+  onReply, onForward, onToggleTodo, onSnooze, onUnsubscribe,
 }: Props) {
   const priorityColor = getPriorityColor(email.priority, mode)
 
@@ -202,6 +203,14 @@ export default function EmailRow({
               onClick={e => { e.stopPropagation(); onSnooze() }}
               style={actionBtn()}>
               💤
+            </button>
+          )}
+
+          {onUnsubscribe && email.unsubscribeOneClick && email.unsubscribeUrl && (
+            <button type="button" title="Unsubscribe"
+              onClick={e => { e.stopPropagation(); onUnsubscribe() }}
+              style={actionBtn("rgba(255,31,110,0.12)", "#D4005A")}>
+              📭
             </button>
           )}
 

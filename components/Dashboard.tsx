@@ -20,6 +20,7 @@ import PlantHeader from "./PlantHeader"
 import DashboardPanel from "./dashboard/DashboardPanel"
 import ComposeModal from "./ComposeModal"
 import SnoozeModal from "./SnoozeModal"
+import TodoNoteModal from "./TodoNoteModal"
 import ConfettiBlast from "./ConfettiBlast"
 import InstructionsPanel from "./InstructionsPanel"
 import QuoteGate from "./QuoteGate"
@@ -234,6 +235,7 @@ export default function Dashboard() {
   const [pendingImportMeta, setPendingImportMeta] = useState<InboxFetchMeta | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
   const [snoozeTarget, setSnoozeTarget] = useState<Email | null>(null)
+  const [todoNoteTarget, setTodoNoteTarget] = useState<Email | null>(null)
   const [instructionsOpen, setInstructionsOpen] = useState(false)
   const [sentDrawerOpen, setSentDrawerOpen] = useState(false)
   const [logDrawerOpen, setLogDrawerOpen] = useState(false)
@@ -781,6 +783,20 @@ export default function Dashboard() {
     }).catch(() => {})
   }
 
+  async function handleUnsubscribe(email: Email) {
+    if (!email.unsubscribeUrl) return
+    recordAction("unsubscribe")
+    try {
+      const res = await fetch("/api/gmail/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unsubscribeUrl: email.unsubscribeUrl, account: activeAccount }),
+      })
+      if (!res.ok) return
+      handleArchive(email)
+    } catch {}
+  }
+
   function handleMarkRead(email: Email) {
     setEmails(prev => {
       const next = prev.filter(e => e.id !== email.id)
@@ -907,20 +923,27 @@ export default function Dashboard() {
     if (next) {
       const settings = loadSettings()
       if (settings.todoExportEnabled && settings.todoExportDocId) {
-        // Always uses the primary session account's Google Docs access — export target is a single global doc, not per-account.
-        fetch("/api/docs/append-todo", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            docId: settings.todoExportDocId,
-            subject: email.subject,
-            from: email.from,
-            snippet: email.snippet,
-            threadId: email.threadId,
-          }),
-        }).catch(() => {})
+        setTodoNoteTarget(email)
       }
     }
+  }
+
+  function handleConfirmTodoNote(note: string) {
+    const email = todoNoteTarget
+    setTodoNoteTarget(null)
+    if (!email) return
+    const settings = loadSettings()
+    if (!settings.todoExportDocId) return
+    // Always uses the primary session account's Google Docs access — export target is a single global doc, not per-account.
+    fetch("/api/docs/append-todo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        docId: settings.todoExportDocId,
+        note,
+        threadId: email.threadId,
+      }),
+    }).catch(() => {})
   }
 
   function handleSnooze(email: Email, until: string) {
@@ -1235,12 +1258,12 @@ export default function Dashboard() {
           </div>
           {/* end Row A */}
 
-          {/* ── Row B: always visible ── */}
+          {/* ── Row B + roast + TODO widget: shared flex-wrap so the TODO widget can sit beside the refresh row on desktop and below the roast on mobile ── */}
           {(
-            <div className="flex items-center justify-between gap-4 flex-wrap mt-5">
+            <div className="flex items-start justify-between gap-4 flex-wrap mt-5">
 
               {/* Left cluster */}
-              <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-4 flex-wrap order-1">
                 <PlantHeader
                   remaining={emails.length}
                   total={totalUnreadInbox}
@@ -1256,7 +1279,7 @@ export default function Dashboard() {
               </div>
 
               {/* Right cluster */}
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-start gap-3 flex-wrap order-2">
 
                 {/* Batch picker + Refresh */}
                 <div className="flex items-end gap-2">
@@ -1394,86 +1417,87 @@ export default function Dashboard() {
                 )}
 
               </div>
+
+              {/* Roast text — wraps to its own full-width line below both clusters */}
+              {roast && appState === "ready" && (
+                <div className="order-3 basis-full" style={{ display: "flex", alignItems: "flex-start", gap: 8, maxWidth: 500, marginTop: 10 }}>
+                  <span style={{
+                    fontSize: "0.85rem",
+                    fontStyle: "italic",
+                    color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#FF6B1A",
+                    flex: 1,
+                    letterSpacing: mode === "wabi-sabi" ? "0.02em" : undefined,
+                  }}>
+                    &ldquo;{roast}&rdquo;
+                  </span>
+                  <button
+                    onClick={() => setRoast(null)}
+                    style={{ color: "rgba(26,10,53,0.56)", fontSize: "1rem", background: "none", border: "none", cursor: "pointer", lineHeight: 1, flexShrink: 0, marginTop: 1 }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              {/* ══════ TODO WIDGET — right of the refresh row on desktop, below the roast on mobile ══════ */}
+              {appState === "ready" && todoEmails.length > 0 && (
+                <div
+                  className="order-4 lg:order-2 basis-full lg:basis-auto overflow-hidden mt-3 lg:mt-0"
+                  style={{
+                    background: mode === "zen" ? "#FFFEF9" : "#FFFFFF",
+                    border: "1px solid rgba(255,208,0,0.28)",
+                    borderRadius: 14,
+                    boxShadow: mode === "wabi-sabi" ? "none" : "0 4px 24px rgba(255,208,0,0.08)",
+                    minWidth: 220, maxWidth: 290,
+                  }}
+                >
+                  <div
+                    className="flex items-center justify-between px-4 py-2.5"
+                    style={{
+                      background: "rgba(255,208,0,0.08)",
+                      borderBottom: "1px solid rgba(255,208,0,0.12)",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>★ TODO</span>
+                    <span style={{
+                      fontSize: "0.82rem", fontWeight: 700,
+                      background: "rgba(255,208,0,0.18)",
+                      border: "none",
+                      color: "#FFD000",
+                      borderRadius: 99, padding: "1px 8px",
+                    }}>
+                      {todoEmails.length}
+                    </span>
+                  </div>
+                  <div className="px-2 py-1 space-y-0.5 overflow-y-auto" style={{ maxHeight: 240 }}>
+                    {todoEmails.map(email => (
+                      <EmailRow
+                        key={email.id}
+                        email={email}
+                        selected={email.id === selectedEmail?.id}
+                        isSelected={false}
+                        selectionMode={false}
+                        mode={mode}
+                        onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
+                        onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
+                        onMarkRead={() => handleMarkRead(email)}
+                        onDelete={() => handleDelete(email)}
+                        onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
+                        onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
+                        onToggleTodo={() => handleToggleTodo(email)}
+                        onSnooze={() => setSnoozeTarget(email)}
+                        onUnsubscribe={() => handleUnsubscribe(email)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
-          {/* end Row B */}
-
-          {/* Roast text — full width, below both rows */}
-          {roast && appState === "ready" && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, maxWidth: 500, marginTop: 10 }}>
-              <span style={{
-                fontSize: "0.85rem",
-                fontStyle: "italic",
-                color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#FF6B1A",
-                flex: 1,
-                letterSpacing: mode === "wabi-sabi" ? "0.02em" : undefined,
-              }}>
-                &ldquo;{roast}&rdquo;
-              </span>
-              <button
-                onClick={() => setRoast(null)}
-                style={{ color: "rgba(26,10,53,0.56)", fontSize: "1rem", background: "none", border: "none", cursor: "pointer", lineHeight: 1, flexShrink: 0, marginTop: 1 }}
-              >
-                ×
-              </button>
-            </div>
-          )}
-
+          {/* end Row B + roast + TODO widget */}
 
         </header>
-
-        {/* ══════════════════ TODO WIDGET (sticky, outside header) ══════════ */}
-        {appState === "ready" && todoEmails.length > 0 && (
-          <div
-            className="sticky top-4 self-start overflow-hidden mx-7 mt-3"
-            style={{
-              background: mode === "zen" ? "#FFFEF9" : "#FFFFFF",
-              border: "1px solid rgba(255,208,0,0.28)",
-              borderRadius: 14,
-              boxShadow: mode === "wabi-sabi" ? "none" : "0 4px 24px rgba(255,208,0,0.08)",
-              minWidth: 220, maxWidth: 290,
-            }}
-          >
-            <div
-              className="flex items-center justify-between px-4 py-2.5"
-              style={{
-                background: "rgba(255,208,0,0.08)",
-                borderBottom: "1px solid rgba(255,208,0,0.12)",
-              }}
-            >
-              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>★ TODO</span>
-              <span style={{
-                fontSize: "0.82rem", fontWeight: 700,
-                background: "rgba(255,208,0,0.18)",
-                border: "none",
-                color: "#FFD000",
-                borderRadius: 99, padding: "1px 8px",
-              }}>
-                {todoEmails.length}
-              </span>
-            </div>
-            <div className="px-2 py-1 space-y-0.5 overflow-y-auto" style={{ maxHeight: 240 }}>
-              {todoEmails.map(email => (
-                <EmailRow
-                  key={email.id}
-                  email={email}
-                  selected={email.id === selectedEmail?.id}
-                  isSelected={false}
-                  selectionMode={false}
-                  mode={mode}
-                  onClick={() => { setExpandedEmail(email); setExpandedComposeMode("ai") }}
-                  onDoubleClick={() => { setExpandedEmail(email); setExpandedComposeMode(null) }}
-                  onMarkRead={() => handleMarkRead(email)}
-                  onDelete={() => handleDelete(email)}
-                  onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
-                  onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
-                  onToggleTodo={() => handleToggleTodo(email)}
-                  onSnooze={() => setSnoozeTarget(email)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ══════════════════ MORNING DASHBOARD ══════════════════════════════ */}
         <DashboardPanel emails={emails} mode={mode} />
@@ -1754,6 +1778,7 @@ export default function Dashboard() {
                 onNewCategory={handleNewCategory}
                 onToggleTodo={handleToggleTodo}
                 onSnooze={email => setSnoozeTarget(email)}
+                onUnsubscribe={handleUnsubscribe}
                 gmailAccount={activeAccount}
               />
               </div>
@@ -1944,6 +1969,7 @@ export default function Dashboard() {
                       onNewCategory={handleNewCategory}
                       onToggleTodo={handleToggleTodo}
                       onSnooze={email => setSnoozeTarget(email)}
+                      onUnsubscribe={handleUnsubscribe}
                       gmailAccount={activeAccount}
                       isPriority={cat.name === priorityCategory}
                       onTogglePriority={cat.id !== "__delete__" ? () => handleTogglePriority(cat.name) : undefined}
@@ -1985,6 +2011,14 @@ export default function Dashboard() {
             email={snoozeTarget}
             onSnooze={handleSnooze}
             onClose={() => setSnoozeTarget(null)}
+          />
+        )}
+
+        {todoNoteTarget && (
+          <TodoNoteModal
+            email={todoNoteTarget}
+            onConfirm={handleConfirmTodoNote}
+            onClose={() => setTodoNoteTarget(null)}
           />
         )}
 

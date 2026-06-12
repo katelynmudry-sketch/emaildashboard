@@ -4,9 +4,7 @@ import { google } from "googleapis"
 
 interface AppendTodoBody {
   docId: string
-  subject: string
-  from: string
-  snippet: string
+  note: string
   threadId: string
 }
 
@@ -19,12 +17,13 @@ export async function POST(request: Request) {
 
   const body: AppendTodoBody = await request.json()
   const { docId } = body
-  const subject = body.subject ?? ""
-  const from = body.from ?? ""
-  const snippet = body.snippet ?? ""
+  const note = body.note ?? ""
   const threadId = body.threadId ?? ""
   if (!docId) {
     return NextResponse.json({ error: "Missing docId" }, { status: 400 })
+  }
+  if (!note) {
+    return NextResponse.json({ error: "Missing note" }, { status: 400 })
   }
 
   try {
@@ -37,9 +36,8 @@ export async function POST(request: Request) {
     const lastElement = content[content.length - 1]
     const endIndex = (lastElement?.endIndex ?? 1) - 1
 
-    const fromName = from.split("<")[0].trim()
     const link = `https://mail.google.com/mail/u/0/#all/${threadId}`
-    const line = `• ${subject} — ${fromName} — ${snippet}  (${link})\n`
+    const line = `• ${note}  (${link})\n`
 
     await docs.documents.batchUpdate({
       documentId: docId,

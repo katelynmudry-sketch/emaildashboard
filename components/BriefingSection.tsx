@@ -26,6 +26,7 @@ interface Props {
   onNewCategory: (name: string, color: string) => Promise<string>
   onToggleTodo: (email: Email) => void
   onSnooze: (email: Email) => void
+  onUnsubscribe: (email: Email) => void
   gmailAccount: AccountId
 }
 
@@ -35,7 +36,7 @@ export default function BriefingSection({
   onMarkRead, onArchive, onSaveDraft, onSend,
   onStar, onDelete, onRecategorize, onMarkReplied,
   onMarkDeletable, onNewCategory,
-  onToggleTodo, onSnooze, gmailAccount,
+  onToggleTodo, onSnooze, onUnsubscribe, gmailAccount,
 }: Props) {
   const headerBg    = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#FFFFFF" : "#FF1F6E"
   const headerText  = mode === "zen" ? "#3D2800" : mode === "wabi-sabi" ? "#111111" : "#FFFFFF"
@@ -55,6 +56,14 @@ export default function BriefingSection({
       bulkActions={[
         { label: "Mark read", handler: async (targets) => { for (const e of targets) await onMarkRead(e) } },
         { label: "Archive",   handler: async (targets) => { for (const e of targets) await onArchive(e) } },
+        {
+          label: "Unsubscribe",
+          handler: async (targets) => {
+            for (const e of targets.filter(e => e.unsubscribeOneClick && e.unsubscribeUrl)) {
+              await onUnsubscribe(e)
+            }
+          },
+        },
       ]}
       onSelect={onSelect}
       onExpand={onExpand}
@@ -71,6 +80,7 @@ export default function BriefingSection({
       onNewCategory={onNewCategory}
       onToggleTodo={onToggleTodo}
       onSnooze={onSnooze}
+      onUnsubscribe={onUnsubscribe}
       mode={mode}
       gmailAccount={gmailAccount}
     >
