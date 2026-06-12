@@ -17,7 +17,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { docId, subject, from, snippet, threadId }: AppendTodoBody = await request.json()
+  const body: AppendTodoBody = await request.json()
+  const { docId } = body
+  const subject = body.subject ?? ""
+  const from = body.from ?? ""
+  const snippet = body.snippet ?? ""
+  const threadId = body.threadId ?? ""
   if (!docId) {
     return NextResponse.json({ error: "Missing docId" }, { status: 400 })
   }
