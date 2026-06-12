@@ -8,20 +8,32 @@ export interface InboxSettings {
   personalRules: string
   workRules: string
   systemContext: string // overrides CLINIC_CONTEXT if non-empty
+  aboutYouContext: string          // "About You" reference doc, included in every AI prompt
   aiPastEventDelete: boolean    // suggest deleting calendar event emails after the event has passed
   aiDeliveryChainCleanup: boolean // suggest deleting shipping emails once a package is delivered
   todoExportEnabled: boolean  // beta: append TODO-flagged emails to a Google Doc
-  todoExportDocId: string     // Google Doc ID to append to
+  todoExportDocIdPersonal: string  // Google Doc ID to append personal-account TODOs to
+  todoExportDocIdWork: string      // Google Doc ID to append work-account TODOs to
+  showUnreadOnly: boolean   // when true, only show unread inbox messages (default behavior today)
+  showArchived: boolean     // when true, include archived (non-inbox) messages
+  sortOrder: "newest" | "oldest"  // email list sort order
+  onboardingComplete: boolean      // true once the first-run onboarding wizard has been completed
 }
 
 const DEFAULTS: InboxSettings = {
   personalRules: "",
   workRules: "",
   systemContext: "",
+  aboutYouContext: "",
   aiPastEventDelete: true,
   aiDeliveryChainCleanup: true,
   todoExportEnabled: false,
-  todoExportDocId: "",
+  todoExportDocIdPersonal: "",
+  todoExportDocIdWork: "",
+  showUnreadOnly: true,
+  showArchived: false,
+  sortOrder: "newest",
+  onboardingComplete: false,
 }
 
 export function loadSettings(): InboxSettings {
@@ -29,7 +41,16 @@ export function loadSettings(): InboxSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULTS
-    return { ...DEFAULTS, ...JSON.parse(raw) }
+    const parsed = JSON.parse(raw) as Partial<InboxSettings> & { todoExportDocId?: string }
+
+    // Migration: old single todoExportDocId -> todoExportDocIdPersonal
+    if (parsed.todoExportDocId && !parsed.todoExportDocIdPersonal) {
+      parsed.todoExportDocIdPersonal = parsed.todoExportDocId
+      delete parsed.todoExportDocId
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+    }
+
+    return { ...DEFAULTS, ...parsed }
   } catch {
     return DEFAULTS
   }

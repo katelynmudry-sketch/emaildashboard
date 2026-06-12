@@ -156,7 +156,7 @@ export default function InstructionsPanel({ open, onClose }: Props) {
         setAiPastEventDelete(stored.aiPastEventDelete !== false)
         setAiDeliveryChainCleanup(stored.aiDeliveryChainCleanup !== false)
         setTodoExportEnabled(stored.todoExportEnabled === true)
-        setTodoExportUrlInput(stored.todoExportDocId)
+        setTodoExportUrlInput(stored.todoExportDocIdPersonal)
       })
       .finally(() => setLoading(false))
   }, [open])
@@ -181,7 +181,7 @@ export default function InstructionsPanel({ open, onClose }: Props) {
     const match = input.match(/\/d\/([a-zA-Z0-9_-]+)/)
     const docId = match ? match[1] : input
     if (!docId) return
-    saveSettings({ todoExportDocId: docId })
+    saveSettings({ todoExportDocIdPersonal: docId })
     setTodoExportSaveOk(true)
     setTimeout(() => setTodoExportSaveOk(false), 2500)
   }
