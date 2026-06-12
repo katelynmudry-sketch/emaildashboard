@@ -11,7 +11,8 @@ export async function POST(request: Request) {
 
   try {
     const { emails, existingLabelNames, account, customContext, systemContext }: ProposeRequest & { customContext?: string; systemContext?: string } = await request.json()
-    const result = await proposeCategories(emails, existingLabelNames, account, { customContext, systemContext })
+    const isWork = !!session.work_email && account === session.work_email
+    const result = await proposeCategories(emails, existingLabelNames, account, isWork, { customContext, systemContext })
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Proposal failed" }, { status: 500 })

@@ -101,7 +101,6 @@ Using the Claude API costs roughly **$0.05–0.50 per inbox sort** depending on 
 
 ## Roadmap
 
-- [ ] Multi-user onboarding (persona setup for any Gmail account)
 - [ ] BYOK in-app (paste your Anthropic key in settings, no env var needed)
 - [ ] Free tier (1 sort/week) for users without an API key
 - [ ] "Learn from sent mail" — AI reads your writing style and adapts

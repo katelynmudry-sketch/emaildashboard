@@ -2,10 +2,6 @@
 
 ## Low – DEBT (added 2026-05-27 — settings panel audit)
 
-### `isWork` account check is scattered across 3 functions in `lib/claude.ts`
-`account.includes("drkmudry")` is duplicated at lines ~75, ~115, and ~230 of `lib/claude.ts`.
-Extract to a single `isWorkAccount(account: string): boolean` helper at the top of the file.
-
 ### `""` used as sentinel for "reset to default" in settings storage
 `handleResetSystemContext` saves `""` to localStorage to mean "use the server default."
 This is implicit. A named constant (`RESET_TO_DEFAULT = ""`) or an explicit `null` field would make the intent clear to future readers.

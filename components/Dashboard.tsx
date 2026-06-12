@@ -629,6 +629,7 @@ export default function Dashboard() {
         account: activeAccountConfig.email,
         customContext: activeAccount === "work" ? catSettings.workRules : catSettings.personalRules,
         systemContext: catSettings.systemContext || undefined,
+        aboutYouContext: catSettings.aboutYouContext || undefined,
         aiPastEventDelete: catSettings.aiPastEventDelete !== false,
       }),
     })

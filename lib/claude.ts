@@ -51,10 +51,9 @@ export async function proposeCategories(
   emails: RawEmail[],
   existingLabelNames: string[],
   account: string,
+  isWork: boolean,
   settings?: ClaudeSettings
 ): Promise<ProposeResponse> {
-  const isWork = account.includes("drkmudry")
-
   const existingSection = existingLabelNames.length > 0
     ? `The user already has these Gmail labels — USE THEM AS-IS wherever they make sense. List each matching label first, before any new suggestions. Only invent a new category name if none of the existing labels fit a clear pattern in the emails.
 
