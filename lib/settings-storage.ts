@@ -10,6 +10,9 @@ export interface InboxSettings {
   systemContext: string // overrides CLINIC_CONTEXT if non-empty
   aiPastEventDelete: boolean    // suggest deleting calendar event emails after the event has passed
   aiDeliveryChainCleanup: boolean // suggest deleting shipping emails once a package is delivered
+  todoExportEnabled: boolean  // beta: append TODO-flagged emails to a Google Doc
+  todoExportDocId: string     // Google Doc ID to append to
+  todoExportDocName: string   // display name shown in settings
 }
 
 const DEFAULTS: InboxSettings = {
@@ -18,6 +21,9 @@ const DEFAULTS: InboxSettings = {
   systemContext: "",
   aiPastEventDelete: true,
   aiDeliveryChainCleanup: true,
+  todoExportEnabled: false,
+  todoExportDocId: "",
+  todoExportDocName: "",
 }
 
 export function loadSettings(): InboxSettings {
