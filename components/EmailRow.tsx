@@ -23,6 +23,7 @@ interface Props {
   onToggleTodo?: () => void
   onSnooze?: () => void
   onUnsubscribe?: () => void
+  showUnreadOnly?: boolean
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -54,6 +55,7 @@ export default function EmailRow({
   email, selected, isSelected, selectionMode, mode = "party",
   onClick, onDoubleClick, onMarkRead, onDelete,
   onReply, onForward, onToggleTodo, onSnooze, onUnsubscribe,
+  showUnreadOnly,
 }: Props) {
   const priorityColor = getPriorityColor(email.priority, mode)
 
@@ -129,6 +131,20 @@ export default function EmailRow({
 
         {/* Badges + date — always visible, never pushed */}
         <div className="flex items-center gap-1 shrink-0">
+          {showUnreadOnly === false && (
+            <span
+              title={email.read ? "Read" : "Unread"}
+              style={{
+                display: "inline-block",
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: email.read ? "transparent" : "#7C3AED",
+                border: email.read ? "1.5px solid rgba(26,10,53,0.25)" : "none",
+                flexShrink: 0,
+              }}
+            />
+          )}
           {email.todo && <span style={{ fontSize: "0.75rem", color: "#B8860B" }}>★</span>}
           {email.replied && <span style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.40)" }}>↩</span>}
           {email.attachments && email.attachments.length > 0 && (

@@ -49,6 +49,7 @@ export interface RawEmail {
   inReplyTo?: string
   messageId?: string    // RFC 2822 Message-ID header
   labelIds: string[]
+  read: boolean  // true if Gmail UNREAD label is absent
   attachments?: EmailAttachment[]
   unsubscribeUrl?: string        // https URL from List-Unsubscribe header
   unsubscribeOneClick?: boolean  // true only if List-Unsubscribe-Post: List-Unsubscribe=One-Click is also present
@@ -69,6 +70,7 @@ export interface Email {
   inReplyTo?: string
   messageId?: string
   labelIds: string[]
+  read: boolean  // true if Gmail UNREAD label is absent
   attachments?: EmailAttachment[]
   unsubscribeUrl?: string        // https URL from List-Unsubscribe header
   unsubscribeOneClick?: boolean  // true only if List-Unsubscribe-Post: List-Unsubscribe=One-Click is also present

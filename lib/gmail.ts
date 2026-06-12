@@ -199,21 +199,6 @@ export function parseMessage(msg: any): RawEmail {
   const htmlBody = rawHtmlBody ? replaceCidImages(rawHtmlBody, inlineImages) : rawHtmlBody
   const attachments = extractAttachments(msg.payload)
 
-  if (process.env.DEBUG_IMG && attachments.some(a => a.mimeType.startsWith("image/"))) {
-    function walk(part: any): any {
-      if (!part) return null
-      return {
-        mimeType: part.mimeType,
-        filename: part.filename,
-        headers: (part.headers ?? []).map((h: any) => `${h.name}: ${h.value}`),
-        attachmentId: part.body?.attachmentId,
-        parts: part.parts?.map((p: any) => walk(p)),
-      }
-    }
-    console.log(`DEBUG_IMG msg ${msg.id} payload:`, JSON.stringify(walk(msg.payload), null, 2))
-    console.log(`DEBUG_IMG msg ${msg.id} cid refs in html:`, rawHtmlBody?.match(/src=["']cid:[^"'\s>]+["']/gi))
-    console.log(`DEBUG_IMG msg ${msg.id} inlineImages keys:`, [...inlineImages.keys()])
-  }
   const fromRaw = getHeader(headers, "from")
   // Extract display name vs email
   const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/)
@@ -236,6 +221,7 @@ export function parseMessage(msg: any): RawEmail {
     inReplyTo: getHeader(headers, "in-reply-to") || undefined,
     messageId: getHeader(headers, "message-id") || undefined,
     labelIds: msg.labelIds ?? [],
+    read: !(msg.labelIds ?? []).includes("UNREAD"),
     attachments: attachments.length > 0 ? attachments : undefined,
     unsubscribeUrl,
     unsubscribeOneClick,
@@ -249,16 +235,34 @@ export interface InboxFetchResult {
   totalUnread: number
 }
 
-export async function fetchInboxMessages(accessToken: string, maxResults = 30): Promise<InboxFetchResult> {
+export interface FetchInboxOptions {
+  maxResults?: number
+  unreadOnly?: boolean
+  includeArchived?: boolean
+  sortOrder?: "newest" | "oldest"
+}
+
+export async function fetchInboxMessages(
+  accessToken: string,
+  options: FetchInboxOptions = {},
+): Promise<InboxFetchResult> {
+  const { maxResults = 30, unreadOnly = true, includeArchived = false, sortOrder = "newest" } = options
   const gmail = getGmailService(accessToken)
+
+  let q: string
+  if (unreadOnly && !includeArchived) q = "is:unread in:inbox"
+  else if (!unreadOnly && !includeArchived) q = "in:inbox"
+  else if (unreadOnly && includeArchived) q = "is:unread"
+  else q = ""
 
   // Fetch accurate unread count from INBOX label + message list in parallel.
   // labels.get('INBOX').messagesUnread is the true count; resultSizeEstimate is unreliable.
+  // This always reflects the true inbox-unread count, independent of the display filters above.
   const [inboxLabel, list] = await Promise.all([
     gmail.users.labels.get({ userId: "me", id: "INBOX" }).catch(() => null),
     gmail.users.messages.list({
       userId: "me",
-      q: "is:unread in:inbox",
+      q,
       maxResults,
     }),
   ])
@@ -279,7 +283,7 @@ export async function fetchInboxMessages(accessToken: string, maxResults = 30): 
   )
 
   return {
-    emails: details.sort((a, b) => b.internalDate - a.internalDate),
+    emails: details.sort((a, b) => sortOrder === "oldest" ? a.internalDate - b.internalDate : b.internalDate - a.internalDate),
     totalUnread,
   }
 }
@@ -386,6 +390,47 @@ export function extractInlineImages(payload: any): Map<string, InlineImage> {
   }
 
   walk(payload)
+  return map
+}
+
+// Gmail omits `body.data` for parts above its inline-data size threshold,
+// returning only `body.attachmentId` instead — common for embedded logos/banners.
+// `extractInlineImages` skips those; fetch them separately via attachments.get.
+export async function fetchInlineImages(
+  gmail: ReturnType<typeof getGmailService>,
+  messageId: string,
+  payload: any
+): Promise<Map<string, InlineImage>> {
+  const map = extractInlineImages(payload)
+
+  const missing: { cid: string; mimeType: string; attachmentId: string }[] = []
+  function walk(part: any) {
+    if (!part) return
+    const mime: string = part.mimeType ?? ""
+    if (mime.startsWith("image/") && !part.body?.data && part.body?.attachmentId) {
+      const headers: { name?: string | null; value?: string | null }[] = part.headers ?? []
+      const rawCid = headers.find(h => h.name?.toLowerCase() === "content-id")?.value ?? ""
+      const cid = rawCid.replace(/^<|>$/g, "").trim()
+      if (cid) missing.push({ cid, mimeType: mime, attachmentId: part.body.attachmentId })
+    }
+    if (Array.isArray(part.parts)) {
+      for (const child of part.parts) walk(child)
+    }
+  }
+  walk(payload)
+
+  if (missing.length === 0) return map
+
+  const fetched = await Promise.all(
+    missing.map(m =>
+      gmail.users.messages.attachments.get({ userId: "me", messageId, id: m.attachmentId })
+        .then(res => ({ cid: m.cid, mimeType: m.mimeType, b64: (res.data.data ?? "").replace(/-/g, "+").replace(/_/g, "/") }))
+        .catch(() => null)
+    )
+  )
+  for (const f of fetched) {
+    if (f) map.set(f.cid, { mimeType: f.mimeType, b64: f.b64 })
+  }
   return map
 }
 

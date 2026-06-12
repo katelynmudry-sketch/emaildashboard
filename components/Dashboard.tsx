@@ -339,6 +339,7 @@ export default function Dashboard() {
   const activeAccountConfig = accounts.find(a => a.id === activeAccount)!
   const gmailAccountQuery = `account=${activeAccount}`
   const workNeedsLink = activeAccount === "work" && !session?.workAccountLinked
+  const showUnreadOnly = loadSettings().showUnreadOnly
 
   // Annotate emails with live todo/snooze state from localStorage
   const annotatedEmails = emails.map(email => ({
@@ -490,7 +491,14 @@ export default function Dashboard() {
     setPendingImportMeta(null)
 
     try {
-      const inboxParams = new URLSearchParams({ account: activeAccount, max: String(importBatchSize) })
+      const displaySettings = loadSettings()
+      const inboxParams = new URLSearchParams({
+        account: activeAccount,
+        max: String(importBatchSize),
+        unreadOnly: String(displaySettings.showUnreadOnly),
+        includeArchived: String(displaySettings.showArchived),
+        sortOrder: displaySettings.sortOrder,
+      })
       const msgRes = await fetch(`/api/gmail/messages?${inboxParams}`, {
         cache: "no-store",
         credentials: "same-origin",
@@ -989,7 +997,7 @@ export default function Dashboard() {
     })
   }
 
-  function handleConfirmTodoNote(note: string) {
+  function handleConfirmTodoNote(note: string, includeLink: boolean) {
     const email = todoNoteTarget
     setTodoNoteTarget(null)
     if (!email) return
@@ -1004,6 +1012,7 @@ export default function Dashboard() {
         note,
         threadId: email.threadId,
         accountEmail: activeAccountConfig.email,
+        includeLink,
       }),
     }).catch(() => {})
   }
@@ -2052,6 +2061,7 @@ export default function Dashboard() {
                       category={cat}
                       categories={categories}
                       mode={mode}
+                      showUnreadOnly={showUnreadOnly}
                       emails={cat.id === "__delete__"
                         ? deletableEmails
                         : emails.filter(e => e.category === cat.name)}

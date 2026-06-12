@@ -62,6 +62,7 @@ export interface LabelSectionProps {
   emptyText?: string
   className?: string
   mode?: PartyMode
+  showUnreadOnly?: boolean
 }
 
 export default function LabelSection({
@@ -83,6 +84,7 @@ export default function LabelSection({
   emptyText = "All clear ✓",
   className = "",
   mode = "party",
+  showUnreadOnly,
 }: LabelSectionProps) {
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
   const [moveToOpen, setMoveToOpen] = useState(false)
@@ -329,6 +331,7 @@ export default function LabelSection({
                 onToggleTodo={() => onToggleTodo(email)}
                 onSnooze={() => onSnooze(email)}
                 onUnsubscribe={onUnsubscribe ? () => onUnsubscribe(email) : undefined}
+                showUnreadOnly={showUnreadOnly}
               />
               {!selectionMode && email.id === selectedEmail?.id && (
                 <div className="mt-1 mb-2">

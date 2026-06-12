@@ -37,6 +37,7 @@ interface Props {
   gmailAccount: AccountId
   isPriority?: boolean
   onTogglePriority?: () => void
+  showUnreadOnly: boolean
 }
 
 function getCategoryAccent(name: string, mode: PartyMode) {
@@ -86,6 +87,7 @@ export default function CategoryBlock({
   onMarkDeletable, onNewCategory,
   onToggleTodo, onSnooze, onUnsubscribe, gmailAccount,
   isPriority = false, onTogglePriority,
+  showUnreadOnly,
 }: Props) {
   const sorted = [...emails].sort((a, b) => a.internalDate - b.internalDate)
   const accent = getCategoryAccent(category.name, mode)
@@ -242,6 +244,7 @@ export default function CategoryBlock({
         onUnsubscribe={onUnsubscribe}
         gmailAccount={gmailAccount}
         mode={mode}
+        showUnreadOnly={showUnreadOnly}
       />
     </div>
   )
