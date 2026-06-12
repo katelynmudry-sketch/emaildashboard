@@ -74,6 +74,25 @@ function getHeader(headers: { name?: string | null; value?: string | null }[], n
   return sanitizeString(val)
 }
 
+// Parse List-Unsubscribe / List-Unsubscribe-Post headers into a usable URL +
+// whether One-Click (RFC 8058) unsubscribe is supported.
+function parseListUnsubscribe(headers: { name?: string | null; value?: string | null }[]): {
+  unsubscribeUrl?: string
+  unsubscribeOneClick: boolean
+} {
+  const raw = getHeader(headers, "list-unsubscribe")
+  if (!raw) return { unsubscribeOneClick: false }
+
+  const httpsMatch = raw.match(/<(https:\/\/[^>]+)>/i)
+  const unsubscribeUrl = httpsMatch?.[1]
+  if (!unsubscribeUrl) return { unsubscribeOneClick: false }
+
+  const post = getHeader(headers, "list-unsubscribe-post")
+  const oneClick = /one-click/i.test(post)
+
+  return { unsubscribeUrl, unsubscribeOneClick: oneClick }
+}
+
 // Replace lone surrogates (invalid in JSON / UTF-8) with the replacement char.
 // Valid surrogate pairs (high+low) are left intact.
 function sanitizeString(s: string): string {
@@ -182,6 +201,7 @@ export function parseMessage(msg: any): RawEmail {
   const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/)
   const fromName = fromMatch ? fromMatch[1].replace(/"/g, "").trim() : fromRaw
   const fromEmail = fromMatch ? fromMatch[2] : fromRaw
+  const { unsubscribeUrl, unsubscribeOneClick } = parseListUnsubscribe(headers)
 
   return {
     id: msg.id,
@@ -199,6 +219,8 @@ export function parseMessage(msg: any): RawEmail {
     messageId: getHeader(headers, "message-id") || undefined,
     labelIds: msg.labelIds ?? [],
     attachments: attachments.length > 0 ? attachments : undefined,
+    unsubscribeUrl,
+    unsubscribeOneClick,
   }
 }
 
@@ -313,6 +335,48 @@ export async function trashMessage(accessToken: string, messageId: string): Prom
   await gmail.users.messages.trash({
     userId: "me",
     id: messageId,
+  })
+}
+
+// ── Extract inline (CID) images from a Gmail message payload ─────────────────
+
+export interface InlineImage {
+  mimeType: string
+  b64: string // standard base64 (not URL-safe, not data-URI prefixed)
+}
+
+export function extractInlineImages(payload: any): Map<string, InlineImage> {
+  const map = new Map<string, InlineImage>()
+
+  function walk(part: any) {
+    if (!part) return
+    const mime: string = part.mimeType ?? ""
+
+    if (mime.startsWith("image/") && part.body?.data) {
+      const headers: { name?: string | null; value?: string | null }[] = part.headers ?? []
+      const rawCid = headers.find(h => h.name?.toLowerCase() === "content-id")?.value ?? ""
+      const cid = rawCid.replace(/^<|>$/g, "").trim()
+      if (cid) {
+        const b64 = (part.body.data as string).replace(/-/g, "+").replace(/_/g, "/")
+        map.set(cid, { mimeType: mime, b64 })
+      }
+    }
+
+    if (Array.isArray(part.parts)) {
+      for (const child of part.parts) walk(child)
+    }
+  }
+
+  walk(payload)
+  return map
+}
+
+export function replaceCidImages(html: string, images: Map<string, InlineImage>): string {
+  if (!images.size) return html
+  return html.replace(/src=(["'])cid:([^"'\s>]+)\1/gi, (match, quote, cid) => {
+    const img = images.get(cid) ?? images.get(cid.split("@")[0])
+    if (!img) return match
+    return `src=${quote}data:${img.mimeType};base64,${img.b64}${quote}`
   })
 }
 

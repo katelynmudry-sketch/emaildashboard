@@ -48,6 +48,8 @@ export interface RawEmail {
   messageId?: string    // RFC 2822 Message-ID header
   labelIds: string[]
   attachments?: EmailAttachment[]
+  unsubscribeUrl?: string        // https URL from List-Unsubscribe header
+  unsubscribeOneClick?: boolean  // true only if List-Unsubscribe-Post: List-Unsubscribe=One-Click is also present
 }
 
 export interface Email {
@@ -66,6 +68,8 @@ export interface Email {
   messageId?: string
   labelIds: string[]
   attachments?: EmailAttachment[]
+  unsubscribeUrl?: string        // https URL from List-Unsubscribe header
+  unsubscribeOneClick?: boolean  // true only if List-Unsubscribe-Post: List-Unsubscribe=One-Click is also present
   replied?: boolean
   forwarded?: boolean
   todo?: boolean         // manually pinned by user to top of briefing
@@ -140,6 +144,11 @@ export interface ArchiveRequest {
 
 export interface ReadRequest {
   messageId: string
+  account?: AccountId
+}
+
+export interface UnsubscribeRequest {
+  unsubscribeUrl: string
   account?: AccountId
 }
 
