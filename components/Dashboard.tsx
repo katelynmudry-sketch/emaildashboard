@@ -903,6 +903,23 @@ export default function Dashboard() {
       .then(r => r.json())
       .then(data => { if (data.labelId) setTodoLabelId(data.labelId) })
       .catch(() => {})
+
+    if (next) {
+      const settings = loadSettings()
+      if (settings.todoExportEnabled && settings.todoExportDocId) {
+        fetch("/api/docs/append-todo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            docId: settings.todoExportDocId,
+            subject: email.subject,
+            from: email.from,
+            snippet: email.snippet,
+            threadId: email.threadId,
+          }),
+        }).catch(() => {})
+      }
+    }
   }
 
   function handleSnooze(email: Email, until: string) {
