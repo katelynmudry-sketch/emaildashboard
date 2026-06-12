@@ -112,6 +112,12 @@ export default function InstructionsPanel({ open, onClose }: Props) {
   const [aiPastEventDelete, setAiPastEventDelete] = useState(true)
   const [aiDeliveryChainCleanup, setAiDeliveryChainCleanup] = useState(true)
 
+  // TODO export (beta)
+  const [todoExportEnabled, setTodoExportEnabled] = useState(false)
+  const [todoExportDocName, setTodoExportDocName] = useState("")
+  const [todoExportUrlInput, setTodoExportUrlInput] = useState("")
+  const [todoExportSaveOk, setTodoExportSaveOk] = useState(false)
+
   // System context state
   const [systemContextText, setSystemContextText] = useState("")
 
@@ -150,6 +156,9 @@ export default function InstructionsPanel({ open, onClose }: Props) {
         setSystemContextText(stored.systemContext || d.systemContext)
         setAiPastEventDelete(stored.aiPastEventDelete !== false)
         setAiDeliveryChainCleanup(stored.aiDeliveryChainCleanup !== false)
+        setTodoExportEnabled(stored.todoExportEnabled === true)
+        setTodoExportDocName(stored.todoExportDocName)
+        setTodoExportUrlInput(stored.todoExportDocName ? stored.todoExportDocId : "")
       })
       .finally(() => setLoading(false))
   }, [open])
@@ -167,6 +176,23 @@ export default function InstructionsPanel({ open, onClose }: Props) {
   function handleSaveCustomRules() {
     saveSettings({ personalRules: personalText, workRules: workText })
     flashSaveOk("custom")
+  }
+
+  function handleSaveTodoExportDoc() {
+    const input = todoExportUrlInput.trim()
+    const match = input.match(/\/d\/([a-zA-Z0-9_-]+)/)
+    const docId = match ? match[1] : input
+    if (!docId) return
+    setTodoExportDocName(docId)
+    saveSettings({ todoExportDocId: docId, todoExportDocName: docId })
+    setTodoExportSaveOk(true)
+    setTimeout(() => setTodoExportSaveOk(false), 2500)
+  }
+
+  function handleToggleTodoExport() {
+    const next = !todoExportEnabled
+    setTodoExportEnabled(next)
+    saveSettings({ todoExportEnabled: next })
   }
 
   function handleSaveSystemContext() {
@@ -453,6 +479,73 @@ export default function InstructionsPanel({ open, onClose }: Props) {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* ── TODO Export (beta) ── */}
+              <div style={{ background: "rgba(0,196,167,0.04)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(0,196,167,0.12)" }}>
+                <SectionLabel color="#00A88A">TODO Export (beta)</SectionLabel>
+                <p style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.50)", margin: "0 0 10px", lineHeight: 1.5 }}>
+                  When you flag an email as a TODO, append a line to a Google Doc with the subject, sender, and a link back to the email.
+                </p>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+                  <button
+                    type="button"
+                    onClick={handleToggleTodoExport}
+                    style={{
+                      flexShrink: 0,
+                      width: 36, height: 20, borderRadius: 99,
+                      background: todoExportEnabled ? "#00C4A7" : "rgba(26,10,53,0.15)",
+                      border: "none", cursor: "pointer", padding: 0,
+                      position: "relative", transition: "background 0.2s",
+                    }}
+                  >
+                    <span style={{
+                      position: "absolute", top: 2,
+                      left: todoExportEnabled ? 18 : 2,
+                      width: 16, height: 16, borderRadius: "50%",
+                      background: "#fff",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
+                      transition: "left 0.2s",
+                      display: "block",
+                    }} />
+                  </button>
+                  <div>
+                    <div style={{ fontSize: "0.80rem", fontWeight: 600, color: "#1A0A35", lineHeight: 1.3 }}>Enable TODO export</div>
+                    <div style={{ fontSize: "0.72rem", color: "rgba(26,10,53,0.50)", marginTop: 1 }}>
+                      {todoExportDocName ? `Currently exporting to doc: ${todoExportDocName}` : "No doc selected yet — paste a Google Doc link below."}
+                    </div>
+                  </div>
+                </div>
+                {todoExportEnabled && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <input
+                      type="text"
+                      value={todoExportUrlInput}
+                      onChange={e => setTodoExportUrlInput(e.target.value)}
+                      placeholder="Paste Google Doc URL or ID"
+                      style={{
+                        flex: "1 1 240px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(26,10,53,0.14)",
+                        background: "rgba(26,10,53,0.03)",
+                        padding: "8px 10px",
+                        fontSize: "0.78rem",
+                        color: "#1A0A35",
+                        fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+                        outline: "none",
+                      }}
+                    />
+                    <button onClick={handleSaveTodoExportDoc} style={{
+                      padding: "8px 18px", borderRadius: 999,
+                      background: "#00C4A7", color: "#0D0821", border: "none",
+                      fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                      cursor: "pointer", fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+                    }}>
+                      Save Doc
+                    </button>
+                    {todoExportSaveOk && <SaveOk show />}
+                  </div>
+                )}
               </div>
 
               <div>
