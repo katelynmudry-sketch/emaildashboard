@@ -44,7 +44,7 @@ Assigns each email to one of the user-defined categories. Also determines:
   - \`receipt\` — order confirmation, invoice, or record to keep
   - \`read\` — newsletter, FYI, promotional, no action needed
 - **summary**: 1-2 sentence summary if body >150 words OR contains a special offer. Otherwise null.
-- **draftReply**: Auto-drafted reply for patient emails (work account only).
+- **draftReply**: Auto-drafted reply (2-4 sentences) for emails that need a response, otherwise null.
 - **deletable**: true if the email is no longer actionable (OTP codes, delivered package confirmations, social notifications, expired promos).
 - **packageDelivered**: true if email confirms a package was *actually* delivered (not just "on the way").
 
