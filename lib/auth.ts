@@ -40,6 +40,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             "https://www.googleapis.com/auth/gmail.compose",
             "https://www.googleapis.com/auth/gmail.labels",
             "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/documents",
           ].join(" "),
           access_type: "offline",
           prompt: "consent", // always get refresh_token
