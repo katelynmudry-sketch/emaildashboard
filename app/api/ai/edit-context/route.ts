@@ -12,10 +12,11 @@ interface EditContextRequest {
   currentPersonalRules: string
   currentWorkRules: string
   currentSystemContext: string
+  currentAboutYouContext: string
 }
 
 interface SuggestedChange {
-  section: "personalRules" | "workRules" | "systemContext"
+  section: "personalRules" | "workRules" | "systemContext" | "aboutYouContext"
   newText: string
   label: string  // human-readable label for the diff card
 }
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       currentPersonalRules,
       currentWorkRules,
       currentSystemContext,
+      currentAboutYouContext,
     }: EditContextRequest = await request.json()
 
     if (!userRequest?.trim()) {
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
 
     const prompt = `You are helping a user update the AI instructions for their personal email triage app.
 
-The app has three editable instruction sections:
+The app has four editable instruction sections:
 
 1. SYSTEM CONTEXT (base personality/style rules for Claude):
 ---
@@ -62,6 +64,11 @@ ${currentPersonalRules || "(none)"}
 ${currentWorkRules || "(none)"}
 ---
 
+4. ABOUT YOU (a reference doc describing who the user is, for AI context):
+---
+${currentAboutYouContext || "(none)"}
+---
+
 The user wants to make this change:
 "${userRequest.trim()}"
 
@@ -72,8 +79,8 @@ Return a JSON object with this exact shape:
   "explanation": "one short sentence describing what you changed",
   "changes": [
     {
-      "section": "personalRules" | "workRules" | "systemContext",
-      "label": "Personal inbox rules" | "Work inbox rules" | "System context",
+      "section": "personalRules" | "workRules" | "systemContext" | "aboutYouContext",
+      "label": "Personal inbox rules" | "Work inbox rules" | "System context" | "About You",
       "newText": "the full updated text for this section"
     }
   ]
@@ -83,6 +90,7 @@ Rules:
 - Only include sections that actually need to change.
 - For personalRules and workRules, write clear natural-language instructions Claude can follow.
 - For systemContext, maintain the existing style and structure — only add/modify what's needed.
+- For aboutYouContext, write a natural-language reference doc describing the user (role, preferences, context) that helps Claude personalize replies and categorization.
 - If the request is ambiguous about which account (personal vs work), update both with appropriate variants.
 - Return ONLY valid JSON. No markdown, no explanation outside the JSON.`
 

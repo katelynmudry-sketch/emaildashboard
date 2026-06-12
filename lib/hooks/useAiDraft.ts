@@ -30,6 +30,7 @@ export function useAiDraft(emailCtx: EmailContext | null, gmailAccount: AccountI
         partialDraft: partialBody,
         systemContext: settings.systemContext || undefined,
         customContext: customContext || undefined,
+        aboutYouContext: settings.aboutYouContext || undefined,
       }),
     })
     const data = await res.json()

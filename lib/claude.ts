@@ -11,6 +11,15 @@ export interface ClaudeSettings {
   customContext?: string  // per-account rules text
   systemContext?: string  // full CLINIC_CONTEXT override (user-edited via settings panel)
   aiPastEventDelete?: boolean
+  aboutYouContext?: string  // free-text "about the user" reference doc
+}
+
+// ── Build the "About the user" prompt section, if present ─────────────────────
+
+function buildAboutYouSection(settings?: ClaudeSettings): string {
+  return settings?.aboutYouContext?.trim()
+    ? `\n\n## About the user\n${settings.aboutYouContext.trim()}`
+    : ""
 }
 
 // ── Sanitize strings (passthrough — kept for call-site compatibility) ─────────
@@ -109,12 +118,12 @@ export async function categorizeInbox(
   if (emails.length === 0) return []
 
   const categoryList = categories.map(c => c.name).join(", ")
-  const isWork = account.includes("drkmudry")
   const rulesSection = formatRulesForPrompt(loadRules())
   const customContextSection = settings?.customContext?.trim()
     ? `\n## Custom instructions for this account\n${settings.customContext.trim()}`
     : ""
   const effectiveSystemContext = settings?.systemContext?.trim() || DEFAULT_SYSTEM_CONTEXT
+  const aboutYouSection = buildAboutYouSection(settings)
   const today = new Date().toLocaleDateString("en-CA") // YYYY-MM-DD
 
   const pastEventCriterion = settings?.aiPastEventDelete !== false
@@ -136,7 +145,7 @@ Also assign:
   - "receipt" — order confirmation, invoice, receipt, or record to keep
   - "read" — newsletter, FYI, promotional, no action needed
 - summary: 1-2 sentence plain-English summary IF the body is >150 words OR contains a special offer/promotion. Otherwise null. Use one mention of the sender/brand/person at most. If the sender or subject already names the sender, omit that name and summarize the key action, date, deadline, or amount instead. Prefer short phrases like "Day 3 expires Fri 5pm" or "course 33% off until Jun 8".
-- draftReply: ${isWork ? "For patient emails needing a reply — write a reply in Dr. K's voice (warm, casual, 2-4 sentences, sign off 'Best, Dr. K'). For non-patient emails: null." : "null for all emails."}
+- draftReply: For emails needing a reply, write a friendly, concise reply (2-4 sentences). For emails that don't need a reply: null.
 - deletable: true if the email is clearly no longer actionable and safe to delete. Flag: security login alerts, OTP/2FA codes, social media notifications (likes, follows), single-use promotional codes that have expired, shipping notifications where the package has already been delivered (status says "delivered")${pastEventCriterion}.
 - deletableReason: one short phrase explaining why (e.g. "Security login alert, no longer actionable"), or null if not deletable.
 - packageDelivered: true if this email confirms a package/parcel was successfully delivered. Look at subject AND body. Signs: "delivered", "arrived", "left at door", "delivery complete", "your parcel is here", "successfully delivered", "package received", "order delivered", "shipment delivered", "item delivered", "has been delivered", "delivery confirmation", "delivered to". "Out for delivery" or "on its way" are NOT enough — must confirm actual delivery happened.
@@ -171,7 +180,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 16000,
-    system: [{ type: "text", text: effectiveSystemContext, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: effectiveSystemContext + aboutYouSection, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
   })
 
@@ -222,22 +231,15 @@ export async function generateDraftReply(
   partialDraft: string = "",
   settings?: ClaudeSettings
 ): Promise<string> {
-  const isWork = account.includes("drkmudry")
   const hasPartial = partialDraft.trim().length > 0
 
   const partialSection = hasPartial
     ? `\n\nThe user has already started writing this reply — continue it naturally, keeping their tone and completing their thought. Do not restart or rewrite what they wrote; seamlessly extend it:\n<partial_draft>\n${partialDraft.trim()}\n</partial_draft>`
     : ""
 
-  const prompt = isWork
-    ? `${hasPartial ? "Complete this in-progress reply" : "Write a warm, casual reply to this email"} in Dr. K's voice (naturopathic doctor). ${hasPartial ? "Match the tone already established." : "2-4 sentences. Address the sender by first name."} Sign off "Best, Dr. K". Never say "I hope this email finds you well". Return only the ${hasPartial ? "full completed reply text (including what was already written)" : "reply text"}.
+  const prompt = `${hasPartial ? "Complete this in-progress reply" : "Write a friendly, concise reply to this email"}. ${hasPartial ? "Keep the user's tone and seamlessly extend what they've written." : "2-4 sentences."} Return only the ${hasPartial ? "full completed reply text (including what was already written)" : "reply text"}.
 
 From: ${sanitizeUtf8(email.from)} <${sanitizeUtf8(email.fromEmail)}>
-Subject: ${sanitizeUtf8(email.subject)}
-Message: ${sanitizeUtf8(email.body.slice(0, 1000))}${partialSection}`
-    : `${hasPartial ? "Complete this in-progress reply" : "Write a friendly, concise reply to this email"}. ${hasPartial ? "Keep the user's tone and seamlessly extend what they've written." : "2-4 sentences."} Return only the ${hasPartial ? "full completed reply text (including what was already written)" : "reply text"}.
-
-From: ${sanitizeUtf8(email.from)}
 Subject: ${sanitizeUtf8(email.subject)}
 Message: ${sanitizeUtf8(email.body.slice(0, 1000))}${partialSection}`
 
@@ -245,11 +247,12 @@ Message: ${sanitizeUtf8(email.body.slice(0, 1000))}${partialSection}`
   const customContextSection = settings?.customContext?.trim()
     ? `\n\n## Custom instructions for this account\n${settings.customContext.trim()}`
     : ""
+  const aboutYouSection = buildAboutYouSection(settings)
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 500,
-    system: [{ type: "text", text: effectiveSystemContext + customContextSection, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: effectiveSystemContext + customContextSection + aboutYouSection, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
   })
 

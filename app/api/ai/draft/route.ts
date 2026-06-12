@@ -9,9 +9,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { email, partialDraft, systemContext, customContext } = await request.json()
+    const { email, partialDraft, systemContext, customContext, aboutYouContext } = await request.json()
     const account = session.user?.email ?? ""
-    const settings = (systemContext || customContext) ? { systemContext, customContext } : undefined
+    const settings = (systemContext || customContext || aboutYouContext) ? { systemContext, customContext, aboutYouContext } : undefined
     const draft = await generateDraftReply(email, account, partialDraft ?? "", settings)
     return NextResponse.json({ draft })
   } catch (err) {
