@@ -970,7 +970,8 @@ export default function Dashboard() {
 
     if (next) {
       const settings = loadSettings()
-      if (settings.todoExportEnabled && settings.todoExportDocIdPersonal) {
+      const docId = activeAccount === "work" ? settings.todoExportDocIdWork : settings.todoExportDocIdPersonal
+      if (settings.todoExportEnabled && docId) {
         setTodoNoteTarget(email)
       }
     }
@@ -1002,17 +1003,18 @@ export default function Dashboard() {
     setTodoNoteTarget(null)
     if (!email) return
     const settings = loadSettings()
-    if (!settings.todoExportDocIdPersonal) return
-    // Always uses the primary session account's Google Docs access — export target is a single global doc, not per-account.
+    const docId = activeAccount === "work" ? settings.todoExportDocIdWork : settings.todoExportDocIdPersonal
+    if (!docId) return
     fetch("/api/docs/append-todo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        docId: settings.todoExportDocIdPersonal,
+        docId,
         note,
         threadId: email.threadId,
         accountEmail: activeAccountConfig.email,
         includeLink,
+        account: activeAccount,
       }),
     }).catch(() => {})
   }
