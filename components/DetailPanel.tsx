@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import type { AccountId, Email, Category, Attachment } from "@/lib/types"
 import { downloadAttachment } from "@/lib/attachment-download"
 import ComposeWindow from "./ComposeWindow"
+import ImageLightbox from "./ImageLightbox"
 
 const TAG_COLORS = [
   "bg-violet-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500",
@@ -40,9 +41,11 @@ const btnBase =
 export default function DetailPanel({ email, gmailAccount, categories, onClose, onArchive, onMarkRead, onSaveDraft, onSend, onStar, onDelete, onRecategorize, onMarkReplied, onMarkDeletable, onNewCategory }: Props) {
   const [draftMode, setDraftMode] = useState<"reply" | "forward" | null>(null)
   const [autoAiDraft, setAutoAiDraft] = useState(false)
+  const [imgPreview, setImgPreview] = useState<{ src: string; name: string } | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [archived, setArchived] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [unsubState, setUnsubState] = useState<"idle" | "loading" | "done">("idle")
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [htmlBody, setHtmlBody] = useState<string | null>(email?.htmlBody ?? null)
   const [htmlLoading, setHtmlLoading] = useState(false)
@@ -76,6 +79,16 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
       .catch(() => { setHtmlBody(null) })
       .finally(() => setHtmlLoading(false))
   }, [email?.id, gmailAccount])
+
+  useEffect(() => {
+    function handleMessage(e: MessageEvent) {
+      if (e.data?.type === "inbox-img-preview") {
+        setImgPreview({ src: e.data.src as string, name: (e.data.name as string) || "image" })
+      }
+    }
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [])
 
   useEffect(() => {
     if (!moveOpen) return
@@ -115,8 +128,25 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
     setArchived(true)
   }
 
+  async function handleUnsubscribe() {
+    if (!email?.unsubscribeUrl) return
+    setUnsubState("loading")
+    try {
+      const res = await fetch("/api/gmail/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unsubscribeUrl: email.unsubscribeUrl, account: gmailAccount }),
+      })
+      if (!res.ok) throw new Error()
+      setUnsubState("done")
+      handleArchive()
+    } catch {
+      setUnsubState("idle")
+    }
+  }
+
   return (
-    <div className="flex flex-col bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+    <div className="relative flex flex-col bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
       {/* Header */}
       <div className="flex items-start justify-between p-5 border-b border-zinc-100">
         <div className="flex-1 min-w-0 pr-3">
@@ -170,12 +200,16 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
         ) : htmlBody ? (
           <iframe
             srcDoc={(() => {
-              const inject = '<base target="_blank"><style>html{zoom:0.85}</style>'
+              const script = `<script>(function(){
+document.addEventListener('contextmenu',function(e){if(e.target.tagName==='IMG')e.preventDefault()},true);
+document.addEventListener('click',function(e){var t=e.target;if(t.tagName!=='IMG')return;e.preventDefault();e.stopPropagation();parent.postMessage({type:'inbox-img-preview',src:t.src,name:t.alt||t.title||'image'},'*');});
+})()\x3c/script>`
+              const inject = `<base target="_blank"><style>html{zoom:0.85}img{cursor:pointer;max-width:100%}</style>${script}`
               return /<head>/i.test(htmlBody)
                 ? htmlBody.replace(/<head>/i, `<head>${inject}`)
                 : `${inject}${htmlBody}`
             })()}
-            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
             className="w-full border-0 rounded"
             style={{ minHeight: "200px" }}
             onLoad={e => {
@@ -260,6 +294,15 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
         )}
       </div>
 
+      {imgPreview && (
+        <ImageLightbox
+          src={imgPreview.src}
+          name={imgPreview.name}
+          account={gmailAccount}
+          onClose={() => setImgPreview(null)}
+        />
+      )}
+
       {/* Actions */}
       <div className="px-3 py-2.5 border-t border-zinc-100 space-y-1.5">
         {archived ? (
@@ -322,6 +365,15 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
               >
                 {deleting ? "…" : "Delete"}
               </button>
+              {email.unsubscribeOneClick && email.unsubscribeUrl && (
+                <button
+                  onClick={handleUnsubscribe}
+                  disabled={unsubState !== "idle"}
+                  className={`${btnBase} disabled:opacity-50`}
+                >
+                  {unsubState === "loading" ? "Unsubscribing…" : unsubState === "done" ? "Unsubscribed ✓" : "Unsubscribe"}
+                </button>
+              )}
             </div>
 
             {/* Recategorize */}
