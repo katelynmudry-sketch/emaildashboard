@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import type { AccountId, Email, Attachment } from "@/lib/types"
 import { downloadAttachment } from "@/lib/attachment-download"
 import ComposeWindow from "./ComposeWindow"
+import ImageLightbox from "./ImageLightbox"
 
 interface Props {
   email: Email
@@ -40,7 +41,11 @@ function extractUnsubscribeUrl(html: string | null, body: string): string | null
 }
 
 function injectStyles(html: string): string {
-  const inject = '<base target="_blank"><style>html{zoom:0.9}</style>'
+  const script = `<script>(function(){
+document.addEventListener('contextmenu',function(e){if(e.target.tagName==='IMG')e.preventDefault()},true);
+document.addEventListener('click',function(e){var t=e.target;if(t.tagName!=='IMG')return;e.preventDefault();e.stopPropagation();parent.postMessage({type:'inbox-img-preview',src:t.src,name:t.alt||t.title||'image'},'*');});
+})()\x3c/script>`
+  const inject = `<base target="_blank"><style>html{zoom:0.9}img{cursor:pointer;max-width:100%}</style>${script}`
   return /<head>/i.test(html)
     ? html.replace(/<head>/i, `<head>${inject}`)
     : `${inject}${html}`
@@ -56,9 +61,11 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
   const [unsubscribeUrl, setUnsubscribeUrl] = useState<string | null>(() =>
     extractUnsubscribeUrl(email.htmlBody ?? null, email.body)
   )
+  const [imgPreview, setImgPreview] = useState<{ src: string; name: string } | null>(null)
   const [composeMode, setComposeMode] = useState<"reply" | "forward" | null>(null)
   const [autoAiDraft, setAutoAiDraft] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [unsubState, setUnsubState] = useState<"idle" | "loading" | "done">("idle")
 
   // ── Load HTML body ──────────────────────────────────────────────────────────
 
@@ -78,6 +85,18 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
       .catch(() => setHtmlBody(null))
       .finally(() => setLoading(false))
   }, [email.id, gmailAccount])
+
+  // ── Image preview postMessage ────────────────────────────────────────────────
+
+  useEffect(() => {
+    function handleMessage(e: MessageEvent) {
+      if (e.data?.type === "inbox-img-preview") {
+        setImgPreview({ src: e.data.src as string, name: (e.data.name as string) || "image" })
+      }
+    }
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [])
 
   // ── Esc to close ────────────────────────────────────────────────────────────
 
@@ -125,6 +144,26 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
     }
   }
 
+  // ── One-click unsubscribe ────────────────────────────────────────────────────
+
+  async function handleUnsubscribe() {
+    if (!email.unsubscribeUrl) return
+    setUnsubState("loading")
+    try {
+      const res = await fetch("/api/gmail/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unsubscribeUrl: email.unsubscribeUrl, account: gmailAccount }),
+      })
+      if (!res.ok) throw new Error()
+      setUnsubState("done")
+      onArchive(email)
+      onClose()
+    } catch {
+      setUnsubState("idle")
+    }
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -132,7 +171,7 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl max-h-[90vh] overflow-hidden">
 
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-zinc-100 shrink-0">
@@ -155,6 +194,15 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
           <button onClick={() => { onArchive(email); onClose() }} className={`${btn} text-zinc-900 font-semibold`}>Archive</button>
           <button onClick={() => onStar(email)} className={btn}>Star</button>
           <button onClick={() => { onDelete(email); onClose() }} className={`${btn} text-rose-600`}>Delete</button>
+          {email.unsubscribeOneClick && email.unsubscribeUrl && (
+            <button
+              onClick={handleUnsubscribe}
+              disabled={unsubState !== "idle"}
+              className={`${btn} disabled:opacity-50`}
+            >
+              {unsubState === "loading" ? "Unsubscribing…" : unsubState === "done" ? "Unsubscribed ✓" : "Unsubscribe"}
+            </button>
+          )}
           {onToggleTodo && (
             <button
               onClick={() => onToggleTodo(email)}
@@ -204,7 +252,7 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
           ) : htmlBody ? (
             <iframe
               srcDoc={injectStyles(htmlBody)}
-              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
               className="w-full border-0"
               style={{ minHeight: "500px" }}
               onLoad={e => {
@@ -280,6 +328,15 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
               )}
             </div>
           </div>
+        )}
+
+        {imgPreview && (
+          <ImageLightbox
+            src={imgPreview.src}
+            name={imgPreview.name}
+            account={gmailAccount}
+            onClose={() => setImgPreview(null)}
+          />
         )}
 
         {/* Compose area */}
