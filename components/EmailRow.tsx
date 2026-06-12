@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import type { Email } from "@/lib/types"
 import type { PartyMode } from "@/lib/party-mode"
 
@@ -57,6 +58,8 @@ export default function EmailRow({
   onReply, onForward, onToggleTodo, onSnooze, onUnsubscribe,
   showUnreadOnly,
 }: Props) {
+  const [actionsOpen, setActionsOpen] = useState(false)
+
   const priorityColor = getPriorityColor(email.priority, mode)
 
   const bgColor = isSelected
@@ -66,6 +69,22 @@ export default function EmailRow({
     : email.deletable
     ? "rgba(26,10,53,0.04)"
     : "transparent"
+
+  const actions: { key: string; title: string; icon: string; onClick: () => void; bg?: string; color?: string }[] = [
+    { key: "read", title: "Mark read", icon: "✓", onClick: onMarkRead },
+  ]
+  if (onReply) actions.push({ key: "reply", title: "Reply", icon: "↩", onClick: onReply })
+  if (onForward) actions.push({ key: "forward", title: "Forward", icon: "↪", onClick: onForward })
+  if (onToggleTodo) actions.push({
+    key: "todo", title: email.todo ? "Remove TODO" : "Add TODO", icon: "★", onClick: onToggleTodo,
+    bg: email.todo ? "rgba(255,208,0,0.25)" : undefined,
+    color: email.todo ? "#92660A" : undefined,
+  })
+  if (onSnooze) actions.push({ key: "snooze", title: "Snooze", icon: "💤", onClick: onSnooze })
+  if (onUnsubscribe && email.unsubscribeOneClick && email.unsubscribeUrl) {
+    actions.push({ key: "unsub", title: "Unsubscribe", icon: "📭", onClick: onUnsubscribe, bg: "rgba(255,31,110,0.12)", color: "#D4005A" })
+  }
+  if (onDelete) actions.push({ key: "delete", title: "Delete", icon: "✕", onClick: onDelete, bg: "rgba(255,31,110,0.12)", color: "#D4005A" })
 
   return (
     <div
@@ -158,19 +177,29 @@ export default function EmailRow({
           <span style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.48)" }}>
             {email.date ? formatEmailDate(email.date) : ""}
           </span>
+          {!selectionMode && (
+            <button
+              type="button"
+              title="More actions"
+              onClick={e => { e.stopPropagation(); setActionsOpen(v => !v) }}
+              className="sm:hidden shrink-0"
+              style={actionBtn(actionsOpen ? "rgba(139,63,216,0.15)" : undefined, actionsOpen ? "#8B3FD8" : undefined)}
+            >
+              ⋯
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── Hover action pill — absolutely overlays the row ── */}
+      {/* ── Hover action pill (desktop) — absolutely overlays the row ── */}
       {!selectionMode && (
         <div
-          className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto"
+          className="hidden sm:flex opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto"
           style={{
             position: "absolute",
             right: 8,
             top: "50%",
             transform: "translateY(-50%)",
-            display: "flex",
             alignItems: "center",
             gap: 3,
             background: "rgba(242,236,255,0.97)",
@@ -181,62 +210,29 @@ export default function EmailRow({
             zIndex: 10,
           }}
         >
-          <button type="button" title="Mark read"
-            onClick={e => { e.stopPropagation(); onMarkRead() }}
-            style={actionBtn()}>
-            ✓
-          </button>
-
-          {onReply && (
-            <button type="button" title="Reply"
-              onClick={e => { e.stopPropagation(); onReply() }}
-              style={actionBtn()}>
-              ↩
+          {actions.map(a => (
+            <button key={a.key} type="button" title={a.title}
+              onClick={e => { e.stopPropagation(); a.onClick() }}
+              style={actionBtn(a.bg, a.color)}>
+              {a.icon}
             </button>
-          )}
+          ))}
+        </div>
+      )}
 
-          {onForward && (
-            <button type="button" title="Forward"
-              onClick={e => { e.stopPropagation(); onForward() }}
-              style={actionBtn()}>
-              ↪
+      {/* ── Tap-to-reveal action row (mobile) ── */}
+      {actionsOpen && !selectionMode && (
+        <div
+          className="sm:hidden flex flex-wrap items-center gap-1.5 mt-2 pt-2"
+          style={{ borderTop: "1px solid rgba(26,10,53,0.08)" }}
+        >
+          {actions.map(a => (
+            <button key={a.key} type="button" title={a.title}
+              onClick={e => { e.stopPropagation(); a.onClick() }}
+              style={{ ...actionBtn(a.bg, a.color), padding: "5px 11px", fontSize: "0.76rem" }}>
+              {a.icon}
             </button>
-          )}
-
-          {onToggleTodo && (
-            <button type="button" title={email.todo ? "Remove TODO" : "Add TODO"}
-              onClick={e => { e.stopPropagation(); onToggleTodo() }}
-              style={actionBtn(
-                email.todo ? "rgba(255,208,0,0.25)" : undefined,
-                email.todo ? "#92660A" : undefined,
-              )}>
-              ★
-            </button>
-          )}
-
-          {onSnooze && (
-            <button type="button" title="Snooze"
-              onClick={e => { e.stopPropagation(); onSnooze() }}
-              style={actionBtn()}>
-              💤
-            </button>
-          )}
-
-          {onUnsubscribe && email.unsubscribeOneClick && email.unsubscribeUrl && (
-            <button type="button" title="Unsubscribe"
-              onClick={e => { e.stopPropagation(); onUnsubscribe() }}
-              style={actionBtn("rgba(255,31,110,0.12)", "#D4005A")}>
-              📭
-            </button>
-          )}
-
-          {onDelete && (
-            <button type="button" title="Delete"
-              onClick={e => { e.stopPropagation(); onDelete() }}
-              style={actionBtn("rgba(255,31,110,0.12)", "#D4005A")}>
-              ✕
-            </button>
-          )}
+          ))}
         </div>
       )}
     </div>
