@@ -114,7 +114,6 @@ export default function InstructionsPanel({ open, onClose }: Props) {
 
   // TODO export (beta)
   const [todoExportEnabled, setTodoExportEnabled] = useState(false)
-  const [todoExportDocName, setTodoExportDocName] = useState("")
   const [todoExportUrlInput, setTodoExportUrlInput] = useState("")
   const [todoExportSaveOk, setTodoExportSaveOk] = useState(false)
 
@@ -157,8 +156,7 @@ export default function InstructionsPanel({ open, onClose }: Props) {
         setAiPastEventDelete(stored.aiPastEventDelete !== false)
         setAiDeliveryChainCleanup(stored.aiDeliveryChainCleanup !== false)
         setTodoExportEnabled(stored.todoExportEnabled === true)
-        setTodoExportDocName(stored.todoExportDocName)
-        setTodoExportUrlInput(stored.todoExportDocName ? stored.todoExportDocId : "")
+        setTodoExportUrlInput(stored.todoExportDocId)
       })
       .finally(() => setLoading(false))
   }, [open])
@@ -183,8 +181,7 @@ export default function InstructionsPanel({ open, onClose }: Props) {
     const match = input.match(/\/d\/([a-zA-Z0-9_-]+)/)
     const docId = match ? match[1] : input
     if (!docId) return
-    setTodoExportDocName(docId)
-    saveSettings({ todoExportDocId: docId, todoExportDocName: docId })
+    saveSettings({ todoExportDocId: docId })
     setTodoExportSaveOk(true)
     setTimeout(() => setTodoExportSaveOk(false), 2500)
   }
@@ -512,7 +509,7 @@ export default function InstructionsPanel({ open, onClose }: Props) {
                   <div>
                     <div style={{ fontSize: "0.80rem", fontWeight: 600, color: "#1A0A35", lineHeight: 1.3 }}>Enable TODO export</div>
                     <div style={{ fontSize: "0.72rem", color: "rgba(26,10,53,0.50)", marginTop: 1 }}>
-                      {todoExportDocName ? `Currently exporting to doc: ${todoExportDocName}` : "No doc selected yet — paste a Google Doc link below."}
+                      {todoExportUrlInput ? `Currently exporting to doc: ${todoExportUrlInput}` : "No doc selected yet — paste a Google Doc link below."}
                     </div>
                   </div>
                 </div>
