@@ -907,6 +907,7 @@ export default function Dashboard() {
     if (next) {
       const settings = loadSettings()
       if (settings.todoExportEnabled && settings.todoExportDocId) {
+        // Always uses the primary session account's Google Docs access — export target is a single global doc, not per-account.
         fetch("/api/docs/append-todo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
