@@ -27,6 +27,7 @@ import InstructionsPanel from "./InstructionsPanel"
 import LogDrawer from "./LogDrawer"
 import SentDrawer from "./SentDrawer"
 import QuoteGate from "./QuoteGate"
+import OnboardingWizard from "./OnboardingWizard"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
 
@@ -276,6 +277,7 @@ export default function Dashboard() {
   // ── Email Party state ─────────────────────────────────────────────────────
   const [mode, setMode] = useState<PartyMode>("party")
   const [showGate, setShowGate] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [karmaEmoji, setKarmaEmoji] = useState("🌱")
   const [karmaLabel, setKarmaLabel] = useState("Seed")
   const [karmaXp, setKarmaXp] = useState(0)
@@ -296,7 +298,11 @@ export default function Dashboard() {
   useEffect(() => {
     const stored = getPartyMode()
     setMode(stored)
-    if (!hasSeenGate()) setShowGate(true)
+    if (!loadSettings().onboardingComplete) {
+      setShowOnboarding(true)
+    } else if (!hasSeenGate()) {
+      setShowGate(true)
+    }
     syncKarma()
 
     function syncKarma() {
@@ -1179,6 +1185,17 @@ export default function Dashboard() {
       setMindfulPurge([])
       setPurgeDismissed(true)
     }, 600)
+  }
+
+  // ── Onboarding Wizard ────────────────────────────────────────────────────────
+
+  if (showOnboarding) {
+    return (
+      <OnboardingWizard onComplete={(m) => {
+        setMode(m)
+        setShowOnboarding(false)
+      }} />
+    )
   }
 
   // ── Quote Gate ───────────────────────────────────────────────────────────────
