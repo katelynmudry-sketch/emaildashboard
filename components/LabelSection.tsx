@@ -192,9 +192,11 @@ export default function LabelSection({
           style={{
             background: "rgba(26,10,53,0.04)",
             borderBottom: "1px solid rgba(26,10,53,0.07)",
+            flexWrap: "wrap",
+            rowGap: 6,
           }}
         >
-          <span style={{ fontSize: "0.68rem", color: "rgba(26,10,53,0.65)", marginRight: 4 }}>
+          <span style={{ fontSize: "0.68rem", color: "rgba(26,10,53,0.65)", marginRight: 4, whiteSpace: "nowrap" }}>
             {bulkSelected.size} selected
           </span>
 
@@ -211,6 +213,8 @@ export default function LabelSection({
                 background: action.danger ? "rgba(255,31,110,0.10)" : "rgba(26,10,53,0.05)",
                 color: action.danger ? "#FF1F6E" : "rgba(26,10,53,0.72)",
                 cursor: "pointer",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
               {action.label}
@@ -230,6 +234,8 @@ export default function LabelSection({
                   background: moveToOpen ? "rgba(139,63,216,0.12)" : "rgba(139,63,216,0.06)",
                   color: "#8B3FD8",
                   cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 Move to ▾
@@ -239,7 +245,7 @@ export default function LabelSection({
                   style={{
                     position: "absolute",
                     top: "calc(100% + 4px)",
-                    left: 0,
+                    right: 0,
                     zIndex: 50,
                     background: "#FFFFFF",
                     border: "1px solid rgba(26,10,53,0.12)",
