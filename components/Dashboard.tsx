@@ -1631,7 +1631,7 @@ export default function Dashboard() {
         </header>
 
         {/* ══════════════════ MORNING DASHBOARD ══════════════════════════════ */}
-        <DashboardPanel emails={emails} mode={mode} />
+        <DashboardPanel emails={emails} mode={mode} account={activeAccount} />
 
         {/* ══════════════════ LEGEND BAR ══════════════════════════════════════ */}
         <div
