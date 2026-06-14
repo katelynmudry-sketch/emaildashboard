@@ -1,4 +1,5 @@
 import type { DefaultSession, Session } from "next-auth"
+import { loadSettings } from "./settings-storage"
 
 // ── next-auth session augmentation ──────────────────────────────────────────
 
@@ -197,16 +198,17 @@ export interface AccountConfig {
 export function getAccounts(session: Session | null): AccountConfig[] {
   const personalEmail = session?.user?.email ?? ""
   const workEmail = session?.work_email ?? ""
+  const settings = loadSettings()
   return [
     {
       id: "personal",
       email: personalEmail,
-      label: personalEmail ? personalEmail.split("@")[0] : "Account 1",
+      label: settings.accountLabelPersonal || "Personal",
     },
     {
       id: "work",
       email: workEmail,
-      label: workEmail ? workEmail.split("@")[0] : "Account 2",
+      label: settings.accountLabelWork || "Work",
     },
   ]
 }
