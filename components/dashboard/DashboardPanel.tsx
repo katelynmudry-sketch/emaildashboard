@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { Email, DashboardTheme, CalendarEvent } from "@/lib/types"
+import type { Email, DashboardTheme, CalendarEvent, AccountId } from "@/lib/types"
 import type { PartyMode } from "@/lib/party-mode"
 import { getDashboardPrefs, setDashboardOpen } from "@/lib/dashboard-prefs"
 import { THEMES } from "./theme-config"
@@ -20,9 +20,10 @@ const MODE_TO_THEME: Record<PartyMode, DashboardTheme> = {
 interface DashboardPanelProps {
   emails: Email[]
   mode: PartyMode
+  account: AccountId
 }
 
-export default function DashboardPanel({ emails, mode }: DashboardPanelProps) {
+export default function DashboardPanel({ emails, mode, account }: DashboardPanelProps) {
   const [open, setOpen] = useState(true)
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
   const fontLinkRef = useRef<HTMLLinkElement | null>(null)
@@ -137,7 +138,7 @@ export default function DashboardPanel({ emails, mode }: DashboardPanelProps) {
           }}>
             {/* Top row — Calendar | Dharma | Manifestation */}
             <div className="db-grid-top">
-              <CalendarWidget theme={tc} onEventsLoaded={setCalendarEvents} />
+              <CalendarWidget theme={tc} account={account} onEventsLoaded={setCalendarEvents} />
               <DharmaWidget theme={tc} mode={mode} />
               <ManifestationWidget theme={tc} />
             </div>
