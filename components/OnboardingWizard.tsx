@@ -21,7 +21,16 @@ interface OnboardingWizardProps {
   onComplete: (mode: PartyMode) => void
 }
 
-const TOTAL_STEPS = 6
+const TOTAL_STEPS = 7
+
+// Decorative preview of the "inbox as a map of your life" pitch on step 2.
+const LIFE_CATEGORIES = [
+  { icon: "💰", label: "Finances", color: "#00B894" },
+  { icon: "👨‍👩‍👧", label: "Family", color: "#FF6B1A" },
+  { icon: "🏫", label: "School", color: "#3B82F6" },
+  { icon: "💼", label: "Work", color: "#8B3FD8" },
+  { icon: "🔒", label: "Security", color: "#FF1F6E" },
+]
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [mode, setMode] = useState<PartyMode | null>(null)
@@ -85,6 +94,18 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const stepCopy: Record<number, { title: string; description: string }> = {
     2: {
       title: mode === "zen"
+        ? "Your inbox, mapped"
+        : mode === "wabi-sabi"
+          ? "bestie ur inbox is literally everything"
+          : "YOUR INBOX = YOUR LIFE",
+      description: mode === "zen"
+        ? "Your inbox holds more than you think — bills, school notes, family updates, work threads, the quiet logistics of a life. Claude sorts it all into a calm visual map, so you always know where things stand. Find what matters today — a permission slip, a transfer that cleared — and let everything else rest until you're ready. AI-drafted replies are there if you want them, never required."
+        : mode === "wabi-sabi"
+          ? "Ur inbox is literally running ur whole life rn — money, family group chat, work, AND that school newsletter u definitely skimmed. Claude sorts it ALL into a cute vibe map so u know what's going on — did the field trip form go out? did the e-transfer land? Find whatever ur in the mood for and deal with the rest whenever, no rush. AI can write replies too if u want, total bonus, optional, we love options."
+          : "Your inbox is basically your whole life on autopilot — money, family, work, AND those school emails you swear you'll read later. Claude sorts EVERYTHING into a visual map so you never miss the field trip form or the e-transfer that landed. Zoom in on what you care about right now, clear the rest whenever. AI can draft replies too — bonus power-up, totally optional!",
+    },
+    3: {
+      title: mode === "zen"
         ? "Connect your inboxes"
         : mode === "wabi-sabi"
           ? "ok bestie let's connect ur inboxes"
@@ -95,7 +116,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           ? "Connect your personal Gmail to get started. Adding a work account is totally optional, no pressure, do what feels right for you."
           : "Link your personal Gmail to start sorting. Got a work inbox too? Connect a second account — totally optional.",
     },
-    3: {
+    4: {
       title: mode === "zen"
         ? "Shape your view"
         : mode === "wabi-sabi"
@@ -107,19 +128,19 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           ? "Pick your vibe: unread only or all of it, archived emails in or out, newest or oldest first. Whatever feels right, you can change it later, it's giving customizable."
           : "Choose what shows up in your inbox grid — unread vs. all, archived in or out, newest or oldest first. Tweak it anytime in Settings.",
     },
-    4: {
+    5: {
       title: mode === "zen"
         ? "Teach Claude about you"
         : mode === "wabi-sabi"
           ? "tell claude ur whole personality"
           : "AI RULES & ABOUT YOU",
       description: mode === "zen"
-        ? "Optional, and skippable — the defaults work fine. If you'd like, add custom rules per account, a short note about who you are, and your own system prompt (write it, upload a file, or ask Claude to draft one)."
+        ? "Claude — the AI that quietly sorts and drafts for you — can also learn a bit about you. Optional, and skippable — the defaults work fine. If you'd like, add custom rules per account, a short note about who you are, and your own system prompt (write it, upload a file, or ask Claude to draft one)."
         : mode === "wabi-sabi"
-          ? "This step is literally optional, the defaults are already great. But if you want, tell Claude a lil bit about yourself, ur rules, and even upload ur own system prompt so it gets your whole vibe, bestie."
-          : "Totally optional — defaults work great out of the box. Add custom per-account rules, a quick \"About You\" note, and your own system prompt — type it, upload a file, or ask Claude to write it for you.",
+          ? "Claude = the AI doing ur sorting and replies, and it can also learn ur whole vibe. This step is literally optional, the defaults are already great. But if you want, tell Claude a lil bit about yourself, ur rules, and even upload ur own system prompt so it gets your whole vibe, bestie."
+          : "Claude is the AI doing all the sorting and drafting — and it can learn about you too! Totally optional — defaults work great out of the box. Add custom per-account rules, a quick \"About You\" note, and your own system prompt — type it, upload a file, or ask Claude to write it for you.",
     },
-    5: {
+    6: {
       title: mode === "zen"
         ? "See how the prompts work"
         : mode === "wabi-sabi"
@@ -131,7 +152,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           ? "Here's literally everything Claude sees before it sorts ur inbox or drafts a reply, made from ur settings. You can always come back to this in Settings → Full Prompt, it's giving transparency."
           : "This is the exact prompt Claude uses to sort your inbox and write replies, assembled from your settings. Find it anytime under Settings → Full Prompt.",
     },
-    6: {
+    7: {
       title: mode === "zen"
         ? "You're ready"
         : mode === "wabi-sabi"
@@ -181,7 +202,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
         {/* Step dots */}
         <div style={{ display: "flex", gap: 8, marginBottom: 18, justifyContent: "center" }}>
-          {[2, 3, 4, 5, 6].map(n => (
+          {[2, 3, 4, 5, 6, 7].map(n => (
             <span key={n} style={{
               width: n === step ? 22 : 8, height: 8, borderRadius: 999,
               background: n === step ? accent : "rgba(26,10,53,0.12)",
@@ -222,19 +243,35 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           padding: 16,
           marginBottom: 20,
         }}>
-          {step === 2 && <AccountsSettings />}
-          {step === 3 && <InboxDisplaySettings />}
-          {step === 4 && (
+          {step === 2 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", padding: "12px 4px" }}>
+              {LIFE_CATEGORIES.map(cat => (
+                <div key={cat.label} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 16px", borderRadius: 999,
+                  border: `1.5px solid ${cat.color}55`,
+                  background: `${cat.color}14`,
+                  color: "#1A0A35",
+                  fontSize: "0.85rem", fontWeight: 600,
+                }}>
+                  <span style={{ fontSize: "1.1rem" }}>{cat.icon}</span> {cat.label}
+                </div>
+              ))}
+            </div>
+          )}
+          {step === 3 && <AccountsSettings />}
+          {step === 4 && <InboxDisplaySettings />}
+          {step === 5 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               <AiRulesSettings />
               <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)" }} />
               <AiSystemPromptSettings data={contextData} />
             </div>
           )}
-          {step === 5 && (
+          {step === 6 && (
             <FullPromptPreview data={contextData} />
           )}
-          {step === 6 && (
+          {step === 7 && (
             <div style={{ textAlign: "center", padding: "24px 8px" }}>
               <div style={{ fontSize: "3rem", marginBottom: 8 }}>
                 {mode === "zen" ? "🪷" : mode === "wabi-sabi" ? "✨" : "🎉"}
@@ -270,7 +307,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           </button>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {(step === 2 || step === 4) && (
+            {(step === 3 || step === 5) && (
               <button
                 type="button"
                 onClick={goNext}

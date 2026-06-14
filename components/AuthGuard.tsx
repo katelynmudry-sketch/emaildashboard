@@ -1,9 +1,60 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useSession, signIn } from "next-auth/react"
+import type { PartyMode } from "@/lib/party-mode"
+import { getPartyMode } from "@/lib/party-mode"
+
+const ACCENT: Record<PartyMode, string> = {
+  zen: "#C8960C",
+  party: "#8B3FD8",
+  "wabi-sabi": "#C17D3C",
+}
+
+const COPY: Record<PartyMode, {
+  teaser: string
+  devTitle: string
+  devBody: string
+  walkthroughTitle: string
+  reassurance: string
+}> = {
+  zen: {
+    teaser: "Your inbox holds more than mail — bills, family, school, work. Claude sorts it all into a calm, clear map.",
+    devTitle: "A work in progress",
+    devBody: "This app hasn't been reviewed by Google yet, so you'll see a caution screen when signing in. That's expected, not a sign something's wrong.",
+    walkthroughTitle: "What you'll see next",
+    reassurance: "Email Party only ever talks to your own Google account. You can revoke access anytime from Google Account → Security → Third-party access.",
+  },
+  party: {
+    teaser: "Your inbox = your whole life on autopilot. Claude sorts ALL of it into one visual map you can actually use.",
+    devTitle: "🚧 Heads up — early build!",
+    devBody: "This app hasn't been verified by Google yet, so you'll hit a warning screen at sign-in. Totally normal — here's exactly what to click 👇",
+    walkthroughTitle: "What you'll see next",
+    reassurance: "Email Party only ever talks to your own Google account — your access can be revoked anytime from Google Account → Security → Third-party access.",
+  },
+  "wabi-sabi": {
+    teaser: "ur inbox is literally running ur whole life rn. Claude sorts it ALL into a cute vibe map, no cap.",
+    devTitle: "🚧 lil disclaimer bestie",
+    devBody: "this app is still in dev mode so Google's gonna show u a scary-looking warning when u sign in. it's fine, it's normal, just click through.",
+    walkthroughTitle: "what u'll see next",
+    reassurance: "Email Party only ever talks to ur own Google account, and u can revoke access anytime from Google Account → Security → Third-party access. it's giving safe.",
+  },
+}
+
+const WALKTHROUGH_STEPS = [
+  "Click “Sign in with Google” below and pick your Google account.",
+  "Google shows “Google hasn't verified this app” — click Advanced.",
+  "Click “Go to Email Party (unsafe)” — “unsafe” just means Google hasn't reviewed it, not that anything's wrong.",
+  "Review the requested permissions (Gmail, Calendar, Docs) and click Continue / Allow.",
+]
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
+  const [mode, setMode] = useState<PartyMode>("party")
+
+  useEffect(() => {
+    setMode(getPartyMode())
+  }, [])
 
   if (status === "loading") {
     return (
@@ -14,20 +65,50 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!session) {
+    const accent = ACCENT[mode]
+    const c = COPY[mode]
+
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-8">
-        <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-10 text-center max-w-sm w-full">
+        <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-10 text-center max-w-md w-full">
           <div className="text-4xl mb-4">📬</div>
           <h1 className="text-xl font-semibold text-zinc-900 mb-1">Email Party</h1>
           <p className="text-sm text-zinc-500 mb-6">
-            Sign in with Google to connect your Gmail and start triaging.
+            {c.teaser}
           </p>
+
           <button
             onClick={() => signIn("google", { redirectTo: "/" })}
-            className="w-full bg-zinc-900 hover:bg-zinc-700 text-white font-medium py-2.5 rounded-xl transition-colors"
+            className="w-full bg-zinc-900 hover:bg-zinc-700 text-white font-medium py-2.5 rounded-xl transition-colors mb-6"
           >
             Sign in with Google
           </button>
+
+          <div
+            className="rounded-xl border p-4 text-left mb-4"
+            style={{ borderColor: `${accent}40`, background: `${accent}0D` }}
+          >
+            <p className="text-xs font-semibold mb-1" style={{ color: accent }}>
+              {c.devTitle}
+            </p>
+            <p className="text-xs text-zinc-600 leading-relaxed">
+              {c.devBody}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-200 p-4 text-left">
+            <p className="text-xs font-semibold text-zinc-700 mb-2">
+              {c.walkthroughTitle}
+            </p>
+            <ol className="text-xs text-zinc-600 leading-relaxed space-y-1.5 list-decimal list-inside mb-3">
+              {WALKTHROUGH_STEPS.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+            <p className="text-xs text-zinc-500 leading-relaxed border-t border-zinc-100 pt-2.5">
+              {c.reassurance}
+            </p>
+          </div>
         </div>
       </div>
     )
