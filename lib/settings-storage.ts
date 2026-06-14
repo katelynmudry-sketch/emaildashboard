@@ -18,6 +18,8 @@ export interface InboxSettings {
   showArchived: boolean     // when true, include archived (non-inbox) messages
   sortOrder: "newest" | "oldest"  // email list sort order
   onboardingComplete: boolean      // true once the first-run onboarding wizard has been completed
+  accountLabelPersonal: string  // custom display name for the "personal" account slot; empty = default "Personal"
+  accountLabelWork: string      // custom display name for the "work" account slot; empty = default "Work"
 }
 
 const DEFAULTS: InboxSettings = {
@@ -34,6 +36,8 @@ const DEFAULTS: InboxSettings = {
   showArchived: false,
   sortOrder: "newest",
   onboardingComplete: false,
+  accountLabelPersonal: "",
+  accountLabelWork: "",
 }
 
 export function loadSettings(): InboxSettings {

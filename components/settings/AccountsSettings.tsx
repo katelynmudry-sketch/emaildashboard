@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession, signIn } from "next-auth/react"
 import { getAccounts } from "@/lib/types"
+import type { AccountId, AccountConfig } from "@/lib/types"
 import { loadSettings, saveSettings } from "@/lib/settings-storage"
 import {
   getSaveFolderHandle,
@@ -16,6 +17,10 @@ export default function AccountsSettings() {
   const { data: session, update } = useSession()
   const accounts = getAccounts(session)
   const [swapping, setSwapping] = useState(false)
+
+  // Editable account labels (click a label below to rename — defaults to "Personal"/"Work")
+  const [editingLabelId, setEditingLabelId] = useState<AccountId | null>(null)
+  const [labelDraft, setLabelDraft] = useState("")
 
   // TODO export (beta)
   const [todoExportEnabled, setTodoExportEnabled] = useState(false)
@@ -92,6 +97,18 @@ export default function AccountsSettings() {
     window.location.reload()
   }
 
+  function startEditingLabel(acc: AccountConfig) {
+    setLabelDraft(acc.label)
+    setEditingLabelId(acc.id)
+  }
+
+  function commitLabel(id: AccountId) {
+    const trimmed = labelDraft.trim()
+    if (id === "personal") saveSettings({ accountLabelPersonal: trimmed })
+    else saveSettings({ accountLabelWork: trimmed })
+    setEditingLabelId(null)
+  }
+
   async function handleSwapAccounts() {
     setSwapping(true)
     try {
@@ -108,7 +125,8 @@ export default function AccountsSettings() {
       {/* ── Connect accounts ── */}
       <div>
         <SectionLabel color="#8B3FD8">Connect accounts</SectionLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <Hint>Click a name below to rename it — defaults to &quot;Personal&quot; and &quot;Work&quot;.</Hint>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
           {accounts.map(acc => (
             <div key={acc.id} style={{
               display: "flex", alignItems: "center", gap: 10,
@@ -116,13 +134,45 @@ export default function AccountsSettings() {
               background: acc.id === "personal" ? "rgba(255,31,110,0.04)" : "rgba(255,107,26,0.04)",
               border: `1px solid ${acc.id === "personal" ? "rgba(255,31,110,0.12)" : "rgba(255,107,26,0.12)"}`,
             }}>
-              <span style={{
-                fontSize: "0.78rem", fontWeight: 600,
-                color: acc.id === "personal" ? "#FF1F6E" : "#FF6B1A",
-                minWidth: 60, textTransform: "capitalize",
-              }}>
-                {acc.id}
-              </span>
+              {editingLabelId === acc.id ? (
+                <input
+                  type="text"
+                  autoFocus
+                  value={labelDraft}
+                  onChange={e => setLabelDraft(e.target.value)}
+                  onBlur={() => commitLabel(acc.id)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") commitLabel(acc.id)
+                    if (e.key === "Escape") setEditingLabelId(null)
+                  }}
+                  maxLength={24}
+                  style={{
+                    fontSize: "0.78rem", fontWeight: 600,
+                    color: acc.id === "personal" ? "#FF1F6E" : "#FF6B1A",
+                    minWidth: 60, width: 100,
+                    border: `1px solid ${acc.id === "personal" ? "rgba(255,31,110,0.30)" : "rgba(255,107,26,0.30)"}`,
+                    borderRadius: 6, padding: "2px 6px",
+                    background: "#fff", outline: "none",
+                    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startEditingLabel(acc)}
+                  title="Click to rename this account"
+                  style={{
+                    fontSize: "0.78rem", fontWeight: 600,
+                    color: acc.id === "personal" ? "#FF1F6E" : "#FF6B1A",
+                    minWidth: 60, textAlign: "left",
+                    background: "none", border: "none", padding: 0,
+                    cursor: "pointer",
+                    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+                  }}
+                >
+                  {acc.label}
+                </button>
+              )}
               <span style={{
                 flex: 1, fontSize: "0.80rem",
                 color: acc.email ? "#1A0A35" : "rgba(26,10,53,0.38)",
