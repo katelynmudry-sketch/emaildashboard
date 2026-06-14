@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from "react"
 import type { PartyMode } from "@/lib/party-mode"
-import { markGateSeen } from "@/lib/party-mode"
+import {
+  markGateSeen,
+  getOnboardingProgress,
+  setOnboardingProgress,
+  clearOnboardingProgress,
+} from "@/lib/party-mode"
 import { loadSettings, saveSettings, seedIfEmpty } from "@/lib/settings-storage"
 import QuoteGate from "./QuoteGate"
 import AccountsSettings from "./settings/AccountsSettings"
@@ -24,8 +29,11 @@ interface OnboardingWizardProps {
 const TOTAL_STEPS = 6
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
-  const [mode, setMode] = useState<PartyMode | null>(null)
-  const [step, setStep] = useState(1)
+  // Resume in-progress onboarding (e.g. after the full-page redirect from
+  // "Connect second Gmail") instead of restarting at the vibe-picker splash gate.
+  const initialProgress = getOnboardingProgress()
+  const [mode, setMode] = useState<PartyMode | null>(initialProgress?.mode ?? null)
+  const [step, setStep] = useState(initialProgress?.step ?? 1)
   const [contextData, setContextData] = useState<ContextData | null>(null)
 
   // Fetch AI context data once we reach (or approach) the prompt-preview step,
@@ -45,6 +53,11 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       .catch(() => {})
   }, [mode])
 
+  // Persist progress so a full-page redirect (OAuth sign-in) can resume mid-wizard.
+  useEffect(() => {
+    if (mode !== null) setOnboardingProgress({ mode, step })
+  }, [mode, step])
+
   // ── Step 1: vibe picker (full-screen QuoteGate) ─────────────────────────
   if (mode === null) {
     return (
@@ -58,6 +71,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   function finish() {
     saveSettings({ onboardingComplete: true })
     markGateSeen()
+    clearOnboardingProgress()
     onComplete(mode!)
   }
 
