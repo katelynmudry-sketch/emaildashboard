@@ -1,22 +1,25 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import type { CalendarEvent } from "@/lib/types"
+import type { AccountId, CalendarEvent } from "@/lib/types"
 import type { ThemeConfig } from "./theme-config"
 import { getCalendarCache, saveCalendarCache } from "@/lib/dashboard-prefs"
 
 interface CalendarWidgetProps {
   theme: ThemeConfig
+  account: AccountId
   onEventsLoaded?: (events: CalendarEvent[]) => void
 }
 
-export default function CalendarWidget({ theme, onEventsLoaded }: CalendarWidgetProps) {
+export default function CalendarWidget({ theme, account, onEventsLoaded }: CalendarWidgetProps) {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    const cached = getCalendarCache()
+    setLoading(true)
+    setError(false)
+    const cached = getCalendarCache(account)
     if (cached) {
       setEvents(cached.events)
       onEventsLoaded?.(cached.events)
@@ -25,13 +28,13 @@ export default function CalendarWidget({ theme, onEventsLoaded }: CalendarWidget
     }
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 10_000)
-    fetch("/api/calendar/today", { signal: controller.signal })
+    fetch(`/api/calendar/today?account=${account}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         const evts: CalendarEvent[] = data.events ?? []
         setEvents(evts)
         onEventsLoaded?.(evts)
-        saveCalendarCache(evts)
+        saveCalendarCache(account, evts)
       })
       .catch(err => {
         if (err.name !== "AbortError") {
@@ -42,7 +45,7 @@ export default function CalendarWidget({ theme, onEventsLoaded }: CalendarWidget
       .finally(() => setLoading(false))
     return () => { clearTimeout(timer); controller.abort() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [account])
 
   const today = new Date()
   const dayName = today.toLocaleDateString("en-US", { weekday: "long" })

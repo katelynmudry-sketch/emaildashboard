@@ -79,10 +79,10 @@ export interface CalendarCache {
 
 const CALENDAR_TTL_MS = 15 * 60 * 1000 // 15 minutes
 
-export function getCalendarCache(): CalendarCache | null {
+export function getCalendarCache(account: string): CalendarCache | null {
   if (typeof window === "undefined") return null
   try {
-    const raw = localStorage.getItem(CALENDAR_CACHE_KEY)
+    const raw = localStorage.getItem(`${CALENDAR_CACHE_KEY}:${account}`)
     if (!raw) return null
     const cached = JSON.parse(raw) as CalendarCache
     if (Date.now() - cached.fetchedAt > CALENDAR_TTL_MS) return null
@@ -92,7 +92,7 @@ export function getCalendarCache(): CalendarCache | null {
   }
 }
 
-export function saveCalendarCache(events: import("./types").CalendarEvent[]): void {
+export function saveCalendarCache(account: string, events: import("./types").CalendarEvent[]): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(CALENDAR_CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), events }))
+  localStorage.setItem(`${CALENDAR_CACHE_KEY}:${account}`, JSON.stringify({ fetchedAt: Date.now(), events }))
 }

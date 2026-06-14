@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { google } from "googleapis"
 import type { CalendarEvent } from "@/lib/types"
+import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
 const EVENT_COLORS = ["#FF1F6E", "#FFD000", "#FF6B1A", "#00C4A7", "#8FC900", "#8B3FD8"]
 
@@ -10,16 +11,16 @@ function toHHMM(isoString: string): string {
   return d.toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit", hour12: true })
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth()
-  const accessToken = session?.access_token
-  if (!accessToken) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const url = new URL(request.url)
+  const accountId = parseAccountId(url.searchParams.get("account"))
+  const authz = requireGmailAccess(session, accountId)
+  if (!authz.success) return authz.response
 
   try {
     const oauth2 = new google.auth.OAuth2()
-    oauth2.setCredentials({ access_token: accessToken })
+    oauth2.setCredentials({ access_token: authz.accessToken })
     const calendar = google.calendar({ version: "v3", auth: oauth2 })
 
     const now = new Date()
