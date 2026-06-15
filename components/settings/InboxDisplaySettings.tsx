@@ -6,13 +6,11 @@ import { Hint, SectionLabel, ToggleSwitch } from "./shared"
 
 export default function InboxDisplaySettings() {
   const [showUnreadOnly, setShowUnreadOnly] = useState(true)
-  const [showArchived, setShowArchived] = useState(false)
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
 
   useEffect(() => {
     const stored = loadSettings()
     setShowUnreadOnly(stored.showUnreadOnly !== false)
-    setShowArchived(stored.showArchived === true)
     setSortOrder(stored.sortOrder === "oldest" ? "oldest" : "newest")
   }, [])
 
@@ -20,12 +18,6 @@ export default function InboxDisplaySettings() {
     const next = !showUnreadOnly
     setShowUnreadOnly(next)
     saveSettings({ showUnreadOnly: next })
-  }
-
-  function toggleArchived() {
-    const next = !showArchived
-    setShowArchived(next)
-    saveSettings({ showArchived: next })
   }
 
   function setOrder(order: "newest" | "oldest") {
@@ -47,20 +39,7 @@ export default function InboxDisplaySettings() {
             Show unread only
           </div>
           <div style={{ fontSize: "0.72rem", color: "rgba(26,10,53,0.50)", marginTop: 1 }}>
-            When OFF, read emails are included too — each email shows a read/unread dot so you can tell them apart.
-          </div>
-        </div>
-      </div>
-
-      {/* ── Include archived ── */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <ToggleSwitch checked={showArchived} onChange={toggleArchived} activeColor="#8B3FD8" />
-        <div>
-          <div style={{ fontSize: "0.80rem", fontWeight: 600, color: "#1A0A35", lineHeight: 1.3 }}>
-            Include archived emails
-          </div>
-          <div style={{ fontSize: "0.72rem", color: "rgba(26,10,53,0.50)", marginTop: 1 }}>
-            When ON, emails you&apos;ve archived (no longer in your inbox) will still appear in the grid.
+            When OFF, read emails still in your inbox are included too — each email shows a read/unread dot so you can tell them apart. Archived emails never appear here either way.
           </div>
         </div>
       </div>

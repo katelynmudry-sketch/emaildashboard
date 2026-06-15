@@ -1,5 +1,32 @@
 import NextAuth from "next-auth"
 import Google from "next-auth/providers/google"
+import { getToken, type JWT } from "next-auth/jwt"
+import { cookies, headers } from "next/headers"
+
+/**
+ * On sign-in, Auth.js calls the jwt callback with a bare `defaultToken`
+ * (just name/email/picture/sub from the account being signed in) — it does
+ * NOT carry over the previously-issued token's custom fields. To detect a
+ * "second account" sign-in (and to avoid clobbering the first account's
+ * tokens), we decode the still-present old session cookie ourselves.
+ */
+async function getPreviousToken(): Promise<JWT | null> {
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret) return null
+  try {
+    const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()])
+    const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join("; ")
+    if (!cookieHeader) return null
+    const secureCookie = requestHeaders.get("x-forwarded-proto") === "https"
+    return await getToken({
+      req: { headers: new Headers({ cookie: cookieHeader }) },
+      secret,
+      secureCookie,
+    })
+  } catch {
+    return null
+  }
+}
 
 async function refreshGoogleAccess(refreshToken: string) {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -40,7 +67,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             "https://www.googleapis.com/auth/gmail.compose",
             "https://www.googleapis.com/auth/gmail.labels",
             "https://www.googleapis.com/auth/calendar.readonly",
-            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive.file",
           ].join(" "),
           access_type: "offline",
           prompt: "consent", // always get refresh_token
@@ -75,19 +102,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       if (account && user?.email) {
         const newEmail = user.email.toLowerCase()
-        const primaryEmail = token.primary_email?.toLowerCase()
+        // `token` here is just a bare {name, email, picture, sub} for the
+        // account that's signing in right now — it doesn't carry the
+        // previously-issued token's custom fields. Decode the still-present
+        // old session cookie to find out who the primary account was.
+        const previous = await getPreviousToken()
+        const primaryEmail = previous?.primary_email?.toLowerCase()
 
         // Second account: a different email signed in while a primary is already stored
         const isSecondAccount = !!primaryEmail && newEmail !== primaryEmail
         if (isSecondAccount) {
           return {
-            ...token,
-            // Auth.js overwrites token.email with the new sign-in's email before this
-            // callback runs — restore the primary's email so it doesn't get clobbered.
+            ...previous,
+            // Restore the primary's email — the new sign-in's email belongs in work_email.
             email: primaryEmail,
             work_email: newEmail,
             work_access_token: account.access_token,
-            work_refresh_token: account.refresh_token ?? token.work_refresh_token,
+            work_refresh_token: account.refresh_token ?? previous?.work_refresh_token,
             work_expires_at: account.expires_at,
             work_error: undefined,
           }
@@ -95,11 +126,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Primary account (first sign-in, or re-authenticating same email)
         return {
+          ...previous,
           ...token,
           email: user.email,
           primary_email: newEmail,
           access_token: account.access_token,
-          refresh_token: account.refresh_token ?? token.refresh_token,
+          refresh_token: account.refresh_token ?? previous?.refresh_token,
           expires_at: account.expires_at,
           error: undefined,
         }

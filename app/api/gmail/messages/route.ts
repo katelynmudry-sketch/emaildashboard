@@ -18,12 +18,11 @@ export async function GET(request: Request) {
     const maxResults = ALLOWED_MAX.has(parsed) ? parsed : 30
 
     const unreadOnly = url.searchParams.get("unreadOnly") !== "false"
-    const includeArchived = url.searchParams.get("includeArchived") === "true"
     const sortOrderParam = url.searchParams.get("sortOrder")
     const sortOrder: "newest" | "oldest" = sortOrderParam === "oldest" ? "oldest" : "newest"
 
     const [{ emails, totalUnread }, existingLabels] = await Promise.all([
-      fetchInboxMessages(authz.accessToken, { maxResults, unreadOnly, includeArchived, sortOrder }),
+      fetchInboxMessages(authz.accessToken, { maxResults, unreadOnly, sortOrder }),
       fetchExistingLabels(authz.accessToken),
     ])
 

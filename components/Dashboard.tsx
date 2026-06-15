@@ -504,7 +504,6 @@ export default function Dashboard() {
         account: activeAccount,
         max: String(importBatchSize),
         unreadOnly: String(displaySettings.showUnreadOnly),
-        includeArchived: String(displaySettings.showArchived),
         sortOrder: displaySettings.sortOrder,
       })
       const msgRes = await fetch(`/api/gmail/messages?${inboxParams}`, {

@@ -139,10 +139,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           ? "connect ur inboxes & make it cute"
           : "CONNECT & SET UP YOUR INBOX",
       description: mode === "zen"
-        ? "Link your personal Gmail to begin — a work account is optional, add it anytime. Then choose what appears in your grid: unread only or everything, archived or not, newest or oldest first. Turn on a few AI cleanup actions if you'd like Claude to quietly flag things like expired promo codes and old security alerts. You can adjust any of this later."
+        ? "Link your personal Gmail to begin — a work account is optional, add it anytime. Then choose what appears in your grid: unread only or everything still in your inbox, newest or oldest first. Turn on a few AI cleanup actions if you'd like Claude to quietly flag things like expired promo codes and old security alerts. You can adjust any of this later."
         : mode === "wabi-sabi"
-          ? "Connect ur personal Gmail to get started — a work account is totally optional, no pressure, do what feels right. Then pick your vibe: unread only or all of it, archived in or out, newest or oldest first. Also peep the AI cleanup toggles below — they quietly clear out expired codes and old alerts so ur inbox stays cute. Change any of this later, it's giving customizable."
-          : "Link your personal Gmail to start sorting — a work inbox is optional, connect it whenever. Choose what shows up in your grid (unread vs. all, archived in or out, newest/oldest), and flip on AI cleanup actions to auto-flag the noise — expired codes, old alerts, delivered packages. Tweak it all anytime in Settings.",
+          ? "Connect ur personal Gmail to get started — a work account is totally optional, no pressure, do what feels right. Then pick your vibe: unread only or all of ur inbox, newest or oldest first. Also peep the AI cleanup toggles below — they quietly clear out expired codes and old alerts so ur inbox stays cute. Change any of this later, it's giving customizable."
+          : "Link your personal Gmail to start sorting — a work inbox is optional, connect it whenever. Choose what shows up in your grid (unread vs. everything in your inbox, newest/oldest), and flip on AI cleanup actions to auto-flag the noise — expired codes, old alerts, delivered packages. Tweak it all anytime in Settings.",
     },
     3: {
       title: mode === "zen"
