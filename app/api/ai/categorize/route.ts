@@ -12,8 +12,20 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { emails, categories, account, customContext, systemContext, aiPastEventDelete, aboutYouContext }: CategorizeRequest & { customContext?: string; systemContext?: string; aiPastEventDelete?: boolean; aboutYouContext?: string } = await request.json()
-    const result = await categorizeInbox(emails, categories, account, { customContext, systemContext, aiPastEventDelete, aboutYouContext })
+    const {
+      emails, categories, account, customContext, systemContext, aboutYouContext, dreamInboxContext,
+      aiPastEventDelete, aiSecurityAlertCleanup, aiSocialNotificationCleanup,
+      aiExpiredPromoCleanup, aiOldNewsletterCleanup, aiLargeAttachmentCleanup,
+    }: CategorizeRequest & {
+      customContext?: string; systemContext?: string; aboutYouContext?: string; dreamInboxContext?: string
+      aiPastEventDelete?: boolean; aiSecurityAlertCleanup?: boolean; aiSocialNotificationCleanup?: boolean
+      aiExpiredPromoCleanup?: boolean; aiOldNewsletterCleanup?: boolean; aiLargeAttachmentCleanup?: boolean
+    } = await request.json()
+    const result = await categorizeInbox(emails, categories, account, {
+      customContext, systemContext, aboutYouContext, dreamInboxContext,
+      aiPastEventDelete, aiSecurityAlertCleanup, aiSocialNotificationCleanup,
+      aiExpiredPromoCleanup, aiOldNewsletterCleanup, aiLargeAttachmentCleanup,
+    })
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Categorization failed" }, { status: 500 })

@@ -11,15 +11,33 @@ export interface ClaudeSettings {
   customContext?: string  // per-account rules text
   systemContext?: string  // full CLINIC_CONTEXT override (user-edited via settings panel)
   aiPastEventDelete?: boolean
+  aiSecurityAlertCleanup?: boolean
+  aiSocialNotificationCleanup?: boolean
+  aiExpiredPromoCleanup?: boolean
+  aiOldNewsletterCleanup?: boolean
+  aiLargeAttachmentCleanup?: boolean
   aboutYouContext?: string  // free-text "about the user" reference doc
+  dreamInboxContext?: string  // "Describe your Dream Inbox" — what the user wants surfaced/prioritized
+  draftTone?: string  // per-account draft voice/tone, used for reply drafting
 }
 
 // ── Build the "About the user" prompt section, if present ─────────────────────
 
 function buildAboutYouSection(settings?: ClaudeSettings): string {
-  return settings?.aboutYouContext?.trim()
+  let section = settings?.aboutYouContext?.trim()
     ? `\n\n## About the user\n${settings.aboutYouContext.trim()}`
     : ""
+  if (settings?.draftTone?.trim()) {
+    section += `\n\n## Tone for replies from this account\n${settings.draftTone.trim()}`
+  }
+  return section
+}
+
+// ── Build the "Dream Inbox" prompt section, if present ─────────────────────────
+
+function buildDreamInboxSection(settings?: ClaudeSettings): string {
+  const text = settings?.dreamInboxContext?.trim() || settings?.customContext?.trim()
+  return text ? `\n\n## What this user needs from their inbox\n${text}` : ""
 }
 
 // ── Sanitize strings (passthrough — kept for call-site compatibility) ─────────
@@ -61,17 +79,22 @@ Existing Gmail labels (reuse these):
 ${existingLabelNames.map(n => `  - ${n}`).join("\n")}`
     : "No existing labels — propose fresh categories based on the email patterns below."
 
+  const aboutYouSection = buildAboutYouSection(settings)
+  const dreamInboxSection = buildDreamInboxSection(settings)
+
   const prompt = `
 Analyze these ${emails.length} emails from ${account} and propose inbox categories to organize this inbox.
 
 ${existingSection}
 
 ${isWork ? "This is a clinic/work inbox. Categories should reflect clinical practice email types." : "This is a personal inbox. Categories should reflect personal life email types."}
+${aboutYouSection}${dreamInboxSection}
 
 Rules:
 - Prefer reusing existing label names over inventing new ones.
 - Propose as many or as few categories as actually make sense for the emails — no fixed minimum or maximum.
 - Each category should cover a meaningfully distinct slice of the inbox.
+- If the "About the user" or "What this user needs from their inbox" sections above name specific people, companies, or topics, propose a category for them even if their emails are low-volume — these are flagged as important to the user.
 
 Return a JSON array of objects:
 [
@@ -122,12 +145,32 @@ export async function categorizeInbox(
     ? `\n## Custom instructions for this account\n${settings.customContext.trim()}`
     : ""
   const effectiveSystemContext = settings?.systemContext?.trim() || DEFAULT_SYSTEM_CONTEXT
-  const aboutYouSection = buildAboutYouSection(settings)
+  const aboutYouSection = buildAboutYouSection(settings) + buildDreamInboxSection(settings)
   const today = new Date().toLocaleDateString("en-CA") // YYYY-MM-DD
 
   const pastEventCriterion = settings?.aiPastEventDelete !== false
     ? `, calendar event invitations or meeting RSVP emails where the event date has already passed (today is ${today} — check the event date in the email body or subject)`
     : ""
+
+  const deletableCriteria = [
+    `shipping notifications where the package has already been delivered (status says "delivered")`,
+  ]
+  if (settings?.aiSecurityAlertCleanup !== false) {
+    deletableCriteria.push("security login alerts and OTP/2FA codes")
+  }
+  if (settings?.aiSocialNotificationCleanup !== false) {
+    deletableCriteria.push("social media notifications (likes, follows, friend requests)")
+  }
+  if (settings?.aiExpiredPromoCleanup !== false) {
+    deletableCriteria.push("single-use promotional codes or coupons that have already expired")
+  }
+  if (settings?.aiOldNewsletterCleanup) {
+    deletableCriteria.push(`newsletters or digests sent more than 14 days ago (today is ${today}) that have already been read (Read: true)`)
+  }
+  if (settings?.aiLargeAttachmentCleanup) {
+    deletableCriteria.push(`emails sent more than 30 days ago (today is ${today}) with large attachments (over 2MB) that are unlikely to be needed for future reference`)
+  }
+  const includeEmailMeta = !!(settings?.aiOldNewsletterCleanup || settings?.aiLargeAttachmentCleanup)
 
   const prompt = `
 Categorize each of these ${emails.length} emails into one of these categories: ${categoryList}
@@ -145,7 +188,7 @@ Also assign:
   - "read" — newsletter, FYI, promotional, no action needed
 - summary: 1-2 sentence plain-English summary IF the body is >150 words OR contains a special offer/promotion. Otherwise null. Use one mention of the sender/brand/person at most. If the sender or subject already names the sender, omit that name and summarize the key action, date, deadline, or amount instead. Prefer short phrases like "Day 3 expires Fri 5pm" or "course 33% off until Jun 8".
 - draftReply: For emails needing a reply, write a friendly, concise reply (2-4 sentences). For emails that don't need a reply: null.
-- deletable: true if the email is clearly no longer actionable and safe to delete. Flag: security login alerts, OTP/2FA codes, social media notifications (likes, follows), single-use promotional codes that have expired, shipping notifications where the package has already been delivered (status says "delivered")${pastEventCriterion}.
+- deletable: true if the email is clearly no longer actionable and safe to delete. Flag: ${deletableCriteria.join(", ")}${pastEventCriterion}.
 - deletableReason: one short phrase explaining why (e.g. "Security login alert, no longer actionable"), or null if not deletable.
 - packageDelivered: true if this email confirms a package/parcel was successfully delivered. Look at subject AND body. Signs: "delivered", "arrived", "left at door", "delivery complete", "your parcel is here", "successfully delivered", "package received", "order delivered", "shipment delivered", "item delivered", "has been delivered", "delivery confirmation", "delivered to". "Out for delivery" or "on its way" are NOT enough — must confirm actual delivery happened.
 - orderSender: if packageDelivered is true, extract a short identifier for the sender (e.g. "amazon.ca", "Postmedia Parcel Services", "Canada Post" — use the display name if the domain isn't recognizable). Otherwise null.
@@ -170,7 +213,8 @@ Return a JSON array with one object per email, in the same order:
 Emails to process:
 ${emails.map(e => `ID: ${e.id}
 From: ${sanitizeUtf8(e.from)} <${sanitizeUtf8(e.fromEmail)}>
-Subject: ${sanitizeUtf8(e.subject)}
+Subject: ${sanitizeUtf8(e.subject)}${includeEmailMeta ? `
+Sent: ${new Date(e.internalDate).toLocaleDateString("en-CA")} | Read: ${e.read}${e.attachments?.length ? ` | Attachments: ${e.attachments.map(a => `${a.filename} (${Math.round(a.size / 1024)}KB)`).join(", ")}` : ""}` : ""}
 Body (truncated): ${sanitizeUtf8(e.body.slice(0, 500))}`).join("\n---\n")}
 
 Return ONLY valid JSON array. No markdown, no explanation.

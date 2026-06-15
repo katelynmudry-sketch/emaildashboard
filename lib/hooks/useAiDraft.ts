@@ -22,6 +22,7 @@ export function useAiDraft(emailCtx: EmailContext | null, gmailAccount: AccountI
     const settings = loadSettings()
     const isWork = gmailAccount === "work"
     const customContext = isWork ? settings.workRules : settings.personalRules
+    const draftTone = isWork ? settings.workDraftTone : settings.personalDraftTone
     const res = await fetch("/api/ai/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -31,6 +32,8 @@ export function useAiDraft(emailCtx: EmailContext | null, gmailAccount: AccountI
         systemContext: settings.systemContext || undefined,
         customContext: customContext || undefined,
         aboutYouContext: settings.aboutYouContext || undefined,
+        dreamInboxContext: settings.dreamInboxContext || undefined,
+        draftTone: draftTone || undefined,
       }),
     })
     const data = await res.json()

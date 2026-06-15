@@ -9,9 +9,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { email, partialDraft, systemContext, customContext, aboutYouContext } = await request.json()
+    const { email, partialDraft, systemContext, customContext, aboutYouContext, dreamInboxContext, draftTone } = await request.json()
     const account = session.user?.email ?? ""
-    const settings = (systemContext || customContext || aboutYouContext) ? { systemContext, customContext, aboutYouContext } : undefined
+    const settings = (systemContext || customContext || aboutYouContext || dreamInboxContext || draftTone)
+      ? { systemContext, customContext, aboutYouContext, dreamInboxContext, draftTone }
+      : undefined
     const draft = await generateDraftReply(email, account, partialDraft ?? "", settings)
     return NextResponse.json({ draft })
   } catch (err) {

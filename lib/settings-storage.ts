@@ -9,8 +9,16 @@ export interface InboxSettings {
   workRules: string
   systemContext: string // overrides CLINIC_CONTEXT if non-empty
   aboutYouContext: string          // "About You" reference doc, included in every AI prompt
+  dreamInboxContext: string        // "Describe your Dream Inbox" — what the user wants surfaced/prioritized
+  personalDraftTone: string        // per-account draft voice/tone for the personal Gmail account
+  workDraftTone: string            // per-account draft voice/tone for the work Gmail account
   aiPastEventDelete: boolean    // suggest deleting calendar event emails after the event has passed
   aiDeliveryChainCleanup: boolean // suggest deleting shipping emails once a package is delivered
+  aiSecurityAlertCleanup: boolean   // flag security/OTP/login-alert emails as deletable
+  aiSocialNotificationCleanup: boolean // flag social media like/follow notifications as deletable
+  aiExpiredPromoCleanup: boolean    // flag expired single-use promo codes as deletable
+  aiOldNewsletterCleanup: boolean   // flag old, already-read newsletters as deletable
+  aiLargeAttachmentCleanup: boolean // flag old emails with large attachments as deletable
   todoExportEnabled: boolean  // beta: append TODO-flagged emails to a Google Doc
   todoExportDocIdPersonal: string  // Google Doc ID to append personal-account TODOs to
   todoExportDocIdWork: string      // Google Doc ID to append work-account TODOs to
@@ -27,8 +35,16 @@ const DEFAULTS: InboxSettings = {
   workRules: "",
   systemContext: "",
   aboutYouContext: "",
+  dreamInboxContext: "",
+  personalDraftTone: "",
+  workDraftTone: "",
   aiPastEventDelete: true,
   aiDeliveryChainCleanup: true,
+  aiSecurityAlertCleanup: true,
+  aiSocialNotificationCleanup: true,
+  aiExpiredPromoCleanup: true,
+  aiOldNewsletterCleanup: false,
+  aiLargeAttachmentCleanup: false,
   todoExportEnabled: false,
   todoExportDocIdPersonal: "",
   todoExportDocIdWork: "",
