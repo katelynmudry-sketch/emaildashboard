@@ -240,13 +240,22 @@ export default function QuoteGate({ onEnter }: QuoteGateProps) {
               EMAIL PARTY
             </h1>
             <p style={{
+              fontSize: "1.05rem", fontWeight: 600, lineHeight: 1.4,
+              color: preview.textColor,
+              margin: "0 0 8px",
+              transition: "color 0.5s ease",
+            }}>
+              Inbox zero is just one party away.
+            </p>
+            <p style={{
               fontSize: "0.95rem", lineHeight: 1.6,
               color: preview.subTextColor,
               margin: "0 0 6px",
               transition: "color 0.5s ease",
             }}>
-              Claude reads your inbox and sorts it into a visual map you can actually use —
-              what needs you today, what can wait, and AI-drafted replies whenever you want them.
+              Auto-organized and visually sorted into the spaces that matter — your Gardens,
+              Arenas, or Eras — so you instantly see what needs you today, what can wait, and
+              what&rsquo;s ready for a reply, whether you write it yourself or let AI draft one for you.
             </p>
             <p style={{
               fontSize: "0.82rem", lineHeight: 1.6,
