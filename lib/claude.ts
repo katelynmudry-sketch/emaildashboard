@@ -290,7 +290,7 @@ Message: ${sanitizeUtf8(email.body.slice(0, 1000))}${partialSection}`
   const customContextSection = settings?.customContext?.trim()
     ? `\n\n## Custom instructions for this account\n${settings.customContext.trim()}`
     : ""
-  const aboutYouSection = buildAboutYouSection(settings)
+  const aboutYouSection = buildAboutYouSection(settings) + buildDreamInboxSection(settings)
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",

@@ -289,7 +289,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               <AboutYouSettings />
               <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)" }} />
-              <AiRulesSettings />
+              <AiRulesSettings showCleanupActions={false} />
             </div>
           )}
           {step === 5 && (

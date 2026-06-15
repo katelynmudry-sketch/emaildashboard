@@ -5,7 +5,11 @@ import { loadSettings, saveSettings } from "@/lib/settings-storage"
 import { Hint, SectionLabel, SaveOk, TEXTAREA_STYLE } from "./shared"
 import AiCleanupSettings from "./AiCleanupSettings"
 
-export default function AiRulesSettings() {
+interface Props {
+  showCleanupActions?: boolean
+}
+
+export default function AiRulesSettings({ showCleanupActions = true }: Props) {
   const [personalText, setPersonalText] = useState("")
   const [workText, setWorkText] = useState("")
   const [saveOk, setSaveOk] = useState(false)
@@ -33,7 +37,7 @@ export default function AiRulesSettings() {
       </Hint>
 
       {/* ── AI Actions ── */}
-      <AiCleanupSettings />
+      {showCleanupActions && <AiCleanupSettings />}
 
       <div>
         <SectionLabel color="#FF1F6E">Personal inbox rules</SectionLabel>

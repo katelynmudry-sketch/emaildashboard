@@ -71,7 +71,7 @@ export default function FullPromptPreview({ data }: Props) {
   ].join("\n")
 
   // ── Email draft prompt ──
-  const draftSystem = effectiveSystemContext + customContextSection + aboutYouSection + draftToneSection
+  const draftSystem = effectiveSystemContext + customContextSection + aboutYouSection + draftToneSection + dreamInboxSection
   const draftUser = `Write a friendly, concise reply to this email. 2-4 sentences. Return only the reply text.
 
 From: <sender name> <sender@example.com>
