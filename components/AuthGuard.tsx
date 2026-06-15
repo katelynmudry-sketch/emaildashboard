@@ -12,28 +12,24 @@ const ACCENT: Record<PartyMode, string> = {
 }
 
 const COPY: Record<PartyMode, {
-  teaser: string
   devTitle: string
   devBody: string
   walkthroughTitle: string
   reassurance: string
 }> = {
   zen: {
-    teaser: "Your inbox holds more than mail — bills, family, school, work. Claude sorts it all into a calm, clear map.",
     devTitle: "A work in progress",
     devBody: "This app hasn't been reviewed by Google yet, so you'll see a caution screen when signing in. That's expected, not a sign something's wrong.",
     walkthroughTitle: "What you'll see next",
     reassurance: "Email Party only ever talks to your own Google account. You can revoke access anytime from Google Account → Security → Third-party access.",
   },
   party: {
-    teaser: "Your inbox = your whole life on autopilot. Claude sorts ALL of it into one visual map you can actually use.",
     devTitle: "🚧 Heads up — early build!",
     devBody: "This app hasn't been verified by Google yet, so you'll hit a warning screen at sign-in. Totally normal — here's exactly what to click 👇",
     walkthroughTitle: "What you'll see next",
     reassurance: "Email Party only ever talks to your own Google account — your access can be revoked anytime from Google Account → Security → Third-party access.",
   },
   "wabi-sabi": {
-    teaser: "ur inbox is literally running ur whole life rn. Claude sorts it ALL into a cute vibe map, no cap.",
     devTitle: "🚧 lil disclaimer bestie",
     devBody: "this app is still in dev mode so Google's gonna show u a scary-looking warning when u sign in. it's fine, it's normal, just click through.",
     walkthroughTitle: "what u'll see next",
@@ -71,10 +67,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-8">
         <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-10 text-center max-w-md w-full">
-          <div className="text-4xl mb-4">📬</div>
-          <h1 className="text-xl font-semibold text-zinc-900 mb-1">Email Party</h1>
-          <p className="text-sm text-zinc-500 mb-6">
-            {c.teaser}
+          <h1
+            className="text-zinc-900 mb-2"
+            style={{ fontFamily: "var(--font-display)", fontSize: "1.6rem", letterSpacing: "0.04em", lineHeight: 1.1 }}
+          >
+            EMAIL PARTY
+          </h1>
+          <p className="text-base font-semibold text-zinc-700 mb-2">
+            Inbox zero is just one party away.
+          </p>
+          <p className="text-sm text-zinc-500 leading-relaxed mb-6">
+            Auto-organized and visually sorted into the spaces that matter — your Gardens,
+            Arenas, or Eras — so you instantly see what needs you today, what can wait, and
+            what&rsquo;s ready for a reply, whether you write it yourself or let AI draft one for you.
           </p>
 
           <button
