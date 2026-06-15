@@ -19,7 +19,8 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(Sort-Object LastWriteTime -Descending)",
       "Bash(Select-Object -First 2)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "mcp__04558b7d-55a1-465b-940c-446bc5d6abe6__netlify-project-services-reader"
     ]
   }
 }
