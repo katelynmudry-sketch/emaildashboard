@@ -15,6 +15,7 @@ import { Hint, SectionLabel, ToggleSwitch } from "./shared"
 type AccountId = "personal" | "work"
 
 const RECONNECT_HINT = "Couldn't access Google Drive — reconnect this account in Settings → Accounts."
+const PICKER_UNAVAILABLE_HINT = "Google Picker isn't set up for this app — it's missing its Picker API key (NEXT_PUBLIC_GOOGLE_PICKER_API_KEY). Ask whoever manages the deployment to add it and redeploy."
 
 interface DocRowProps {
   account: AccountId
@@ -164,9 +165,14 @@ export default function ConnectorsSettings() {
   }
 
   async function handleChooseDoc(account: AccountId) {
-    const accessToken = accessTokenFor(account)
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY
-    if (!accessToken || !apiKey) {
+    if (!apiKey) {
+      setDocError(prev => ({ ...prev, [account]: PICKER_UNAVAILABLE_HINT }))
+      return
+    }
+
+    const accessToken = accessTokenFor(account)
+    if (!accessToken) {
       setDocError(prev => ({ ...prev, [account]: RECONNECT_HINT }))
       return
     }
