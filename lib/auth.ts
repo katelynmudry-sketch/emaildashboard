@@ -11,7 +11,9 @@ import { cookies, headers } from "next/headers"
  * tokens), we decode the still-present old session cookie ourselves.
  */
 async function getPreviousToken(): Promise<JWT | null> {
-  const secret = process.env.NEXTAUTH_SECRET
+  // Match the secret resolution next-auth itself uses (lib/env.ts):
+  // AUTH_SECRET takes precedence over NEXTAUTH_SECRET.
+  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
   if (!secret) return null
   try {
     const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()])
