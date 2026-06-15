@@ -102,7 +102,7 @@ export default function InsightWidget({ emails, calendarEvents, theme }: Insight
         }}>{dateStr}</div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "24px" }}>
 
         {/* ── Inbox split ── */}
         <div>

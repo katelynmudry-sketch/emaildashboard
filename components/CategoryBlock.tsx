@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import type { AccountId, Email, Category, Attachment } from "@/lib/types"
-import type { PartyMode } from "@/lib/party-mode"
+import { categoryNoun, type PartyMode } from "@/lib/party-mode"
 import { recordAction } from "@/lib/stats"
 import LabelSection from "./LabelSection"
 
@@ -146,7 +146,9 @@ export default function CategoryBlock({
       {onTogglePriority && category.id !== "__delete__" && (
         <button
           onClick={e => { e.stopPropagation(); onTogglePriority() }}
-          title={isPriority ? "Unpin from priority position" : "Pin to priority position (top-center)"}
+          title={isPriority
+            ? `Unpin as priority ${categoryNoun(mode).singular.toLowerCase()}`
+            : `Pin as your priority ${categoryNoun(mode).singular.toLowerCase()} (top-center)`}
           style={{
             background: "none", border: "none", cursor: "pointer",
             fontSize: "0.72rem", lineHeight: 1, padding: "1px 3px",

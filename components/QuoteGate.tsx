@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { PartyMode } from "@/lib/party-mode"
 import { setPartyMode, markGateSeen } from "@/lib/party-mode"
 import ConfettiBlast from "./ConfettiBlast"
@@ -8,14 +8,6 @@ import ConfettiBlast from "./ConfettiBlast"
 interface QuoteGateProps {
   onEnter: (mode: PartyMode) => void
 }
-
-interface DharmaData {
-  teacher: { name: string; tradition: string }
-  quote: string
-  reflection: string
-}
-
-const DEFAULT_QUOTE = "The present moment is the only moment available to us, and it is the door to all moments."
 
 // Live preview of each vibe while hovering its button — background, ornament, and copy
 // all shift to match that mode's tone (per CLAUDE.md's 3-theme voice guide).
@@ -33,13 +25,13 @@ const PREVIEWS: Record<"default" | PartyMode, {
   lotusField?: boolean
 }> = {
   default: {
-    bg: "linear-gradient(145deg, #1A0A35 0%, #2D0F5C 55%, #0D1A35 100%)",
-    textColor: "rgba(255,255,255,0.92)",
-    subTextColor: "rgba(255,255,255,0.45)",
-    labelColor: "rgba(255,208,0,0.65)",
+    bg: "linear-gradient(145deg, #2D0F5C 0%, #6B1F5C 55%, #3D0A2E 100%)",
+    textColor: "rgba(255,255,255,0.95)",
+    subTextColor: "rgba(255,255,255,0.55)",
+    labelColor: "rgba(255,208,0,0.85)",
     mutedColor: "rgba(255,255,255,0.30)",
-    ornament: "☸️",
-    glow: "rgba(255,208,0,0.45)",
+    ornament: "🎉",
+    glow: "rgba(255,31,110,0.45)",
     label: null,
     quote: null,
     reflection: null,
@@ -98,22 +90,18 @@ const LOTUS_FIELD = [
 ]
 
 export default function QuoteGate({ onEnter }: QuoteGateProps) {
-  const [dharma, setDharma] = useState<DharmaData | null>(null)
   const [dismissing, setDismissing] = useState(false)
   const [confetti, setConfetti] = useState(false)
   const [chosen, setChosen] = useState<PartyMode | null>(null)
   const [hovered, setHovered] = useState<PartyMode | null>(null)
-  const preview = PREVIEWS[hovered ?? "default"]
 
-  useEffect(() => {
-    fetch("/api/dashboard/dharma", { credentials: "same-origin" })
-      .then(r => r.ok ? r.json() : null)
-      .then((d: DharmaData | null) => setDharma(d))
-      .catch(() => {})
-  }, [])
+  // While dismissing, keep showing the chosen mode's colors — don't let the
+  // mouseleave-triggered setHovered(null) flash the overlay back to default.
+  const preview = dismissing && chosen ? PREVIEWS[chosen] : PREVIEWS[hovered ?? "default"]
 
   function enter(mode: PartyMode) {
     setChosen(mode)
+    setHovered(mode)
     setPartyMode(mode)
     markGateSeen()
     if (mode === "party") setConfetti(true)
@@ -121,9 +109,9 @@ export default function QuoteGate({ onEnter }: QuoteGateProps) {
     setTimeout(() => onEnter(mode), mode === "party" ? 700 : 500)
   }
 
-  const label = hovered ? preview.label : (dharma ? `${dharma.teacher.name} · ${dharma.teacher.tradition}` : null)
-  const quote = hovered ? preview.quote : (dharma?.quote ?? DEFAULT_QUOTE)
-  const reflection = hovered ? preview.reflection : dharma?.reflection
+  const label = hovered ? preview.label : null
+  const quote = hovered ? preview.quote : null
+  const reflection = hovered ? preview.reflection : null
 
   return (
     <>
@@ -188,17 +176,19 @@ export default function QuoteGate({ onEnter }: QuoteGateProps) {
           )}
 
           {/* Quote */}
-          <blockquote style={{
-            fontStyle: "italic",
-            fontSize: "clamp(1.15rem, 3.5vw, 1.9rem)",
-            lineHeight: 1.6, textAlign: "center",
-            color: preview.textColor,
-            maxWidth: 580,
-            margin: 0,
-            transition: "color 0.5s ease",
-          }}>
-            &ldquo;{quote}&rdquo;
-          </blockquote>
+          {quote && (
+            <blockquote style={{
+              fontStyle: "italic",
+              fontSize: "clamp(1.15rem, 3.5vw, 1.9rem)",
+              lineHeight: 1.6, textAlign: "center",
+              color: preview.textColor,
+              maxWidth: 580,
+              margin: 0,
+              transition: "color 0.5s ease",
+            }}>
+              &ldquo;{quote}&rdquo;
+            </blockquote>
+          )}
 
           {/* Reflection */}
           {reflection && (

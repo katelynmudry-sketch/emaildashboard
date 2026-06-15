@@ -22,6 +22,9 @@ export default function FullPromptPreview({ data }: Props) {
   const [workRules, setWorkRules] = useState("")
   const [systemContext, setSystemContext] = useState("")
   const [aboutYouContext, setAboutYouContext] = useState("")
+  const [dreamInboxContext, setDreamInboxContext] = useState("")
+  const [personalDraftTone, setPersonalDraftTone] = useState("")
+  const [workDraftTone, setWorkDraftTone] = useState("")
 
   useEffect(() => {
     const stored = loadSettings()
@@ -29,6 +32,9 @@ export default function FullPromptPreview({ data }: Props) {
     setWorkRules(stored.workRules)
     setSystemContext(stored.systemContext)
     setAboutYouContext(stored.aboutYouContext)
+    setDreamInboxContext(stored.dreamInboxContext)
+    setPersonalDraftTone(stored.personalDraftTone)
+    setWorkDraftTone(stored.workDraftTone)
   }, [])
 
   if (!data) return null
@@ -37,13 +43,20 @@ export default function FullPromptPreview({ data }: Props) {
   const aboutYouSection = aboutYouContext.trim()
     ? `\n\n## About the user\n${aboutYouContext.trim()}`
     : ""
+  const draftTone = account === "personal" ? personalDraftTone : workDraftTone
+  const draftToneSection = draftTone.trim()
+    ? `\n\n## Tone for replies from this account\n${draftTone.trim()}`
+    : ""
+  const dreamInboxSection = dreamInboxContext.trim()
+    ? `\n\n## What this user needs from their inbox\n${dreamInboxContext.trim()}`
+    : ""
   const customRules = account === "personal" ? personalRules : workRules
   const customContextSection = customRules.trim()
     ? `\n## Custom instructions for this account\n${customRules.trim()}`
     : ""
 
   // ── Inbox categorization prompt ──
-  const categorizeSystem = effectiveSystemContext + aboutYouSection
+  const categorizeSystem = effectiveSystemContext + aboutYouSection + draftToneSection + dreamInboxSection
   const categorizeUser = [
     customContextSection.trim(),
     data.categorizeInstructions,
@@ -58,7 +71,7 @@ export default function FullPromptPreview({ data }: Props) {
   ].join("\n")
 
   // ── Email draft prompt ──
-  const draftSystem = effectiveSystemContext + customContextSection + aboutYouSection
+  const draftSystem = effectiveSystemContext + customContextSection + aboutYouSection + draftToneSection
   const draftUser = `Write a friendly, concise reply to this email. 2-4 sentences. Return only the reply text.
 
 From: <sender name> <sender@example.com>

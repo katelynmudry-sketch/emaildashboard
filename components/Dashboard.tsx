@@ -6,7 +6,8 @@ import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/typ
 import { getAccounts } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction, getKarmaLevel } from "@/lib/stats"
-import { getPartyMode, setPartyMode, hasSeenGate, type PartyMode } from "@/lib/party-mode"
+import { getPartyMode, setPartyMode, hasSeenGate, categoryNoun, type PartyMode } from "@/lib/party-mode"
+import { addPrioritySender, getPrioritySenders, detectPrioritySenderCandidates, type PrioritySenderCandidate } from "@/lib/priority-senders"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
 import { createEntry, type LogEntry } from "@/lib/action-log"
 import { snoozeEmail } from "@/lib/todo-snooze"
@@ -224,6 +225,7 @@ export default function Dashboard() {
   const [errorMsg, setErrorMsg] = useState("")
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [proposedCategories, setProposedCategories] = useState<{ name: string; color: string }[] | null>(null)
+  const [prioritySenderCandidate, setPrioritySenderCandidate] = useState<PrioritySenderCandidate | null>(null)
   const [existingLabelNames, setExistingLabelNames] = useState<string[]>([])
   const [pendingRawEmails, setPendingRawEmails] = useState<RawEmail[]>([])
   const [packageCleanup, setPackageCleanup] = useState<{ emails: { id: string; subject: string; date: string; snippet: string }[]; sender: string } | null>(null)
@@ -560,6 +562,8 @@ export default function Dashboard() {
             account: activeAccountConfig.email,
             customContext: activeAccount === "work" ? proposeSettings.workRules : proposeSettings.personalRules,
             systemContext: proposeSettings.systemContext || undefined,
+            aboutYouContext: proposeSettings.aboutYouContext || undefined,
+            dreamInboxContext: proposeSettings.dreamInboxContext || undefined,
           }),
         })
         if (!proposeRes.ok) {
@@ -568,6 +572,25 @@ export default function Dashboard() {
         }
         const { categories: proposed } = await proposeRes.json()
         setProposedCategories(proposed)
+
+        // Best-effort: suggest a priority sender from frequent two-way contacts.
+        try {
+          const sentRes = await fetch(`/api/gmail/sent?${gmailAccountQuery}`, {
+            cache: "no-store",
+            credentials: "same-origin",
+          })
+          if (sentRes.ok) {
+            const { emails: sentEmails } = await sentRes.json() as { emails: { to: string }[] }
+            const [candidate] = detectPrioritySenderCandidates(
+              rawEmails,
+              sentEmails.map(e => e.to),
+              activeAccountConfig.email,
+            )
+            setPrioritySenderCandidate(candidate ?? null)
+          }
+        } catch {
+          // Priority sender suggestion is a nice-to-have — ignore failures.
+        }
       }
     } catch (err) {
       setAppState("error")
@@ -578,10 +601,15 @@ export default function Dashboard() {
 
   // ── Confirm proposed categories ─────────────────────────────────────────────
 
-  async function handleConfirmCategories(proposed: { name: string; color: string }[]) {
+  async function handleConfirmCategories(proposed: { name: string; color: string }[], prioritySenderEmail?: string) {
     setProposedCategories(null)
+    setPrioritySenderCandidate(null)
     setAppState("categorizing")
     setErrorMsg("")
+
+    if (prioritySenderEmail) {
+      addPrioritySender(activeAccountConfig.email, prioritySenderEmail)
+    }
 
     try {
       const confirmed: Category[] = []
@@ -616,8 +644,9 @@ export default function Dashboard() {
     setAppState("categorizing")
     setCategories(cats)
 
-    // Strip htmlBody and attachments before sending to Claude (not needed for categorization)
-    const emailsForApi = rawEmails.map(({ htmlBody: _, attachments: __, ...rest }) => rest)
+    // Strip htmlBody before sending to Claude (not needed for categorization);
+    // keep attachment metadata (filename/size) for the large-attachment cleanup rule.
+    const emailsForApi = rawEmails.map(({ htmlBody: _, ...rest }) => rest)
     const catSettings = loadSettings()
     const catRes = await fetch("/api/ai/categorize", {
       method: "POST",
@@ -630,7 +659,13 @@ export default function Dashboard() {
         customContext: activeAccount === "work" ? catSettings.workRules : catSettings.personalRules,
         systemContext: catSettings.systemContext || undefined,
         aboutYouContext: catSettings.aboutYouContext || undefined,
+        dreamInboxContext: catSettings.dreamInboxContext || undefined,
         aiPastEventDelete: catSettings.aiPastEventDelete !== false,
+        aiSecurityAlertCleanup: catSettings.aiSecurityAlertCleanup !== false,
+        aiSocialNotificationCleanup: catSettings.aiSocialNotificationCleanup !== false,
+        aiExpiredPromoCleanup: catSettings.aiExpiredPromoCleanup !== false,
+        aiOldNewsletterCleanup: !!catSettings.aiOldNewsletterCleanup,
+        aiLargeAttachmentCleanup: !!catSettings.aiLargeAttachmentCleanup,
       }),
     })
     if (!catRes.ok) {
@@ -645,6 +680,18 @@ export default function Dashboard() {
       throw new Error(message)
     }
     const categorized: Email[] = await catRes.json()
+
+    // Force-assign priority senders into the pinned priority category, if any.
+    if (priorityCategory && cats.some(c => c.name === priorityCategory)) {
+      const prioritySenders = new Set(getPrioritySenders(activeAccountConfig.email))
+      if (prioritySenders.size > 0) {
+        categorized.forEach(email => {
+          if (prioritySenders.has(email.fromEmail.toLowerCase())) {
+            email.category = priorityCategory
+          }
+        })
+      }
+    }
 
     const htmlBodyMap    = new Map(rawEmails.map(e => [e.id, e.htmlBody]))
     const attachmentsMap = new Map(rawEmails.map(e => [e.id, e.attachments]))
@@ -750,7 +797,7 @@ export default function Dashboard() {
           .catch(() => {})
       }
     }
-  }, [activeAccount, activeAccountConfig.email, gmailAccountQuery])
+  }, [activeAccount, activeAccountConfig.email, gmailAccountQuery, priorityCategory])
 
   const writeInboxCache = useCallback((next: Email[], cats: Category[], opt?: { totalUnreadEstimate?: number }) => {
     const sess = sessionCache.current.get(activeAccountConfig.email)
@@ -1218,6 +1265,8 @@ export default function Dashboard() {
         proposed={proposedCategories}
         account={activeAccountConfig.email}
         existingLabelNames={existingLabelNames}
+        mode={mode}
+        prioritySenderCandidate={prioritySenderCandidate}
         onConfirm={handleConfirmCategories}
       />
     )
@@ -1695,7 +1744,7 @@ export default function Dashboard() {
                         ? mode === "zen" ? "Gathering your inbox with care." : mode === "wabi-sabi" ? "hang on bestie, getting your emails rn…" : "Checking your inbox…"
                         : appState === "proposing"
                           ? mode === "zen" ? "Observing the shape of your correspondence." : mode === "wabi-sabi" ? "literally analyzing your vibe rn, so exciting…" : "Analyzing your email patterns…"
-                          : mode === "zen" ? "Placing each email where it belongs." : mode === "wabi-sabi" ? "Claude is sorting your whole life, you're doing amazing sweetie…" : "Claude is categorizing your emails…"}
+                          : mode === "zen" ? "Placing each email where it belongs." : mode === "wabi-sabi" ? "Claude is sorting your whole life, you're doing amazing sweetie…" : `Claude is sorting your emails into ${categoryNoun(mode).plural}…`}
                     </p>
                   </div>
                 </div>

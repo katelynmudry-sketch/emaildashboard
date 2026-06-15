@@ -32,3 +32,23 @@ export function markGateSeen(): void {
     sessionStorage.setItem(GATE_KEY, "1")
   } catch {}
 }
+
+// ── Mode-aware category naming ────────────────────────────────────────────────
+// Party = Arenas, Zen = Gardens, Basic AF = Eras. Used anywhere "categories"
+// or "labels" would otherwise be shown to the user.
+
+export interface CategoryNoun {
+  singular: string
+  plural: string
+}
+
+export function categoryNoun(mode: PartyMode): CategoryNoun {
+  switch (mode) {
+    case "zen":
+      return { singular: "Garden", plural: "Gardens" }
+    case "wabi-sabi":
+      return { singular: "Era", plural: "Eras" }
+    default:
+      return { singular: "Arena", plural: "Arenas" }
+  }
+}

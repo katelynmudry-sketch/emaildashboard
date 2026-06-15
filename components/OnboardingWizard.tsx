@@ -7,9 +7,10 @@ import { loadSettings, saveSettings, seedIfEmpty } from "@/lib/settings-storage"
 import QuoteGate from "./QuoteGate"
 import AccountsSettings from "./settings/AccountsSettings"
 import InboxDisplaySettings from "./settings/InboxDisplaySettings"
+import AiCleanupSettings from "./settings/AiCleanupSettings"
 import AiRulesSettings from "./settings/AiRulesSettings"
-import AiSystemPromptSettings from "./settings/AiSystemPromptSettings"
-import FullPromptPreview from "./settings/FullPromptPreview"
+import AboutYouSettings from "./settings/AboutYouSettings"
+import ConnectorsSettings from "./settings/ConnectorsSettings"
 
 interface ContextData {
   systemContext: string
@@ -21,30 +22,28 @@ interface OnboardingWizardProps {
   onComplete: (mode: PartyMode) => void
 }
 
-const TOTAL_STEPS = 7
+const TOTAL_STEPS = 5
 
-// Decorative preview of the "inbox as a map of your life" pitch on step 2.
+// Decorative preview of the "inbox as a map of your life" pitch on step 1.
 const LIFE_CATEGORIES = [
-  { icon: "💰", label: "Finances", color: "#00B894" },
-  { icon: "👨‍👩‍👧", label: "Family", color: "#FF6B1A" },
-  { icon: "🏫", label: "School", color: "#3B82F6" },
-  { icon: "💼", label: "Work", color: "#8B3FD8" },
-  { icon: "🔒", label: "Security", color: "#FF1F6E" },
+  { label: "Finances", color: "#00B894" },
+  { label: "Family", color: "#FF6B1A" },
+  { label: "School", color: "#3B82F6" },
+  { label: "Work", color: "#8B3FD8" },
+  { label: "Security", color: "#FF1F6E" },
 ]
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [mode, setMode] = useState<PartyMode | null>(null)
   const [step, setStep] = useState(1)
-  const [contextData, setContextData] = useState<ContextData | null>(null)
+  const [mounted, setMounted] = useState(false)
 
-  // Fetch AI context data once we reach (or approach) the prompt-preview step,
-  // mirroring InstructionsPanel's pattern.
+  // Seed localStorage with server defaults once a vibe is chosen.
   useEffect(() => {
     if (mode === null) return
     fetch("/api/ai/context")
       .then(r => r.json())
       .then((d: ContextData) => {
-        setContextData(d)
         seedIfEmpty({
           personalRules: d.seedCustom.personal,
           workRules: d.seedCustom.work,
@@ -54,12 +53,20 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       .catch(() => {})
   }, [mode])
 
-  // ── Step 1: vibe picker (full-screen QuoteGate) ─────────────────────────
+  // Fade the wizard card in once a vibe is chosen, instead of a hard cut
+  // from the dark QuoteGate to the white card.
+  useEffect(() => {
+    if (mode === null) return
+    const id = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(id)
+  }, [mode])
+
+  // ── Vibe picker (full-screen QuoteGate) ─────────────────────────────────
   if (mode === null) {
     return (
       <QuoteGate onEnter={(m) => {
         setMode(m)
-        setStep(2)
+        setStep(1)
       }} />
     )
   }
@@ -79,7 +86,13 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   }
 
   function goBack() {
-    setStep(s => Math.max(s - 1, 2))
+    if (step <= 1) {
+      // Back out of the wizard entirely, to the vibe picker.
+      setMounted(false)
+      setMode(null)
+    } else {
+      setStep(s => Math.max(s - 1, 1))
+    }
   }
 
   // ── Theme-aware shared button labels ────────────────────────────────────
@@ -92,7 +105,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
   // ── Per-step theme-aware copy ────────────────────────────────────────────
   const stepCopy: Record<number, { title: string; description: string }> = {
-    2: {
+    1: {
       title: mode === "zen"
         ? "Your inbox, mapped"
         : mode === "wabi-sabi"
@@ -104,55 +117,43 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           ? "Ur inbox is literally running ur whole life rn — money, family group chat, work, AND that school newsletter u definitely skimmed. Claude sorts it ALL into a cute vibe map so u know what's going on — did the field trip form go out? did the e-transfer land? Find whatever ur in the mood for and deal with the rest whenever, no rush. AI can write replies too if u want, total bonus, optional, we love options."
           : "Your inbox is basically your whole life on autopilot — money, family, work, AND those school emails you swear you'll read later. Claude sorts EVERYTHING into a visual map so you never miss the field trip form or the e-transfer that landed. Zoom in on what you care about right now, clear the rest whenever. AI can draft replies too — bonus power-up, totally optional!",
     },
+    2: {
+      title: mode === "zen"
+        ? "Connect & shape your inbox"
+        : mode === "wabi-sabi"
+          ? "connect ur inboxes & make it cute"
+          : "CONNECT & SET UP YOUR INBOX",
+      description: mode === "zen"
+        ? "Link your personal Gmail to begin — a work account is optional, add it anytime. Then choose what appears in your grid: unread only or everything, archived or not, newest or oldest first. Turn on a few AI cleanup actions if you'd like Claude to quietly flag things like expired promo codes and old security alerts. You can adjust any of this later."
+        : mode === "wabi-sabi"
+          ? "Connect ur personal Gmail to get started — a work account is totally optional, no pressure, do what feels right. Then pick your vibe: unread only or all of it, archived in or out, newest or oldest first. Also peep the AI cleanup toggles below — they quietly clear out expired codes and old alerts so ur inbox stays cute. Change any of this later, it's giving customizable."
+          : "Link your personal Gmail to start sorting — a work inbox is optional, connect it whenever. Choose what shows up in your grid (unread vs. all, archived in or out, newest/oldest), and flip on AI cleanup actions to auto-flag the noise — expired codes, old alerts, delivered packages. Tweak it all anytime in Settings.",
+    },
     3: {
       title: mode === "zen"
-        ? "Connect your inboxes"
+        ? "More ways in"
         : mode === "wabi-sabi"
-          ? "ok bestie let's connect ur inboxes"
-          : "CONNECT YOUR ACCOUNTS",
+          ? "plug in ur connectors bestie"
+          : "CONNECT YOUR WORKFLOW",
       description: mode === "zen"
-        ? "Link your personal Gmail to begin. A second \"work\" account is optional — add it now or whenever you're ready."
+        ? "Connectors automate the small steps after sorting — set a download folder for attachments, or send flagged to-dos to a Google Doc as you read. Optional, and skippable — more connectors are on their way."
         : mode === "wabi-sabi"
-          ? "Connect your personal Gmail to get started. Adding a work account is totally optional, no pressure, do what feels right for you."
-          : "Link your personal Gmail to start sorting. Got a work inbox too? Connect a second account — totally optional.",
+          ? "Connectors automate ur whole workflow and ur day — get ur to-do list written as u read ur emails. totally optional, skip if ur not feeling it rn, more connectors coming soon bestie."
+          : "Connectors automate your workflow and your day — get your to-do list written as you read your emails. Totally optional, skip for now — more connectors are coming soon!",
     },
     4: {
       title: mode === "zen"
-        ? "Shape your view"
-        : mode === "wabi-sabi"
-          ? "make ur inbox look cute"
-          : "SET UP YOUR INBOX VIEW",
-      description: mode === "zen"
-        ? "Choose what appears in your grid — unread only or everything, archived or not, newest or oldest first. You can always adjust this later."
-        : mode === "wabi-sabi"
-          ? "Pick your vibe: unread only or all of it, archived emails in or out, newest or oldest first. Whatever feels right, you can change it later, it's giving customizable."
-          : "Choose what shows up in your inbox grid — unread vs. all, archived in or out, newest or oldest first. Tweak it anytime in Settings.",
-    },
-    5: {
-      title: mode === "zen"
-        ? "Teach Claude about you"
+        ? "About you & your dream inbox"
         : mode === "wabi-sabi"
           ? "tell claude ur whole personality"
-          : "AI RULES & ABOUT YOU",
+          : "ABOUT YOU & YOUR DREAM INBOX",
       description: mode === "zen"
-        ? "Claude — the AI that quietly sorts and drafts for you — can also learn a bit about you. Optional, and skippable — the defaults work fine. If you'd like, add custom rules per account, a short note about who you are, and your own system prompt (write it, upload a file, or ask Claude to draft one)."
+        ? "Claude — the AI that quietly sorts and drafts for you — works best when it knows a bit about you and what you'd want your inbox to feel like. Optional, and skippable — the defaults work fine. Let Claude draft an About You from your inbox, describe your dream inbox, and add any per-account rules."
         : mode === "wabi-sabi"
-          ? "Claude = the AI doing ur sorting and replies, and it can also learn ur whole vibe. This step is literally optional, the defaults are already great. But if you want, tell Claude a lil bit about yourself, ur rules, and even upload ur own system prompt so it gets your whole vibe, bestie."
-          : "Claude is the AI doing all the sorting and drafting — and it can learn about you too! Totally optional — defaults work great out of the box. Add custom per-account rules, a quick \"About You\" note, and your own system prompt — type it, upload a file, or ask Claude to write it for you.",
+          ? "Claude = the AI doing ur sorting and replies, and it gets way better when it knows ur whole vibe and what ur dream inbox looks like. This step is literally optional, the defaults are already great. Let Claude draft ur About You from ur inbox, describe ur dream inbox, and add any per-account rules, bestie."
+          : "Claude is the AI doing all the sorting and drafting — tell it about you and what your dream inbox looks like and it gets even better! Totally optional — defaults work great out of the box. Let Claude draft your About You from your inbox, describe your dream inbox, and add any per-account rules.",
     },
-    6: {
-      title: mode === "zen"
-        ? "See how the prompts work"
-        : mode === "wabi-sabi"
-          ? "the receipts: how ur AI prompts work"
-          : "HOW AI PROMPTS WORK",
-      description: mode === "zen"
-        ? "This is the exact text Claude reads before sorting your inbox or drafting a reply — built from your settings and rules. You can always revisit it from Settings → Full Prompt."
-        : mode === "wabi-sabi"
-          ? "Here's literally everything Claude sees before it sorts ur inbox or drafts a reply, made from ur settings. You can always come back to this in Settings → Full Prompt, it's giving transparency."
-          : "This is the exact prompt Claude uses to sort your inbox and write replies, assembled from your settings. Find it anytime under Settings → Full Prompt.",
-    },
-    7: {
+    5: {
       title: mode === "zen"
         ? "You're ready"
         : mode === "wabi-sabi"
@@ -167,9 +168,6 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   }
 
   const current = stepCopy[step]
-
-  // ── Step indicator dots (steps 2-6 = positions 2-6 of 6) ────────────────
-  const dotColor = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#C17D3C" : "#8B3FD8"
 
   // ── Wizard shell background / accents per theme ──────────────────────────
   const wizardBg = mode === "zen"
@@ -198,27 +196,26 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         display: "flex", flexDirection: "column",
         padding: "28px 28px 24px",
         fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+        opacity: mounted ? 1 : 0,
+        transform: mounted ? "translateY(0)" : "translateY(12px)",
+        transition: "opacity 0.4s ease, transform 0.4s ease",
       }}>
 
-        {/* Step dots */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 18, justifyContent: "center" }}>
-          {[2, 3, 4, 5, 6, 7].map(n => (
-            <span key={n} style={{
-              width: n === step ? 22 : 8, height: 8, borderRadius: 999,
-              background: n === step ? accent : "rgba(26,10,53,0.12)",
-              transition: "all 0.2s ease",
-            }} />
-          ))}
+        {/* Progress bar */}
+        <div style={{
+          height: 4, borderRadius: 999, background: "rgba(26,10,53,0.08)",
+          marginBottom: 18, overflow: "hidden",
+        }}>
+          <div style={{
+            height: "100%", borderRadius: 999,
+            width: `${(step / TOTAL_STEPS) * 100}%`,
+            background: accent,
+            transition: "width 0.3s ease",
+          }} />
         </div>
 
         {/* Title + description */}
         <div style={{ marginBottom: 18, textAlign: "center" }}>
-          <div style={{
-            fontSize: "0.70rem", letterSpacing: "0.18em", textTransform: "uppercase",
-            color: "rgba(26,10,53,0.35)", marginBottom: 6,
-          }}>
-            Step {step} of {TOTAL_STEPS}
-          </div>
           <h2 style={{
             fontFamily: "var(--font-display)",
             fontSize: "1.5rem", color: "#1A0A35",
@@ -243,7 +240,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           padding: 16,
           marginBottom: 20,
         }}>
-          {step === 2 && (
+          {step === 1 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", padding: "12px 4px" }}>
               {LIFE_CATEGORIES.map(cat => (
                 <div key={cat.label} style={{
@@ -254,24 +251,33 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   color: "#1A0A35",
                   fontSize: "0.85rem", fontWeight: 600,
                 }}>
-                  <span style={{ fontSize: "1.1rem" }}>{cat.icon}</span> {cat.label}
+                  {cat.label}
                 </div>
               ))}
             </div>
           )}
-          {step === 3 && <AccountsSettings />}
-          {step === 4 && <InboxDisplaySettings />}
-          {step === 5 && (
+          {step === 2 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-              <AiRulesSettings />
+              <AccountsSettings />
               <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)" }} />
-              <AiSystemPromptSettings data={contextData} />
+              <InboxDisplaySettings />
+              <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)" }} />
+              <AiCleanupSettings accentColor={accent} />
             </div>
           )}
-          {step === 6 && (
-            <FullPromptPreview data={contextData} />
+          {step === 3 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              <ConnectorsSettings />
+            </div>
           )}
-          {step === 7 && (
+          {step === 4 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              <AboutYouSettings />
+              <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)" }} />
+              <AiRulesSettings />
+            </div>
+          )}
+          {step === 5 && (
             <div style={{ textAlign: "center", padding: "24px 8px" }}>
               <div style={{ fontSize: "3rem", marginBottom: 8 }}>
                 {mode === "zen" ? "🪷" : mode === "wabi-sabi" ? "✨" : "🎉"}
@@ -292,14 +298,13 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           <button
             type="button"
             onClick={goBack}
-            disabled={step === 2}
             style={{
               padding: "10px 18px", borderRadius: 999,
               background: "transparent",
-              color: step === 2 ? "rgba(26,10,53,0.25)" : "rgba(26,10,53,0.55)",
+              color: "rgba(26,10,53,0.55)",
               border: "1px solid rgba(26,10,53,0.14)",
               fontSize: "0.80rem", fontWeight: 600,
-              cursor: step === 2 ? "not-allowed" : "pointer",
+              cursor: "pointer",
               fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
             }}
           >
@@ -307,7 +312,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           </button>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {(step === 3 || step === 5) && (
+            {(step === 2 || step === 3 || step === 4) && (
               <button
                 type="button"
                 onClick={goNext}

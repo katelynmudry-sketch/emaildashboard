@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import { loadSettings, seedIfEmpty } from "@/lib/settings-storage"
 import InboxDisplaySettings from "@/components/settings/InboxDisplaySettings"
 import AiRulesSettings from "@/components/settings/AiRulesSettings"
-import AiSystemPromptSettings from "@/components/settings/AiSystemPromptSettings"
-import FullPromptPreview from "@/components/settings/FullPromptPreview"
+import AboutYouSettings from "@/components/settings/AboutYouSettings"
+import ConnectorsSettings from "@/components/settings/ConnectorsSettings"
+import AdvancedSettings from "@/components/settings/AdvancedSettings"
 import AccountsSettings from "@/components/settings/AccountsSettings"
 
 interface ContextData {
@@ -19,14 +20,14 @@ interface Props {
   onClose: () => void
 }
 
-type Tab = "display" | "rules" | "prompt" | "preview" | "accounts"
+type Tab = "display" | "about" | "connectors" | "accounts" | "advanced"
 
 const tabs: { id: Tab; label: string }[] = [
-  { id: "display",  label: "📥 Inbox Display" },
-  { id: "rules",    label: "✏️ AI Rules" },
-  { id: "prompt",   label: "🧠 AI System Prompt" },
-  { id: "preview",  label: "📋 Full Prompt" },
-  { id: "accounts", label: "🔗 Accounts & Storage" },
+  { id: "display",    label: "📥 Inbox Display" },
+  { id: "about",      label: "🌱 About You" },
+  { id: "connectors", label: "🔌 Connectors" },
+  { id: "accounts",   label: "🔗 Accounts" },
+  { id: "advanced",   label: "⚙️ Advanced" },
 ]
 
 export default function InstructionsPanel({ open, onClose }: Props) {
@@ -147,10 +148,17 @@ export default function InstructionsPanel({ open, onClose }: Props) {
           )}
 
           {!loading && tab === "display" && <InboxDisplaySettings />}
-          {!loading && tab === "rules" && <AiRulesSettings />}
-          {!loading && tab === "prompt" && <AiSystemPromptSettings data={data} />}
-          {!loading && tab === "preview" && <FullPromptPreview data={data} />}
+          {!loading && tab === "about" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              <AboutYouSettings />
+              <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)", paddingTop: 18 }}>
+                <AiRulesSettings />
+              </div>
+            </div>
+          )}
+          {!loading && tab === "connectors" && <ConnectorsSettings />}
           {!loading && tab === "accounts" && <AccountsSettings />}
+          {!loading && tab === "advanced" && <AdvancedSettings data={data} />}
 
         </div>
       </div>
