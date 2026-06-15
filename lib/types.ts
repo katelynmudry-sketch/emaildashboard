@@ -125,6 +125,7 @@ export interface CategorizeRequest {
   emails: RawEmail[]
   categories: Category[]
   account: string
+  expandedSummariesForAll?: boolean
 }
 
 export interface ProposeRequest {

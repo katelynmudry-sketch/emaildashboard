@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { loadSettings, seedIfEmpty } from "@/lib/settings-storage"
 import InboxDisplaySettings from "@/components/settings/InboxDisplaySettings"
+import SummarySettings from "@/components/settings/SummarySettings"
 import AiRulesSettings from "@/components/settings/AiRulesSettings"
 import AboutYouSettings from "@/components/settings/AboutYouSettings"
 import ConnectorsSettings from "@/components/settings/ConnectorsSettings"
@@ -147,7 +148,14 @@ export default function InstructionsPanel({ open, onClose }: Props) {
             </div>
           )}
 
-          {!loading && tab === "display" && <InboxDisplaySettings />}
+          {!loading && tab === "display" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              <InboxDisplaySettings />
+              <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)", paddingTop: 18 }}>
+                <SummarySettings />
+              </div>
+            </div>
+          )}
           {!loading && tab === "about" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               <AboutYouSettings />

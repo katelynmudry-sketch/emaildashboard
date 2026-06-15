@@ -665,6 +665,7 @@ export default function Dashboard() {
         aiExpiredPromoCleanup: catSettings.aiExpiredPromoCleanup !== false,
         aiOldNewsletterCleanup: !!catSettings.aiOldNewsletterCleanup,
         aiLargeAttachmentCleanup: !!catSettings.aiLargeAttachmentCleanup,
+        expandedSummariesForAll: !!catSettings.expandedSummariesForAll,
       }),
     })
     if (!catRes.ok) {
