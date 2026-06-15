@@ -22,8 +22,6 @@ export interface InboxSettings {
   todoExportEnabled: boolean  // beta: append TODO-flagged emails to a Google Doc
   todoExportDocIdPersonal: string  // Google Doc ID to append personal-account TODOs to
   todoExportDocIdWork: string      // Google Doc ID to append work-account TODOs to
-  todoExportDocNamePersonal: string  // display name of the personal-account TODO doc
-  todoExportDocNameWork: string      // display name of the work-account TODO doc
   showUnreadOnly: boolean   // when true, only show unread inbox messages (default behavior today)
   sortOrder: "newest" | "oldest"  // email list sort order
   onboardingComplete: boolean      // true once the first-run onboarding wizard has been completed
@@ -49,8 +47,6 @@ const DEFAULTS: InboxSettings = {
   todoExportEnabled: false,
   todoExportDocIdPersonal: "",
   todoExportDocIdWork: "",
-  todoExportDocNamePersonal: "",
-  todoExportDocNameWork: "",
   showUnreadOnly: true,
   sortOrder: "newest",
   onboardingComplete: false,
