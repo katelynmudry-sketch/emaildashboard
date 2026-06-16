@@ -2,7 +2,6 @@ import NextAuth from "next-auth"
 import Google from "next-auth/providers/google"
 import { getToken, type JWT } from "next-auth/jwt"
 import { cookies, headers } from "next/headers"
-import { SupabaseAdapter } from "@auth/supabase-adapter"
 
 /**
  * On sign-in, Auth.js calls the jwt callback with a bare `defaultToken`
@@ -55,10 +54,6 @@ async function refreshGoogleAccess(refreshToken: string) {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   debug: process.env.NODE_ENV === "development",
   trustHost: true,
-  adapter: SupabaseAdapter({
-    url: process.env.SUPABASE_URL!,
-    secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  }),
   session: { strategy: "jwt" },
   providers: [
     Google({
