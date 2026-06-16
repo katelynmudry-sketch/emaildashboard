@@ -11,7 +11,7 @@ import { addPrioritySender, getPrioritySenders, detectPrioritySenderCandidates, 
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
 import { createEntry, type LogEntry } from "@/lib/action-log"
 import { snoozeEmail } from "@/lib/todo-snooze"
-import { loadSettings } from "@/lib/settings-storage"
+import { loadSettings, hydrateSettingsFromServer } from "@/lib/settings-storage"
 import AccountToggle from "./AccountToggle"
 import BriefingSection from "./BriefingSection"
 import CategoryBlock from "./CategoryBlock"
@@ -298,6 +298,7 @@ export default function Dashboard() {
 
   // ── Email Party init ─────────────────────────────────────────────────────
   useEffect(() => {
+    hydrateSettingsFromServer().catch(() => {})
     const stored = getPartyMode()
     setMode(stored)
     if (!loadSettings().onboardingComplete) {

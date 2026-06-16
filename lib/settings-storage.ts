@@ -27,6 +27,7 @@ export interface InboxSettings {
   onboardingComplete: boolean      // true once the first-run onboarding wizard has been completed
   accountLabelPersonal: string  // custom display name for the "personal" account slot; empty = default "Personal"
   accountLabelWork: string      // custom display name for the "work" account slot; empty = default "Work"
+  _serverSynced?: boolean       // internal: true once settings have been pushed to / pulled from Supabase
 }
 
 const DEFAULTS: InboxSettings = {
@@ -82,7 +83,53 @@ export function saveSettings(patch: Partial<InboxSettings>): InboxSettings {
   } catch {
     // localStorage unavailable (SSR, private mode quota)
   }
+  syncSettingsToServer(next)
   return next
+}
+
+function syncSettingsToServer(settings: InboxSettings): void {
+  if (typeof window === "undefined") return
+  fetch("/api/user/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings }),
+  }).catch(() => {})
+}
+
+/**
+ * Called once on app mount. If localStorage is empty/default, fetches settings
+ * from Supabase and seeds localStorage (migration path for existing users).
+ * Returns the hydrated settings, or null if no server settings found yet.
+ */
+export async function hydrateSettingsFromServer(): Promise<InboxSettings | null> {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      // localStorage already has data — check if we've migrated yet
+      const parsed = JSON.parse(raw) as Partial<InboxSettings> & { _serverSynced?: boolean }
+      if (parsed._serverSynced) return null // already migrated, nothing to do
+    }
+
+    const res = await fetch("/api/user/settings")
+    if (!res.ok) return null
+    const data = (await res.json()) as { settings: Partial<InboxSettings> | null }
+
+    if (data.settings) {
+      // Server has settings — trust them and overwrite localStorage
+      const merged: InboxSettings = { ...DEFAULTS, ...data.settings, _serverSynced: true } as InboxSettings
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+      return merged
+    }
+
+    // Server is empty — push our localStorage up (one-time migration)
+    const local = loadSettings()
+    syncSettingsToServer({ ...local, _serverSynced: true } as InboxSettings)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...local, _serverSynced: true }))
+    return null
+  } catch {
+    return null
+  }
 }
 
 /** Seed settings from server defaults if localStorage is empty (first run). */

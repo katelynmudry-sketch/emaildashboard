@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import Google from "next-auth/providers/google"
 import { getToken, type JWT } from "next-auth/jwt"
 import { cookies, headers } from "next/headers"
+import { SupabaseAdapter } from "@auth/supabase-adapter"
 
 /**
  * On sign-in, Auth.js calls the jwt callback with a bare `defaultToken`
@@ -54,6 +55,11 @@ async function refreshGoogleAccess(refreshToken: string) {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   debug: process.env.NODE_ENV === "development",
   trustHost: true,
+  adapter: SupabaseAdapter({
+    url: process.env.SUPABASE_URL!,
+    secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  }),
+  session: { strategy: "jwt" },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -132,6 +138,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           ...token,
           email: user.email,
           primary_email: newEmail,
+          userId: user.id,
           access_token: account.access_token,
           refresh_token: account.refresh_token ?? previous?.refresh_token,
           expires_at: account.expires_at,
@@ -169,6 +176,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       return {
         ...session,
+        user: { ...session.user, id: token.userId as string ?? token.sub },
         access_token: token.access_token as string,
         refresh_token: token.refresh_token as string,
         expires_at: token.expires_at as number,
