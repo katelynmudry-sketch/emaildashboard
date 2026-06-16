@@ -18,8 +18,6 @@ export async function POST(request: Request) {
 
   const from = account === "work" && session?.work_email ? session.work_email : (session?.user?.email ?? "")
 
-  console.log("[send] to:", to, "| bodyLen:", body?.length, "| bodyPreview:", body?.slice(0, 80))
-
   try {
     await sendEmail(authz.accessToken, to, subject, body, threadId, inReplyTo, messageId, from, attachments)
     return NextResponse.json({ ok: true })
