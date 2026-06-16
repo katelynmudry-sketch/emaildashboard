@@ -1462,12 +1462,13 @@ export default function Dashboard() {
                   )
                 })}
               </div>
+
+              {/* Production notes — compact, right-aligned */}
+              <ProductionNotesBand mode={mode} />
+
             </div>
           </div>
           {/* end Row A */}
-
-          {/* ══════════════════ PRODUCTION NOTES ════════════════════════════════ */}
-          <ProductionNotesBand mode={mode} />
 
           {/* ── Row B: stats row — left: Plant/Tally/MiniStats, right: batch picker + Refresh (+ Connect work Gmail) ── */}
           <div className="flex items-start justify-between gap-4 flex-wrap mt-5">
