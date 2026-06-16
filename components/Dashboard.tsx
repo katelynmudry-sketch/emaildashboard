@@ -28,6 +28,7 @@ import InstructionsPanel from "./InstructionsPanel"
 import LogDrawer from "./LogDrawer"
 import SentDrawer from "./SentDrawer"
 import QuoteGate from "./QuoteGate"
+import ProductionNotesBand from "./ProductionNotesBand"
 import OnboardingWizard from "./OnboardingWizard"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
@@ -1683,6 +1684,9 @@ export default function Dashboard() {
           {/* end Row C */}
 
         </header>
+
+        {/* ══════════════════ PRODUCTION NOTES ════════════════════════════════ */}
+        <ProductionNotesBand mode={mode} />
 
         {/* ══════════════════ MORNING DASHBOARD ══════════════════════════════ */}
         <DashboardPanel emails={emails} mode={mode} account={activeAccount} />
