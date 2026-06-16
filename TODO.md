@@ -36,6 +36,9 @@
 - [ ] Zen mode — sunrise illustration (replacing current amber plant)
 - [ ] Basic AF mode — cross-section of a PSL cup filling up as karma increases
 
+### Intentions journal
+- [ ] Dashboard date navigation — prev/next day buttons in ManifestationWidget to browse intentions history (requires state persistence handoff to be implemented first — see `docs/handoffs/2026-06-15-state-persistence-handoff.md`)
+
 ### Preset intentions
 - [ ] Quick-pick preset options in the Intentions widget (clickable chips, not just text fields)
 - [ ] "Generate from theme" button — Claude generates an intention based on the active mode vibe

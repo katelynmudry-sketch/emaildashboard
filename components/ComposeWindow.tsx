@@ -17,7 +17,7 @@ interface Props {
   /** Auto-trigger AI draft generation on mount (for the "AI Draft" action button flow) */
   autoAiDraft?: boolean
   /** reply/forward: (body, att, forwardTo?) | new: (body, att, toAddress, subject) */
-  onSend: (body: string, attachments: Attachment[], forwardToOrTo?: string, subject?: string) => void
+  onSend: (body: string, attachments: Attachment[], forwardToOrTo?: string, subject?: string) => Promise<void>
   onSaveDraft: (body: string, attachments: Attachment[], forwardToOrTo?: string, subject?: string) => Promise<void>
   onClose: () => void
   showUploadButton?: boolean
@@ -77,11 +77,11 @@ export default function ComposeWindow({
     return () => window.removeEventListener("keydown", onKey)
   }, [presentation, onClose])
 
-  function handleSend(body: string, attachments: Attachment[], forwardTo?: string) {
+  async function handleSend(body: string, attachments: Attachment[], forwardTo?: string) {
     if (mode === "new") {
-      onSend(body, attachments, to.trim() || undefined, subject.trim() || undefined)
+      await onSend(body, attachments, to.trim() || undefined, subject.trim() || undefined)
     } else {
-      onSend(body, attachments, forwardTo, undefined)
+      await onSend(body, attachments, forwardTo, undefined)
     }
     if (presentation === "modal") setDone("sent")
   }

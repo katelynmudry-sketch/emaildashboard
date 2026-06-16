@@ -27,7 +27,7 @@ interface Props {
   onArchive: (email: Email) => void
   onMarkRead: (email: Email) => void
   onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => void
+  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
   onStar: (email: Email) => void
   onDelete: (email: Email) => void
   onRecategorize: (email: Email, newCategory: string, teachClaude: boolean) => Promise<void>
@@ -343,8 +343,8 @@ document.addEventListener('click',function(e){var t=e.target;if(t.tagName!=='IMG
             gmailAccount={gmailAccount}
             email={email}
             autoAiDraft={autoAiDraft}
-            onSend={(body, attachments, forwardTo) => {
-              onSend(email, draftMode, body, attachments, forwardTo)
+            onSend={async (body, attachments, forwardTo) => {
+              await onSend(email, draftMode, body, attachments, forwardTo)
               setDraftMode(null)
               setAutoAiDraft(false)
             }}

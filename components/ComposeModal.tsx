@@ -13,9 +13,9 @@ interface Props {
 export default function ComposeModal({ open, onClose, gmailAccount }: Props) {
   if (!open) return null
 
-  function handleSend(body: string, attachments: Attachment[], to?: string, subject?: string) {
+  async function handleSend(body: string, attachments: Attachment[], to?: string, subject?: string): Promise<void> {
     if (!to) throw new Error("Recipient email address is required")
-    fetch("/api/gmail/send", {
+    const res = await fetch("/api/gmail/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -26,11 +26,11 @@ export default function ComposeModal({ open, onClose, gmailAccount }: Props) {
         attachments: attachments.length > 0 ? attachments : undefined,
       }),
     })
-      .then(res => {
-        if (!res.ok) return res.json().then((d: { error?: string }) => Promise.reject(new Error(d.error || `Send failed: ${res.status}`)))
-        recordAction("composeSent", { subject: subject || "(no subject)", details: "new message" })
-      })
-      .catch(() => {})
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error(typeof d.error === "string" ? d.error : `Send failed: ${res.status}`)
+    }
+    recordAction("composeSent", { subject: subject || "(no subject)", details: "new message" })
   }
 
   async function handleSaveDraft(body: string, attachments: Attachment[], to?: string, subject?: string) {

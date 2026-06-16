@@ -24,7 +24,7 @@ function buildMimeMessage(opts: {
       opts.referencesHeader ? `References: ${opts.referencesHeader}` : null,
       "",
       opts.body,
-    ].filter(Boolean).join("\r\n")
+    ].filter((line): line is string => line !== null).join("\r\n")
   }
 
   // Multipart/mixed path
@@ -58,7 +58,7 @@ function buildMimeMessage(opts: {
     opts.referencesHeader ? `References: ${opts.referencesHeader}` : null,
     "",
     ...parts,
-  ].filter(Boolean).join("\r\n")
+  ].filter((line): line is string => line !== null).join("\r\n")
 }
 
 export function getGmailService(accessToken: string) {

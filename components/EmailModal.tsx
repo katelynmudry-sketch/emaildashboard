@@ -16,7 +16,7 @@ interface Props {
   onArchive: (email: Email) => void
   onDelete: (email: Email) => void
   onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
-  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => void
+  onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
   onToggleTodo?: (email: Email) => void
   onSnooze?: (email: Email) => void
   initialComposeMode?: "ai" | "reply" | "forward" | null
@@ -415,8 +415,8 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
             gmailAccount={gmailAccount}
             email={email}
             autoAiDraft={autoAiDraft}
-            onSend={(body, attachments, forwardTo) => {
-              onSend(email, composeMode, body, attachments, forwardTo)
+            onSend={async (body, attachments, forwardTo) => {
+              await onSend(email, composeMode, body, attachments, forwardTo)
               closeCompose()
               onClose()
             }}

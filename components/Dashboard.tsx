@@ -932,7 +932,7 @@ export default function Dashboard() {
     recordAction("saveDraft", { emailId: email.id, subject: email.subject, mode: isForward ? "forward" : "reply" })
   }
 
-  function handleSendMessage(email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) {
+  async function handleSendMessage(email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string): Promise<void> {
     const to = mode === "forward" ? forwardTo?.trim() ?? "" : email.fromEmail
     if (mode === "forward" && !to) throw new Error("Forward recipient is required")
     if (!to) throw new Error("Recipient email address is missing")
@@ -941,15 +941,9 @@ export default function Dashboard() {
       ? (email.subject.toLowerCase().startsWith("fwd:") ? email.subject : `Fwd: ${email.subject}`)
       : email.subject
 
-    setEmails(prev => prev.map(e =>
-      e.id === email.id
-        ? { ...e, replied: mode === "reply" ? true : e.replied, forwarded: mode === "forward" ? true : e.forwarded }
-        : e
-    ))
-    recordAction(mode === "forward" ? "forwardSent" : "replySent", { emailId: email.id, subject: email.subject, mode })
     handleMarkRead(email)
 
-    fetch("/api/gmail/send", {
+    const res = await fetch("/api/gmail/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -962,7 +956,19 @@ export default function Dashboard() {
         account: activeAccount,
         attachments: attachments.length > 0 ? attachments : undefined,
       }),
-    }).catch(() => {})
+    })
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error(typeof d.error === "string" ? d.error : `Send failed: ${res.status}`)
+    }
+
+    setEmails(prev => prev.map(e =>
+      e.id === email.id
+        ? { ...e, replied: mode === "reply" ? true : e.replied, forwarded: mode === "forward" ? true : e.forwarded }
+        : e
+    ))
+    recordAction(mode === "forward" ? "forwardSent" : "replySent", { emailId: email.id, subject: email.subject, mode })
   }
 
   function handleStar(email: Email) {
