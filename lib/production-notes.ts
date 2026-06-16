@@ -1,4 +1,4 @@
-import { kv } from "@vercel/kv"
+import { put, list } from "@vercel/blob"
 
 export type ProductionNotes = {
   issues: string
@@ -6,7 +6,7 @@ export type ProductionNotes = {
   updatedAt: string
 }
 
-const KV_KEY = "production-notes"
+const BLOB_PATHNAME = "production-notes.json"
 
 const DEFAULT_NOTES: ProductionNotes = {
   issues: "All systems go!",
@@ -16,8 +16,11 @@ const DEFAULT_NOTES: ProductionNotes = {
 
 export async function getNotes(): Promise<ProductionNotes> {
   try {
-    const stored = await kv.get<ProductionNotes>(KV_KEY)
-    return stored ?? DEFAULT_NOTES
+    const { blobs } = await list({ prefix: BLOB_PATHNAME })
+    if (!blobs.length) return DEFAULT_NOTES
+    const res = await fetch(blobs[0].url)
+    if (!res.ok) return DEFAULT_NOTES
+    return await res.json()
   } catch {
     return DEFAULT_NOTES
   }
@@ -25,6 +28,10 @@ export async function getNotes(): Promise<ProductionNotes> {
 
 export async function saveNotes(issues: string, next: string): Promise<ProductionNotes> {
   const notes: ProductionNotes = { issues, next, updatedAt: new Date().toISOString() }
-  await kv.set(KV_KEY, notes)
+  await put(BLOB_PATHNAME, JSON.stringify(notes), {
+    access: "public",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  })
   return notes
 }
