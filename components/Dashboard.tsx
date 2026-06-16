@@ -1466,6 +1466,9 @@ export default function Dashboard() {
           </div>
           {/* end Row A */}
 
+          {/* ══════════════════ PRODUCTION NOTES ════════════════════════════════ */}
+          <ProductionNotesBand mode={mode} />
+
           {/* ── Row B: stats row — left: Plant/Tally/MiniStats, right: batch picker + Refresh (+ Connect work Gmail) ── */}
           <div className="flex items-start justify-between gap-4 flex-wrap mt-5">
 
@@ -1684,9 +1687,6 @@ export default function Dashboard() {
           {/* end Row C */}
 
         </header>
-
-        {/* ══════════════════ PRODUCTION NOTES ════════════════════════════════ */}
-        <ProductionNotesBand mode={mode} />
 
         {/* ══════════════════ MORNING DASHBOARD ══════════════════════════════ */}
         <DashboardPanel emails={emails} mode={mode} account={activeAccount} />

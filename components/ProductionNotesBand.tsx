@@ -9,15 +9,15 @@ const ADMIN_EMAIL = "katelynmudry@gmail.com"
 
 const copy = {
   party: {
-    header: "📋 What's the tea",
-    issuesLabel: "⚠️ Known issues",
-    nextLabel: "🔭 Coming soon!!",
+    header: "📋 What's happening",
+    issuesLabel: "⚠️ Current issues",
+    nextLabel: "🔭 What's next",
     formToggle: "Drop a note ▾",
-    formPlaceholder: "Drop your thoughts, bestie 🎉",
-    sendBtn: "Send it!!",
+    formPlaceholder: "What's on your mind?",
+    sendBtn: "Send",
     sending: "Sending...",
-    success: "Sent!! 🎉",
-    error: "Oof, something broke 😬",
+    success: "Sent!!",
+    error: "Something went wrong.",
   },
   zen: {
     header: "Current notes",
@@ -31,11 +31,11 @@ const copy = {
     error: "Something went wrong. Please try again.",
   },
   "wabi-sabi": {
-    header: "📋 What's happening",
-    issuesLabel: "⚠️ Current issues",
-    nextLabel: "🔭 What's next",
+    header: "📋 What's the tea",
+    issuesLabel: "⚠️ Known issues",
+    nextLabel: "🔭 Coming soon!!",
     formToggle: "Leave a note ▾",
-    formPlaceholder: "Leave a note, literally 💅",
+    formPlaceholder: "Drop your thoughts, bestie 💅",
     sendBtn: "Send note ✨",
     sending: "Sending...",
     success: "Sent! You're literally the best 💕",
