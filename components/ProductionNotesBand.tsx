@@ -9,7 +9,7 @@ const ADMIN_EMAIL = "katelynmudry@gmail.com"
 
 const copy = {
   party: {
-    header: "Status",
+    header: "Production notes/issues",
     issuesLabel: "Current issues",
     nextLabel: "What's next",
     formPlaceholder: "What's on your mind?",
@@ -19,7 +19,7 @@ const copy = {
     error: "Something went wrong.",
   },
   zen: {
-    header: "Status",
+    header: "Production notes/issues",
     issuesLabel: "Things to hold lightly",
     nextLabel: "What's unfolding",
     formPlaceholder: "Share what you noticed…",
@@ -29,7 +29,7 @@ const copy = {
     error: "Something went wrong.",
   },
   "wabi-sabi": {
-    header: "What's the tea",
+    header: "Production notes/issues",
     issuesLabel: "Known issues",
     nextLabel: "Coming soon",
     formPlaceholder: "Drop your thoughts, bestie 💅",
