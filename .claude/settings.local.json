@@ -19,7 +19,13 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(Sort-Object LastWriteTime -Descending)",
       "Bash(Select-Object -First 2)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__list_organizations",
+      "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__list_projects",
+      "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__list_tables",
+      "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__apply_migration",
+      "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__get_project_url",
+      "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__get_publishable_keys"
     ]
   }
 }
