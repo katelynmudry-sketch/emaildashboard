@@ -68,6 +68,26 @@ export function clearOnboardingProgress(): void {
   } catch {}
 }
 
+// ── Marketing email opt-in ──────────────────────────────────────────────────
+// Tracks whether the user has already answered (yes or no) the "want updates
+// about other apps?" prompt, so it's only ever shown once per browser.
+
+const EMAIL_OPTIN_KEY = "inbox-ai:email-optin-answered"
+
+export function hasAnsweredEmailOptIn(): boolean {
+  try {
+    return localStorage.getItem(EMAIL_OPTIN_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+export function markEmailOptInAnswered(): void {
+  try {
+    localStorage.setItem(EMAIL_OPTIN_KEY, "1")
+  } catch {}
+}
+
 // ── Mode-aware category naming ────────────────────────────────────────────────
 // Party = Arenas, Zen = Gardens, Basic AF = Eras. Used anywhere "categories"
 // or "labels" would otherwise be shown to the user.

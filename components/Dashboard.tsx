@@ -6,7 +6,7 @@ import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/typ
 import { getAccounts } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction, getKarmaLevel } from "@/lib/stats"
-import { getPartyMode, setPartyMode, hasSeenGate, categoryNoun, type PartyMode } from "@/lib/party-mode"
+import { getPartyMode, setPartyMode, hasSeenGate, hasAnsweredEmailOptIn, categoryNoun, type PartyMode } from "@/lib/party-mode"
 import { addPrioritySender, getPrioritySenders, detectPrioritySenderCandidates, type PrioritySenderCandidate } from "@/lib/priority-senders"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
 import { createEntry, type LogEntry } from "@/lib/action-log"
@@ -29,6 +29,7 @@ import LogDrawer from "./LogDrawer"
 import SentDrawer from "./SentDrawer"
 import QuoteGate from "./QuoteGate"
 import OnboardingWizard from "./OnboardingWizard"
+import EmailOptInBanner from "./EmailOptInBanner"
 
 type AppState = "idle" | "fetching" | "proposing" | "categorizing" | "ready" | "error"
 
@@ -292,6 +293,7 @@ export default function Dashboard() {
   const [purgeChecked, setPurgeChecked] = useState<Set<string>>(new Set())
   const [lotusQuote, setLotusQuote] = useState<string | null>(null)
   const [showLotusBloom, setShowLotusBloom] = useState(false)
+  const [showEmailOptIn, setShowEmailOptIn] = useState(false)
 
   // In-memory cache for fast account switching within a session
   const sessionCache = useRef<Map<string, InboxCache>>(new Map())
@@ -342,6 +344,13 @@ export default function Dashboard() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Ask once per browser, after onboarding/gate are out of the way
+  useEffect(() => {
+    if (session?.user?.email && !showOnboarding && !showGate && !hasAnsweredEmailOptIn()) {
+      setShowEmailOptIn(true)
+    }
+  }, [session?.user?.email, showOnboarding, showGate])
 
   const accounts = getAccounts(session)
   const activeAccountConfig = accounts.find(a => a.id === activeAccount)!
@@ -2228,6 +2237,10 @@ export default function Dashboard() {
         )}
 
         {confetti && <ConfettiBlast onDone={() => setConfetti(false)} />}
+
+        {showEmailOptIn && (
+          <EmailOptInBanner mode={mode} onDone={() => setShowEmailOptIn(false)} />
+        )}
 
         {/* Cleanup preview modal */}
         {cleanupPreview && (
