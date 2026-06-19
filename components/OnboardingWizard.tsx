@@ -16,6 +16,7 @@ import AiCleanupSettings from "./settings/AiCleanupSettings"
 import AiRulesSettings from "./settings/AiRulesSettings"
 import AboutYouSettings from "./settings/AboutYouSettings"
 import ConnectorsSettings from "./settings/ConnectorsSettings"
+import HelpGuide from "./HelpGuide"
 
 interface ContextData {
   systemContext: string
@@ -45,6 +46,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const [mode, setMode] = useState<PartyMode | null>(initialProgress?.mode ?? null)
   const [step, setStep] = useState(initialProgress?.step ?? 1)
   const [mounted, setMounted] = useState(false)
+  const [showHelpGuide, setShowHelpGuide] = useState(false)
 
   // Seed localStorage with server defaults once a vibe is chosen.
   useEffect(() => {
@@ -304,6 +306,23 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                     ? "Everything's saved bestie. Go check ur inbox, it's giving fresh start energy and honestly we love that for you."
                     : "Your settings are saved. Time to dive in and start racking up that inbox karma!"}
               </p>
+              <button
+                type="button"
+                onClick={() => setShowHelpGuide(true)}
+                style={{
+                  marginTop: 16, padding: "8px 16px", borderRadius: 999,
+                  background: "transparent", border: `1px solid ${accent}55`,
+                  color: accent, fontSize: "0.78rem", fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+                }}
+              >
+                {mode === "zen"
+                  ? "See how it all works"
+                  : mode === "wabi-sabi"
+                    ? "see what this app can actually do bestie"
+                    : "See the full feature guide"}
+              </button>
             </div>
           )}
         </div>
@@ -363,6 +382,42 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           </div>
         </div>
       </div>
+
+      {showHelpGuide && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 210,
+          background: "rgba(26,10,53,0.45)",
+          backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "24px 16px",
+        }}>
+          <div style={{
+            width: "100%", maxWidth: 640,
+            maxHeight: "calc(100vh - 48px)",
+            overflowY: "auto",
+            background: "#FFFFFF",
+            borderRadius: 20,
+            boxShadow: "0 20px 60px rgba(26,10,53,0.25)",
+            padding: "24px 24px 20px",
+            fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+              <button
+                type="button"
+                onClick={() => setShowHelpGuide(false)}
+                style={{
+                  background: "rgba(26,10,53,0.06)", border: "none", borderRadius: 8,
+                  color: "#1A0A35", width: 32, height: 32, cursor: "pointer",
+                  fontSize: "1.2rem", display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <HelpGuide mode={mode} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
