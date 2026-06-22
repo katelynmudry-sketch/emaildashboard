@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Abril_Fatface, DM_Sans, Outfit } from "next/font/google"
 import { SessionProvider } from "next-auth/react"
+import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
 const abrilFatface = Abril_Fatface({
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionProvider>
           {children}
         </SessionProvider>
+        <Analytics />
       </body>
     </html>
   )
