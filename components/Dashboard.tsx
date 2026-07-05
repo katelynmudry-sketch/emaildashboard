@@ -1125,6 +1125,7 @@ export default function Dashboard() {
     const updated = [...categories, newCat]
     setCategories(updated)
     saveCategories(activeAccountConfig.email, updated)
+    writeInboxCache(emails, updated)
     return id
   }
 
