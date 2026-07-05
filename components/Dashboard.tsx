@@ -1043,14 +1043,6 @@ export default function Dashboard() {
       .then(data => { if (data.labelId) setTodoLabelId(data.labelId) })
       .catch(() => {})
 
-    if (next) {
-      const settings = loadSettings()
-      const docId = activeAccount === "work" ? settings.todoExportDocIdWork : settings.todoExportDocIdPersonal
-      if (settings.todoExportEnabled && docId) {
-        setTodoNoteTarget(email)
-      }
-    }
-
     appendLog({
       type: next ? "todo-add" : "todo-remove",
       emailId: email.id,
@@ -1096,25 +1088,32 @@ export default function Dashboard() {
     }).catch(() => {})
   }
 
-  function handleConfirmTodoNote(note: string, includeLink: boolean) {
+  function handleTodo(email: Email) {
+    setTodoNoteTarget(email)
+  }
+
+  function handleConfirmTodoNote(note: string, includeLink: boolean, markRead: boolean, archive: boolean) {
     const email = todoNoteTarget
     setTodoNoteTarget(null)
     if (!email) return
     const settings = loadSettings()
     const docId = activeAccount === "work" ? settings.todoExportDocIdWork : settings.todoExportDocIdPersonal
-    if (!docId) return
-    fetch("/api/docs/append-todo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        docId,
-        note,
-        threadId: email.threadId,
-        accountEmail: activeAccountConfig.email,
-        includeLink,
-        account: activeAccount,
-      }),
-    }).catch(() => {})
+    if (docId) {
+      fetch("/api/docs/append-todo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docId,
+          note,
+          threadId: email.threadId,
+          accountEmail: activeAccountConfig.email,
+          includeLink,
+          account: activeAccount,
+        }),
+      }).catch(() => {})
+    }
+    if (markRead) handleMarkRead(email)
+    if (archive) handleArchive(email)
   }
 
   function handleSnooze(email: Email, until: string) {
@@ -1663,7 +1662,9 @@ export default function Dashboard() {
                     borderBottom: "1px solid rgba(255,208,0,0.12)",
                   }}
                 >
-                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>★ TODO</span>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>
+                    {mode === "zen" ? "☆ Saved" : mode === "wabi-sabi" ? "☆ Saved" : "★ Starred"}
+                  </span>
                   <span style={{
                     fontSize: "0.82rem", fontWeight: 700,
                     background: "rgba(255,208,0,0.18)",
@@ -1690,6 +1691,7 @@ export default function Dashboard() {
                       onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
                       onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
                       onToggleTodo={() => handleToggleTodo(email)}
+                      onTodo={() => handleTodo(email)}
                       onToggleBriefing={() => handleToggleBriefing(email)}
                       onSnooze={() => setSnoozeTarget(email)}
                       onUnsubscribe={() => handleUnsubscribe(email)}
@@ -1995,13 +1997,14 @@ export default function Dashboard() {
                 onArchive={handleArchive}
                 onSaveDraft={handleSaveDraft}
                 onSend={handleSendMessage}
-                onStar={handleStar}
+                onStar={handleToggleTodo}
                 onDelete={handleDelete}
                 onRecategorize={handleRecategorize}
                 onMarkReplied={handleMarkReplied}
                 onMarkDeletable={handleMarkDeletable}
                 onNewCategory={handleNewCategory}
                 onToggleTodo={handleToggleTodo}
+                onTodo={handleTodo}
                 onToggleBriefing={handleToggleBriefing}
                 onSnooze={email => setSnoozeTarget(email)}
                 onUnsubscribe={handleUnsubscribe}
@@ -2192,13 +2195,14 @@ export default function Dashboard() {
                       onArchive={handleArchive}
                       onSaveDraft={handleSaveDraft}
                       onSend={handleSendMessage}
-                      onStar={handleStar}
+                      onStar={handleToggleTodo}
                       onDelete={handleDelete}
                       onRecategorize={handleRecategorize}
                       onMarkReplied={handleMarkReplied}
                       onMarkDeletable={handleMarkDeletable}
                       onNewCategory={handleNewCategory}
                       onToggleTodo={handleToggleTodo}
+                      onTodo={handleTodo}
                       onToggleBriefing={handleToggleBriefing}
                       onSnooze={email => setSnoozeTarget(email)}
                       onUnsubscribe={handleUnsubscribe}
@@ -2224,12 +2228,13 @@ export default function Dashboard() {
             gmailAccount={activeAccount}
             onClose={() => { setExpandedEmail(null); setExpandedComposeMode(null) }}
             onMarkRead={handleMarkRead}
-            onStar={handleStar}
+            onStar={handleToggleTodo}
             onArchive={handleArchive}
             onDelete={handleDelete}
             onSaveDraft={handleSaveDraft}
             onSend={handleSendMessage}
             onToggleTodo={handleToggleTodo}
+            onTodo={handleTodo}
             onToggleBriefing={handleToggleBriefing}
             onSnooze={email => setSnoozeTarget(email)}
           />

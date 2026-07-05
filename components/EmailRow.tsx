@@ -22,6 +22,7 @@ interface Props {
   onReply?: () => void
   onForward?: () => void
   onToggleTodo?: () => void
+  onTodo?: () => void
   onToggleBriefing?: () => void
   onSnooze?: () => void
   onUnsubscribe?: () => void
@@ -56,7 +57,7 @@ function actionBtn(bg?: string, color?: string): React.CSSProperties {
 export default function EmailRow({
   email, selected, isSelected, selectionMode, mode = "party",
   onClick, onDoubleClick, onMarkRead, onDelete,
-  onReply, onForward, onToggleTodo, onToggleBriefing, onSnooze, onUnsubscribe,
+  onReply, onForward, onToggleTodo, onTodo, onToggleBriefing, onSnooze, onUnsubscribe,
   showUnreadOnly,
 }: Props) {
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -77,9 +78,12 @@ export default function EmailRow({
   if (onReply) actions.push({ key: "reply", title: "Reply", icon: "↩", onClick: onReply })
   if (onForward) actions.push({ key: "forward", title: "Forward", icon: "↪", onClick: onForward })
   if (onToggleTodo) actions.push({
-    key: "todo", title: email.todo ? "Remove TODO" : "Add TODO", icon: "★", onClick: onToggleTodo,
+    key: "star", title: email.todo ? "Unstar" : "Star", icon: "★", onClick: onToggleTodo,
     bg: email.todo ? "rgba(255,208,0,0.25)" : undefined,
     color: email.todo ? "#92660A" : undefined,
+  })
+  if (onTodo) actions.push({
+    key: "todo", title: "TODO", icon: "📋", onClick: onTodo,
   })
   if (onToggleBriefing) actions.push({
     key: "briefing",

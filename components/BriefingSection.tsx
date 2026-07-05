@@ -25,6 +25,7 @@ interface Props {
   onMarkDeletable: (email: Email) => void
   onNewCategory: (name: string, color: string) => Promise<string>
   onToggleTodo: (email: Email) => void
+  onTodo?: (email: Email) => void
   onToggleBriefing?: (email: Email) => void
   onSnooze: (email: Email) => void
   onUnsubscribe: (email: Email) => void
@@ -37,7 +38,7 @@ export default function BriefingSection({
   onMarkRead, onArchive, onSaveDraft, onSend,
   onStar, onDelete, onRecategorize, onMarkReplied,
   onMarkDeletable, onNewCategory,
-  onToggleTodo, onToggleBriefing, onSnooze, onUnsubscribe, gmailAccount,
+  onToggleTodo, onTodo, onToggleBriefing, onSnooze, onUnsubscribe, gmailAccount,
 }: Props) {
   const headerBg    = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#FFFFFF" : "#FF1F6E"
   const headerText  = mode === "zen" ? "#3D2800" : mode === "wabi-sabi" ? "#111111" : "#FFFFFF"
@@ -80,6 +81,7 @@ export default function BriefingSection({
       onMarkDeletable={onMarkDeletable}
       onNewCategory={onNewCategory}
       onToggleTodo={onToggleTodo}
+      onTodo={onTodo}
       onToggleBriefing={onToggleBriefing}
       onSnooze={onSnooze}
       onUnsubscribe={onUnsubscribe}
