@@ -22,6 +22,7 @@ interface Props {
   onReply?: () => void
   onForward?: () => void
   onToggleTodo?: () => void
+  onToggleBriefing?: () => void
   onSnooze?: () => void
   onUnsubscribe?: () => void
   showUnreadOnly?: boolean
@@ -55,7 +56,7 @@ function actionBtn(bg?: string, color?: string): React.CSSProperties {
 export default function EmailRow({
   email, selected, isSelected, selectionMode, mode = "party",
   onClick, onDoubleClick, onMarkRead, onDelete,
-  onReply, onForward, onToggleTodo, onSnooze, onUnsubscribe,
+  onReply, onForward, onToggleTodo, onToggleBriefing, onSnooze, onUnsubscribe,
   showUnreadOnly,
 }: Props) {
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -79,6 +80,20 @@ export default function EmailRow({
     key: "todo", title: email.todo ? "Remove TODO" : "Add TODO", icon: "★", onClick: onToggleTodo,
     bg: email.todo ? "rgba(255,208,0,0.25)" : undefined,
     color: email.todo ? "#92660A" : undefined,
+  })
+  if (onToggleBriefing) actions.push({
+    key: "briefing",
+    title: email.briefingOverride === "include" ? "Remove from Briefing"
+         : email.briefingOverride === "exclude" ? "Clear Briefing"
+         : "Add to Briefing",
+    icon: "📋",
+    onClick: onToggleBriefing,
+    bg: email.briefingOverride === "include" ? "rgba(0,196,167,0.18)"
+      : email.briefingOverride === "exclude" ? "rgba(255,31,110,0.10)"
+      : undefined,
+    color: email.briefingOverride === "include" ? "#00796B"
+         : email.briefingOverride === "exclude" ? "#D4005A"
+         : undefined,
   })
   if (onSnooze) actions.push({ key: "snooze", title: "Snooze", icon: "💤", onClick: onSnooze })
   if (onUnsubscribe && email.unsubscribeOneClick && email.unsubscribeUrl) {

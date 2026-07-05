@@ -32,6 +32,7 @@ interface Props {
   onMarkDeletable: (email: Email) => void
   onNewCategory: (name: string, color: string) => Promise<string>
   onToggleTodo: (email: Email) => void
+  onToggleBriefing?: (email: Email) => void
   onSnooze: (email: Email) => void
   onUnsubscribe: (email: Email) => void
   gmailAccount: AccountId
@@ -85,7 +86,7 @@ export default function CategoryBlock({
   onMarkRead, onArchive, onSaveDraft, onSend,
   onStar, onDelete, onRecategorize, onMarkReplied,
   onMarkDeletable, onNewCategory,
-  onToggleTodo, onSnooze, onUnsubscribe, gmailAccount,
+  onToggleTodo, onToggleBriefing, onSnooze, onUnsubscribe, gmailAccount,
   isPriority = false, onTogglePriority,
   showUnreadOnly,
 }: Props) {
@@ -242,6 +243,7 @@ export default function CategoryBlock({
         onMarkDeletable={onMarkDeletable}
         onNewCategory={onNewCategory}
         onToggleTodo={onToggleTodo}
+        onToggleBriefing={onToggleBriefing}
         onSnooze={onSnooze}
         onUnsubscribe={onUnsubscribe}
         gmailAccount={gmailAccount}

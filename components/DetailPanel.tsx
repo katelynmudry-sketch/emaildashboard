@@ -34,6 +34,7 @@ interface Props {
   onMarkReplied: (email: Email) => void
   onMarkDeletable: (email: Email) => void
   onNewCategory: (name: string, color: string) => Promise<string>
+  onToggleBriefing?: (email: Email) => void
 }
 
 const PRIORITY_BADGE: Record<string, string> = {
@@ -45,7 +46,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 const btnBase =
   "text-[11px] font-medium px-2 py-1 rounded-md bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75 whitespace-nowrap"
 
-export default function DetailPanel({ email, gmailAccount, categories, onClose, onArchive, onMarkRead, onSaveDraft, onSend, onStar, onDelete, onRecategorize, onMarkReplied, onMarkDeletable, onNewCategory }: Props) {
+export default function DetailPanel({ email, gmailAccount, categories, onClose, onArchive, onMarkRead, onSaveDraft, onSend, onStar, onDelete, onRecategorize, onMarkReplied, onMarkDeletable, onNewCategory, onToggleBriefing }: Props) {
   const [draftMode, setDraftMode] = useState<"reply" | "forward" | null>(null)
   const [autoAiDraft, setAutoAiDraft] = useState(false)
   const [imgPreview, setImgPreview] = useState<{ src: string; name: string } | null>(null)
@@ -412,6 +413,19 @@ document.addEventListener('click',function(e){var t=e.target;if(t.tagName!=='IMG
               >
                 Star
               </button>
+              {onToggleBriefing && (
+                <button
+                  onClick={() => onToggleBriefing(email)}
+                  className={`${btnBase} ${
+                    email.briefingOverride === "include" ? "text-teal-700 bg-teal-50 border-teal-300" :
+                    email.briefingOverride === "exclude" ? "text-rose-600 bg-rose-50 border-rose-300" : ""
+                  }`}
+                >
+                  {email.briefingOverride === "include" ? "✓ In Briefing"
+                   : email.briefingOverride === "exclude" ? "✕ Excluded"
+                   : "Add to Briefing"}
+                </button>
+              )}
               <button
                 onClick={handleArchive}
                 disabled={archiving}

@@ -8,6 +8,7 @@ import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction, getKarmaLevel } from "@/lib/stats"
 import { getPartyMode, setPartyMode, hasSeenGate, hasAnsweredEmailOptIn, categoryNoun, type PartyMode } from "@/lib/party-mode"
 import { addPrioritySender, getPrioritySenders, detectPrioritySenderCandidates, type PrioritySenderCandidate } from "@/lib/priority-senders"
+import { getBriefingSenders, addBriefingSender, removeBriefingSender } from "@/lib/briefing-senders"
 import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
 import { createEntry, type LogEntry } from "@/lib/action-log"
 import { snoozeEmail } from "@/lib/todo-snooze"
@@ -385,11 +386,18 @@ export default function Dashboard() {
 
   const isPersonalAccount = activeAccount === "personal"
 
-  const briefingEmails = visibleEmails
-    .filter(email => !email.todo && (!email.deletable || email.todo))
-    .filter(email => {
-      const isNewsletter = email.actionFlag === "read"
+  const briefingSenders = getBriefingSenders(activeAccount)
 
+  const briefingEmails = visibleEmails
+    .filter(email => {
+      // Manual override always wins
+      if (email.briefingOverride === "include") return true
+      if (email.briefingOverride === "exclude") return false
+      // Remembered briefing sender
+      if (briefingSenders.includes(email.fromEmail.toLowerCase())) return true
+      // Skip todos and deletables (original rule)
+      if (email.todo || email.deletable) return false
+      const isNewsletter = email.actionFlag === "read"
       if (isNewsletter) {
         // Personal: newsletters never in briefing
         if (isPersonalAccount) return false
@@ -399,8 +407,7 @@ export default function Dashboard() {
         const hasExpiry = /\b(expir|ends?\s+\w|until\s+\w|by\s+(mon|tue|wed|thu|fri|today|tomorrow)|this\s+week|last\s+(chance|day)|hours?\s+left|today\s+only)\b/.test(text)
         return hasSavings && hasExpiry
       }
-
-      // Non-newsletters: existing logic
+      // Non-newsletters: include if not fyi, or has confirm action, or deadline text
       return (
         email.priority !== "fyi" ||
         email.actionFlag === "confirm" ||
@@ -1066,6 +1073,29 @@ export default function Dashboard() {
     })
   }
 
+  function handleToggleBriefing(email: Email) {
+    const next: Email["briefingOverride"] =
+      email.briefingOverride === "include" ? "exclude"
+      : email.briefingOverride === "exclude" ? undefined
+      : "include"
+    setEmails(prev => {
+      const updated = prev.map(e => e.id === email.id ? { ...e, briefingOverride: next } : e)
+      writeInboxCache(updated, categories)
+      return updated
+    })
+    if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, briefingOverride: next } : null)
+    if (next === "include") {
+      addBriefingSender(activeAccount, email.fromEmail)
+    } else if (next === undefined) {
+      removeBriefingSender(activeAccount, email.fromEmail)
+    }
+    fetch("/api/gmail/briefing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: email.id, value: next ?? null, account: activeAccount }),
+    }).catch(() => {})
+  }
+
   function handleConfirmTodoNote(note: string, includeLink: boolean) {
     const email = todoNoteTarget
     setTodoNoteTarget(null)
@@ -1660,6 +1690,7 @@ export default function Dashboard() {
                       onReply={() => { setExpandedEmail(email); setExpandedComposeMode("reply") }}
                       onForward={() => { setExpandedEmail(email); setExpandedComposeMode("forward") }}
                       onToggleTodo={() => handleToggleTodo(email)}
+                      onToggleBriefing={() => handleToggleBriefing(email)}
                       onSnooze={() => setSnoozeTarget(email)}
                       onUnsubscribe={() => handleUnsubscribe(email)}
                     />
@@ -1971,6 +2002,7 @@ export default function Dashboard() {
                 onMarkDeletable={handleMarkDeletable}
                 onNewCategory={handleNewCategory}
                 onToggleTodo={handleToggleTodo}
+                onToggleBriefing={handleToggleBriefing}
                 onSnooze={email => setSnoozeTarget(email)}
                 onUnsubscribe={handleUnsubscribe}
                 gmailAccount={activeAccount}
@@ -2167,6 +2199,7 @@ export default function Dashboard() {
                       onMarkDeletable={handleMarkDeletable}
                       onNewCategory={handleNewCategory}
                       onToggleTodo={handleToggleTodo}
+                      onToggleBriefing={handleToggleBriefing}
                       onSnooze={email => setSnoozeTarget(email)}
                       onUnsubscribe={handleUnsubscribe}
                       gmailAccount={activeAccount}
@@ -2197,6 +2230,7 @@ export default function Dashboard() {
             onSaveDraft={handleSaveDraft}
             onSend={handleSendMessage}
             onToggleTodo={handleToggleTodo}
+            onToggleBriefing={handleToggleBriefing}
             onSnooze={email => setSnoozeTarget(email)}
           />
         )}
