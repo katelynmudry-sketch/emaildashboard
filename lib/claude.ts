@@ -19,6 +19,7 @@ export interface ClaudeSettings {
   aboutYouContext?: string  // free-text "about the user" reference doc
   dreamInboxContext?: string  // "Describe your Dream Inbox" — what the user wants surfaced/prioritized
   draftTone?: string  // per-account draft voice/tone, used for reply drafting
+  expandedSummariesForAll?: boolean  // give every email a detailed summary, not just urgent/today-priority ones
 }
 
 // ── Build the "About the user" prompt section, if present ─────────────────────
@@ -38,6 +39,21 @@ function buildAboutYouSection(settings?: ClaudeSettings): string {
 function buildDreamInboxSection(settings?: ClaudeSettings): string {
   const text = settings?.dreamInboxContext?.trim() || settings?.customContext?.trim()
   return text ? `\n\n## What this user needs from their inbox\n${text}` : ""
+}
+
+// ── Build the "summary" field instruction, based on summary settings ──────────
+
+function buildSummaryInstruction(settings?: ClaudeSettings): string {
+  const detailedStyle = `Write 2-4 sentences covering the key context, any action needed, dates/deadlines, and amounts. Stay plain-English and skimmable — no filler.`
+  const conciseStyle = `Write 1-2 short sentences. Use one mention of the sender/brand/person at most. If the sender or subject already names the sender, omit that name and summarize the key action, date, deadline, or amount instead. Prefer short phrases like "Day 3 expires Fri 5pm" or "course 33% off until Jun 8".`
+
+  if (settings?.expandedSummariesForAll) {
+    return `- summary: plain-English summary for every email. ${detailedStyle}`
+  }
+
+  return `- summary:
+  - If priority is "urgent" or "today": plain-English summary. ${detailedStyle}
+  - Otherwise: plain-English summary IF the body is longer than ~150 words OR contains a special offer/promotion. Otherwise null. ${conciseStyle}`
 }
 
 // ── Sanitize strings (passthrough — kept for call-site compatibility) ─────────
@@ -186,7 +202,7 @@ Also assign:
   - "confirm" — needs a specific action, confirmation, scheduling, or response
   - "receipt" — order confirmation, invoice, receipt, or record to keep
   - "read" — newsletter, FYI, promotional, no action needed
-- summary: 1-2 sentence plain-English summary IF the body is >150 words OR contains a special offer/promotion. Otherwise null. Use one mention of the sender/brand/person at most. If the sender or subject already names the sender, omit that name and summarize the key action, date, deadline, or amount instead. Prefer short phrases like "Day 3 expires Fri 5pm" or "course 33% off until Jun 8".
+${buildSummaryInstruction(settings)}
 - draftReply: For emails needing a reply, write a friendly, concise reply (2-4 sentences). For emails that don't need a reply: null.
 - deletable: true if the email is clearly no longer actionable and safe to delete. Flag: ${deletableCriteria.join(", ")}${pastEventCriterion}.
 - deletableReason: one short phrase explaining why (e.g. "Security login alert, no longer actionable"), or null if not deletable.
@@ -201,7 +217,7 @@ Return a JSON array with one object per email, in the same order:
     "priority": "urgent|today|fyi",
     "microSummary": "<2-3 words>",
     "actionFlag": "reply|confirm|receipt|read",
-    "summary": "<2-3 sentences or null>",
+    "summary": "<summary text or null — see instructions above>",
     "draftReply": "<reply text or null>",
     "deletable": true|false,
     "deletableReason": "<short phrase or null>",

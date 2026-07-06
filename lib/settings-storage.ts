@@ -24,6 +24,7 @@ export interface InboxSettings {
   todoExportDocIdWork: string      // Google Doc ID to append work-account TODOs to
   showUnreadOnly: boolean   // when true, only show unread inbox messages (default behavior today)
   sortOrder: "newest" | "oldest"  // email list sort order
+  expandedSummariesForAll: boolean  // give every email a detailed summary (default: only urgent/today-priority emails do)
   onboardingComplete: boolean      // true once the first-run onboarding wizard has been completed
   accountLabelPersonal: string  // custom display name for the "personal" account slot; empty = default "Personal"
   accountLabelWork: string      // custom display name for the "work" account slot; empty = default "Work"
@@ -49,6 +50,7 @@ const DEFAULTS: InboxSettings = {
   todoExportDocIdWork: "",
   showUnreadOnly: true,
   sortOrder: "newest",
+  expandedSummariesForAll: false,
   onboardingComplete: false,
   accountLabelPersonal: "",
   accountLabelWork: "",
