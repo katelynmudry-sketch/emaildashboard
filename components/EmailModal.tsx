@@ -18,6 +18,8 @@ interface Props {
   onSaveDraft: (email: Email, body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
   onSend: (email: Email, mode: "reply" | "forward", body: string, attachments: Attachment[], forwardTo?: string) => Promise<void>
   onToggleTodo?: (email: Email) => void
+  onTodo?: (email: Email) => void
+  onToggleBriefing?: (email: Email) => void
   onSnooze?: (email: Email) => void
   initialComposeMode?: "ai" | "reply" | "forward" | null
 }
@@ -62,7 +64,7 @@ const btn = "text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-z
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, onStar, onArchive, onDelete, onSaveDraft, onSend, onToggleTodo, onSnooze, initialComposeMode }: Props) {
+export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, onStar, onArchive, onDelete, onSaveDraft, onSend, onToggleTodo, onTodo, onToggleBriefing, onSnooze, initialComposeMode }: Props) {
   const [htmlBody, setHtmlBody] = useState<string | null>(email.htmlBody ?? null)
   const [loading, setLoading] = useState(!email.htmlBody)
   const [unsubscribeUrl, setUnsubscribeUrl] = useState<string | null>(() =>
@@ -212,7 +214,12 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
         <div className="flex items-center gap-2 px-5 py-2.5 border-b border-zinc-100 shrink-0 flex-wrap">
           <button onClick={() => onMarkRead(email)} className={btn}>Mark read</button>
           <button onClick={() => { onArchive(email); onClose() }} className={`${btn} text-zinc-900 font-semibold`}>Archive</button>
-          <button onClick={() => onStar(email)} className={btn}>Star</button>
+          <button onClick={() => onStar(email)} className={`${btn} ${email.todo ? "text-amber-800 bg-amber-100 border-amber-300" : ""}`}>
+            {email.todo ? "★ Starred" : "Star"}
+          </button>
+          {onTodo && (
+            <button onClick={() => onTodo(email)} className={btn}>📋 TODO</button>
+          )}
           <button onClick={() => { onDelete(email); onClose() }} className={`${btn} text-rose-600`}>Delete</button>
           {email.unsubscribeOneClick && email.unsubscribeUrl && (
             <button
@@ -229,6 +236,19 @@ export default function EmailModal({ email, gmailAccount, onClose, onMarkRead, o
               className={`${btn} ${email.todo ? "text-amber-800 bg-amber-100 border-amber-300" : ""}`}
             >
               {email.todo ? "★ TODO" : "☆ TODO"}
+            </button>
+          )}
+          {onToggleBriefing && (
+            <button
+              onClick={() => onToggleBriefing(email)}
+              className={`${btn} ${
+                email.briefingOverride === "include" ? "text-teal-700 bg-teal-50 border-teal-300" :
+                email.briefingOverride === "exclude" ? "text-rose-600 bg-rose-50 border-rose-300" : ""
+              }`}
+            >
+              {email.briefingOverride === "include" ? "✓ In Briefing"
+               : email.briefingOverride === "exclude" ? "✕ Excluded"
+               : "Add to Briefing"}
             </button>
           )}
           {onSnooze && (
