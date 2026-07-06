@@ -25,7 +25,10 @@
       "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__list_tables",
       "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__apply_migration",
       "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__get_project_url",
-      "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__get_publishable_keys"
+      "mcp__5c2cc3c3-944e-4054-8cea-4a8fb1fd9451__get_publishable_keys",
+      "mcp__04558b7d-55a1-465b-940c-446bc5d6abe6__netlify-project-services-reader",
+      "mcp__058f4b23-804a-4f0e-a128-80a49fd01183__list_teams",
+      "mcp__058f4b23-804a-4f0e-a128-80a49fd01183__list_projects"
     ]
   }
 }
