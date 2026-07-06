@@ -2243,7 +2243,7 @@ export default function Dashboard() {
 
         <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} gmailAccount={activeAccount} />
 
-        <InstructionsPanel open={instructionsOpen} onClose={() => setInstructionsOpen(false)} />
+        <InstructionsPanel open={instructionsOpen} onClose={() => setInstructionsOpen(false)} mode={mode} />
 
         <LogDrawer
           open={logDrawerOpen}
