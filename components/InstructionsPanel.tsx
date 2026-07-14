@@ -22,6 +22,7 @@ interface Props {
   open: boolean
   onClose: () => void
   mode: PartyMode
+  onRecategorize?: () => void
 }
 
 type Tab = "display" | "about" | "connectors" | "accounts" | "advanced" | "help"
@@ -35,7 +36,7 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "help",       label: "📖 How It Works" },
 ]
 
-export default function InstructionsPanel({ open, onClose, mode }: Props) {
+export default function InstructionsPanel({ open, onClose, mode, onRecategorize }: Props) {
   const [data, setData] = useState<ContextData | null>(null)
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<Tab>("display")
@@ -154,7 +155,7 @@ export default function InstructionsPanel({ open, onClose, mode }: Props) {
 
           {!loading && tab === "display" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-              <InboxDisplaySettings />
+              <InboxDisplaySettings onRecategorize={onRecategorize} />
               <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)", paddingTop: 18 }}>
                 <SummarySettings />
               </div>

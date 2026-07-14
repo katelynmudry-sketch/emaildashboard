@@ -558,14 +558,16 @@ export default function Dashboard() {
         setPendingImportMeta(fetchMeta)
         setPendingRawEmails(rawEmails)
 
-        const existingLabelsRes = await fetch(`/api/gmail/labels?${gmailAccountQuery}`, {
-          cache: "no-store",
-          credentials: "same-origin",
-        })
+        const [existingLabelsRes, seedRes] = await Promise.all([
+          fetch(`/api/gmail/labels?${gmailAccountQuery}`, { cache: "no-store", credentials: "same-origin" }),
+          fetch(`/api/gmail/seed-emails?${gmailAccountQuery}`, { cache: "no-store", credentials: "same-origin" }),
+        ])
         const fetchedLabelNames: string[] = existingLabelsRes.ok
           ? (await existingLabelsRes.json()).map((l: { name: string }) => l.name)
           : []
         setExistingLabelNames(fetchedLabelNames)
+
+        const seedEmails = seedRes.ok ? (await seedRes.json()).emails : rawEmails
 
         const proposeSettings = loadSettings()
         const proposeRes = await fetch("/api/ai/propose", {
@@ -573,7 +575,7 @@ export default function Dashboard() {
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            emails: rawEmails,
+            emails: seedEmails,
             existingLabelNames: fetchedLabelNames,
             account: activeAccountConfig.email,
             customContext: activeAccount === "work" ? proposeSettings.workRules : proposeSettings.personalRules,
@@ -2249,7 +2251,16 @@ export default function Dashboard() {
 
         <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} gmailAccount={activeAccount} />
 
-        <InstructionsPanel open={instructionsOpen} onClose={() => setInstructionsOpen(false)} mode={mode} />
+        <InstructionsPanel
+          open={instructionsOpen}
+          onClose={() => setInstructionsOpen(false)}
+          mode={mode}
+          onRecategorize={() => {
+            saveCategories(activeAccountConfig.email, [])
+            setInstructionsOpen(false)
+            loadInbox()
+          }}
+        />
 
         <LogDrawer
           open={logDrawerOpen}

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { loadSettings, saveSettings } from "@/lib/settings-storage"
 import { Hint, SectionLabel, ToggleSwitch } from "./shared"
 
-export default function InboxDisplaySettings() {
+export default function InboxDisplaySettings({ onRecategorize }: { onRecategorize?: () => void }) {
   const [showUnreadOnly, setShowUnreadOnly] = useState(true)
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
 
@@ -79,6 +79,29 @@ export default function InboxDisplaySettings() {
           ))}
         </div>
       </div>
+      {/* ── Re-categorize ── */}
+      {onRecategorize && (
+        <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)", paddingTop: 18 }}>
+          <div style={{ fontSize: "0.80rem", fontWeight: 600, color: "#1A0A35", marginBottom: 4 }}>
+            Reset &amp; re-categorize
+          </div>
+          <div style={{ fontSize: "0.72rem", color: "rgba(26,10,53,0.50)", marginBottom: 10 }}>
+            Clears your current categories and re-runs setup using your last 100 emails (read + unread) for better suggestions.
+          </div>
+          <button
+            type="button"
+            onClick={onRecategorize}
+            style={{
+              padding: "7px 16px", borderRadius: 8, border: "1.5px solid #8B3FD8",
+              background: "transparent", color: "#8B3FD8",
+              fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
+              fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+            }}
+          >
+            Reset &amp; re-categorize
+          </button>
+        </div>
+      )}
     </div>
   )
 }
