@@ -9,7 +9,7 @@ import { recordAction, getKarmaLevel } from "@/lib/stats"
 import { getPartyMode, setPartyMode, hasSeenGate, hasAnsweredEmailOptIn, categoryNoun, type PartyMode } from "@/lib/party-mode"
 import { addPrioritySender, getPrioritySenders, detectPrioritySenderCandidates, type PrioritySenderCandidate } from "@/lib/priority-senders"
 import { getBriefingSenders, addBriefingSender, removeBriefingSender } from "@/lib/briefing-senders"
-import { getCachedInbox, saveCachedInbox, type InboxCache } from "@/lib/inbox-cache"
+import { getCachedInbox, saveCachedInbox, clearCachedInbox, type InboxCache } from "@/lib/inbox-cache"
 import { createEntry, type LogEntry } from "@/lib/action-log"
 import { snoozeEmail } from "@/lib/todo-snooze"
 import { loadSettings } from "@/lib/settings-storage"
@@ -662,43 +662,71 @@ export default function Dashboard() {
     setAppState("categorizing")
     setCategories(cats)
 
+    // Incremental categorization: emails already categorized in the last snapshot
+    // (same account, same category set) keep their AI fields — only genuinely new
+    // emails get sent to Claude. Falls back to categorizing everything when there's
+    // no prior snapshot or the category set has changed (e.g. after a manual reset).
+    const priorSnapshot = sessionCache.current.get(activeAccountConfig.email) ?? getCachedInbox(activeAccountConfig.email)
+    const priorCategoryNames = new Set((priorSnapshot?.categories ?? []).map(c => c.name))
+    const categoriesMatch = priorCategoryNames.size === cats.length && cats.every(c => priorCategoryNames.has(c.name))
+    const priorEmailMap = categoriesMatch
+      ? new Map((priorSnapshot?.emails ?? []).map(e => [e.id, e]))
+      : new Map<string, Email>()
+
+    const newRawEmails = rawEmails.filter(e => !priorEmailMap.has(e.id))
+
     // Strip htmlBody before sending to Claude (not needed for categorization);
     // keep attachment metadata (filename/size) for the large-attachment cleanup rule.
-    const emailsForApi = rawEmails.map(({ htmlBody: _, ...rest }) => rest)
+    const emailsForApi = newRawEmails.map(({ htmlBody: _, ...rest }) => rest)
     const catSettings = loadSettings()
-    const catRes = await fetch("/api/ai/categorize", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        emails: emailsForApi,
-        categories: cats,
-        account: activeAccountConfig.email,
-        customContext: activeAccount === "work" ? catSettings.workRules : catSettings.personalRules,
-        systemContext: catSettings.systemContext || undefined,
-        aboutYouContext: catSettings.aboutYouContext || undefined,
-        dreamInboxContext: catSettings.dreamInboxContext || undefined,
-        aiPastEventDelete: catSettings.aiPastEventDelete !== false,
-        aiSecurityAlertCleanup: catSettings.aiSecurityAlertCleanup !== false,
-        aiSocialNotificationCleanup: catSettings.aiSocialNotificationCleanup !== false,
-        aiExpiredPromoCleanup: catSettings.aiExpiredPromoCleanup !== false,
-        aiOldNewsletterCleanup: !!catSettings.aiOldNewsletterCleanup,
-        aiLargeAttachmentCleanup: !!catSettings.aiLargeAttachmentCleanup,
-        expandedSummariesForAll: !!catSettings.expandedSummariesForAll,
-      }),
-    })
-    if (!catRes.ok) {
-      const body = await catRes.text()
-      let message = "Failed to categorize emails"
-      try {
-        const json = JSON.parse(body)
-        if (json?.error) message = json.error
-      } catch {
-        if (body) message = body
+
+    let newlyCategorized: Email[] = []
+    if (newRawEmails.length > 0) {
+      const catRes = await fetch("/api/ai/categorize", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emails: emailsForApi,
+          categories: cats,
+          account: activeAccountConfig.email,
+          customContext: activeAccount === "work" ? catSettings.workRules : catSettings.personalRules,
+          systemContext: catSettings.systemContext || undefined,
+          aboutYouContext: catSettings.aboutYouContext || undefined,
+          dreamInboxContext: catSettings.dreamInboxContext || undefined,
+          aiPastEventDelete: catSettings.aiPastEventDelete !== false,
+          aiSecurityAlertCleanup: catSettings.aiSecurityAlertCleanup !== false,
+          aiSocialNotificationCleanup: catSettings.aiSocialNotificationCleanup !== false,
+          aiExpiredPromoCleanup: catSettings.aiExpiredPromoCleanup !== false,
+          aiOldNewsletterCleanup: !!catSettings.aiOldNewsletterCleanup,
+          aiLargeAttachmentCleanup: !!catSettings.aiLargeAttachmentCleanup,
+          expandedSummariesForAll: !!catSettings.expandedSummariesForAll,
+        }),
+      })
+      if (!catRes.ok) {
+        const body = await catRes.text()
+        let message = "Failed to categorize emails"
+        try {
+          const json = JSON.parse(body)
+          if (json?.error) message = json.error
+        } catch {
+          if (body) message = body
+        }
+        throw new Error(message)
       }
-      throw new Error(message)
+      newlyCategorized = await catRes.json()
     }
-    const categorized: Email[] = await catRes.json()
+
+    // Reassemble in the original fetch order: newly-categorized emails as-is,
+    // previously-categorized ones keep their AI fields with fresh raw fields
+    // (read state, labels, attachments, etc.) layered on top.
+    const newlyCategorizedMap = new Map(newlyCategorized.map(e => [e.id, e]))
+    const categorized: Email[] = rawEmails.map(raw => {
+      const fresh = newlyCategorizedMap.get(raw.id)
+      if (fresh) return fresh
+      const prior = priorEmailMap.get(raw.id)
+      return prior ? { ...prior, ...raw } : null
+    }).filter((e): e is Email => e !== null)
 
     // Force-assign priority senders into the pinned priority category, if any.
     if (priorityCategory && cats.some(c => c.name === priorityCategory)) {
@@ -722,7 +750,12 @@ export default function Dashboard() {
       if (todoLabelId && labelIds.includes(todoLabelId)) email.todo = true
     })
 
+    // Only apply the Gmail label for emails whose category is new or changed
+    // since the last snapshot — reused emails with an unchanged category were
+    // already labeled on a prior run.
     categorized.forEach(email => {
+      const prior = priorEmailMap.get(email.id)
+      if (prior && prior.category === email.category) return
       const cat = cats.find(c => c.name === email.category)
       if (cat?.gmailLabelId) {
         fetch("/api/gmail/label", {
@@ -2257,6 +2290,8 @@ export default function Dashboard() {
           mode={mode}
           onRecategorize={() => {
             saveCategories(activeAccountConfig.email, [])
+            sessionCache.current.delete(activeAccountConfig.email)
+            clearCachedInbox(activeAccountConfig.email)
             setInstructionsOpen(false)
             loadInbox()
           }}
