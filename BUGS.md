@@ -1,5 +1,13 @@
 # BUGS & DEBT
 
+## Low – DEBT (added 2026-07-14 — theme unification pass)
+
+### ~20 hand-rolled fetch blocks in Dashboard.tsx could collapse to a shared `apiPost(url, body)` helper
+Deferred out of the Phase 1b theme-unification commit (docs/plans/2026-07-14-bulk-cleanup-suite.md) to keep that diff scoped to token extraction. Worth doing before/during Phase 2a, which adds more fetch call sites.
+
+### `Email extends RawEmail` still duplicated in `lib/types.ts`
+Same reason as above — deferred rather than bundled into the theme-unification diff.
+
 ## Low – DEBT (added 2026-05-27 — settings panel audit)
 
 ### `CATEGORIZE_INSTRUCTIONS` was exported from a route file (now moved to `lib/claude-utils.ts`)

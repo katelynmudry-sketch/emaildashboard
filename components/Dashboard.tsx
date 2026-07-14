@@ -6,7 +6,8 @@ import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/typ
 import { getAccounts } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction, getKarmaLevel } from "@/lib/stats"
-import { getPartyMode, setPartyMode, hasSeenGate, hasAnsweredEmailOptIn, categoryNoun, type PartyMode } from "@/lib/party-mode"
+import { getPartyMode, setPartyMode, hasSeenGate, hasAnsweredEmailOptIn, getCopy, type PartyMode } from "@/lib/party-mode"
+import { getTheme } from "@/lib/theme"
 import { addPrioritySender, getPrioritySenders, detectPrioritySenderCandidates, type PrioritySenderCandidate } from "@/lib/priority-senders"
 import { getBriefingSenders, addBriefingSender, removeBriefingSender } from "@/lib/briefing-senders"
 import { getCachedInbox, saveCachedInbox, clearCachedInbox, type InboxCache } from "@/lib/inbox-cache"
@@ -1353,28 +1354,16 @@ export default function Dashboard() {
     )
   }
 
-  // ── Theme accent — use everywhere instead of hardcoded #FF1F6E ──────────────
-  const themeAccent = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111111" : "#FF1F6E"
+  // ── Theme tokens + copy — single source of truth for the header/hero region ──
+  const theme = getTheme(mode)
+  const copy = getCopy(mode)
+  // themeAccent kept as an alias — used extensively below and by other sections.
+  const themeAccent = theme.accent
 
   // ── FESTIVAL RENDER ──────────────────────────────────────────────────────────
 
-  const pageBg = mode === "zen"
-    ? "#FAF6EE"
-    : mode === "wabi-sabi"
-      ? "#FFFFFF"
-      : "#EEE4FF"
-
-  const ambientGlow = mode === "zen"
-    ? `radial-gradient(ellipse 90% 55% at 8% 0%, rgba(200,150,12,0.06) 0%, transparent 55%),
-       radial-gradient(ellipse 70% 50% at 92% 100%, rgba(0,200,160,0.04) 0%, transparent 55%),
-       radial-gradient(ellipse 50% 40% at 55% 55%, rgba(200,150,12,0.02) 0%, transparent 60%)`
-    : mode === "wabi-sabi"
-      ? `radial-gradient(ellipse 90% 55% at 8% 0%, rgba(26,10,53,0.03) 0%, transparent 55%),
-         radial-gradient(ellipse 70% 50% at 92% 100%, rgba(26,10,53,0.02) 0%, transparent 55%),
-         radial-gradient(ellipse 50% 40% at 55% 55%, rgba(26,10,53,0.01) 0%, transparent 60%)`
-      : `radial-gradient(ellipse 90% 55% at 8% 0%, rgba(255,31,110,0.07) 0%, transparent 55%),
-         radial-gradient(ellipse 70% 50% at 92% 100%, rgba(0,229,196,0.05) 0%, transparent 55%),
-         radial-gradient(ellipse 50% 40% at 55% 55%, rgba(255,208,0,0.03) 0%, transparent 60%)`
+  const pageBg = theme.pageBg
+  const ambientGlow = theme.ambientGlow
 
   return (
     <div className={`relative min-h-screen mode-${mode}`} style={{ background: pageBg, color: "#1A0A35" }}>
@@ -1399,19 +1388,11 @@ export default function Dashboard() {
                 <div style={{
                   width: 52, height: 52, flexShrink: 0,
                   borderRadius: 14,
-                  background: mode === "zen"
-                    ? "linear-gradient(135deg, #C8960C 0%, #B07B0A 100%)"
-                    : mode === "wabi-sabi"
-                      ? "transparent"
-                      : "linear-gradient(135deg, #FF1F6E 0%, #FF6B1A 100%)",
-                  border: mode === "wabi-sabi" ? "2px solid #111" : "none",
+                  background: theme.iconBg,
+                  border: theme.iconBorder,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 26,
-                  boxShadow: mode === "zen"
-                    ? "0 8px 32px rgba(200,150,12,0.30)"
-                    : mode === "wabi-sabi"
-                      ? "none"
-                      : "0 8px 32px rgba(255,31,110,0.38)",
+                  boxShadow: theme.iconShadow,
                   transition: "all 0.3s ease",
                 }}>
                   ✉️
@@ -1421,7 +1402,7 @@ export default function Dashboard() {
                     fontFamily: "var(--font-display)",
                     fontSize: "clamp(2rem, 5vw, 3.2rem)",
                     lineHeight: 1,
-                    color: mode === "zen" ? "#3D2800" : "#1A0A35",
+                    color: theme.headingColor,
                     margin: 0,
                     transition: "color 0.3s ease",
                   }}>
@@ -1431,11 +1412,11 @@ export default function Dashboard() {
                     fontSize: "0.78rem",
                     letterSpacing: "0.18em",
                     textTransform: "uppercase",
-                    color: mode === "zen" ? "rgba(61,40,0,0.40)" : "rgba(26,10,53,0.35)",
+                    color: theme.subtitleColor,
                     margin: "5px 0 0",
                     transition: "color 0.3s ease",
                   }}>
-                    {mode === "zen" ? "Your Mindful Inbox" : mode === "wabi-sabi" ? "ur inbox bestie" : "Your AI-Powered Inbox"}
+                    {copy.subtitle}
                   </p>
                 </div>
               </div>
@@ -1456,7 +1437,7 @@ export default function Dashboard() {
                     alignSelf: "flex-start",
                     padding: "2px 4px", marginTop: 2,
                     background: "none", border: "none",
-                    color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111" : "#FF1F6E",
+                    color: theme.connectWorkGmailColor,
                     fontSize: "0.70rem", fontWeight: 500,
                     cursor: "pointer",
                   }}
@@ -1581,13 +1562,11 @@ export default function Dashboard() {
                         onClick={() => updateImportBatchSize(n)}
                         className="min-w-9 px-2 py-1 rounded-full transition-colors disabled:opacity-40"
                         style={{
-                          background: mode === "wabi-sabi" ? "transparent" : (importBatchSize === n ? themeAccent : "transparent"),
-                          color: mode === "wabi-sabi"
-                            ? (importBatchSize === n ? "#111" : "rgba(17,17,17,0.38)")
-                            : (importBatchSize === n ? (mode === "zen" ? "#3D2800" : "#1A0A35") : "rgba(26,10,53,0.42)"),
+                          background: importBatchSize === n ? theme.batchPillActiveBg : "transparent",
+                          color: importBatchSize === n ? theme.batchPillActiveText : theme.batchPillInactiveText,
                           fontSize: "0.84rem",
-                          fontWeight: mode === "wabi-sabi" && importBatchSize === n ? 800 : 600,
-                          border: mode === "wabi-sabi" && importBatchSize === n ? "1.5px solid #111" : "none",
+                          fontWeight: importBatchSize === n ? theme.batchPillActiveWeight : 600,
+                          border: importBatchSize === n ? theme.batchPillActiveBorder : "none",
                           cursor: "pointer",
                         }}
                       >
@@ -1601,19 +1580,14 @@ export default function Dashboard() {
                   disabled={isLoading}
                   style={{
                     padding: "6px 18px", borderRadius: 999,
-                    background: isLoading
-                      ? (mode === "zen" ? "rgba(200,150,12,0.30)" : "rgba(255,31,110,0.3)")
-                      : (mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "transparent" : "#FF1F6E"),
-                    color: mode === "zen" ? "#FFF8E0" : mode === "wabi-sabi" ? "#111" : "#1A0A35",
-                    fontSize: "0.82rem", fontWeight: mode === "wabi-sabi" ? 800 : 700,
+                    background: isLoading ? theme.refreshBtnBgLoading : theme.refreshBtnBg,
+                    color: theme.refreshBtnText,
+                    fontSize: "0.82rem", fontWeight: theme.refreshBtnWeight,
                     letterSpacing: "0.07em", textTransform: "uppercase",
                     cursor: isLoading ? "not-allowed" : "pointer",
-                    border: mode === "wabi-sabi" ? "1.5px solid rgba(17,17,17,0.25)" : "none",
+                    border: theme.refreshBtnBorder,
                     fontFamily: "var(--font-body)",
-                    boxShadow: isLoading ? "none"
-                      : mode === "zen" ? "0 4px 20px rgba(200,150,12,0.30)"
-                      : mode === "wabi-sabi" ? "none"
-                      : "0 4px 20px rgba(255,31,110,0.45)",
+                    boxShadow: isLoading ? "none" : theme.refreshBtnShadow,
                     transition: "all 0.15s ease",
                   }}
                 >
@@ -1638,13 +1612,9 @@ export default function Dashboard() {
                 onClick={() => setComposeOpen(true)}
                 style={{
                   padding: "6px 18px", borderRadius: 999,
-                  border: mode === "zen"
-                    ? "1px solid rgba(200,150,12,0.35)"
-                    : mode === "wabi-sabi"
-                      ? "1.5px solid rgba(26,10,53,0.18)"
-                      : "1px solid rgba(0,229,196,0.40)",
-                  background: mode === "wabi-sabi" ? "transparent" : mode === "zen" ? "rgba(200,150,12,0.07)" : "rgba(0,229,196,0.08)",
-                  color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111" : "#00E5C4",
+                  border: theme.composeBtnBorder,
+                  background: theme.composeBtnBg,
+                  color: theme.composeBtnText,
                   fontSize: "0.82rem", fontWeight: 600,
                   cursor: "pointer",
                   fontFamily: "var(--font-body)",
@@ -1660,28 +1630,16 @@ export default function Dashboard() {
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
                   padding: "6px 14px", borderRadius: 999,
-                  border: mode === "zen"
-                    ? "1px solid rgba(200,150,12,0.35)"
-                    : mode === "wabi-sabi"
-                      ? "1px solid rgba(26,10,53,0.22)"
-                      : "1px solid rgba(255,107,26,0.40)",
-                  background: mode === "zen"
-                    ? "rgba(200,150,12,0.07)"
-                    : mode === "wabi-sabi"
-                      ? "rgba(26,10,53,0.05)"
-                      : "rgba(255,107,26,0.09)",
-                  color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#FF6B1A",
+                  border: theme.roastBtnBorder,
+                  background: theme.roastBtnBg,
+                  color: theme.roastBtnText,
                   fontSize: "0.84rem", fontWeight: 600,
                   cursor: "pointer",
                   opacity: roasting || emails.length === 0 ? 0.4 : 1,
                   fontFamily: "var(--font-body)",
                 }}
               >
-                {mode === "zen"
-                  ? (roasting ? "Reading" : "Read my inbox")
-                  : mode === "wabi-sabi"
-                    ? (roasting ? "Spilling" : "Spill the tea")
-                    : (roasting ? "Roasting" : "Roast my inbox")}
+                {roasting ? copy.roastButtonLoading : copy.roastButtonIdle}
               </button>
             </div>
 
@@ -1690,10 +1648,10 @@ export default function Dashboard() {
               <div
                 className="order-2 overflow-hidden"
                 style={{
-                  background: mode === "zen" ? "#FFFEF9" : "#FFFFFF",
+                  background: theme.todoCardBg,
                   border: "1px solid rgba(255,208,0,0.28)",
                   borderRadius: 14,
-                  boxShadow: mode === "wabi-sabi" ? "none" : "0 4px 24px rgba(255,208,0,0.08)",
+                  boxShadow: theme.todoCardShadow,
                   minWidth: 220, maxWidth: 290,
                 }}
               >
@@ -1705,7 +1663,7 @@ export default function Dashboard() {
                   }}
                 >
                   <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#FFD000" }}>
-                    {mode === "zen" ? "☆ Saved" : mode === "wabi-sabi" ? "☆ Saved" : "★ Starred"}
+                    {copy.savedLabel}
                   </span>
                   <span style={{
                     fontSize: "0.82rem", fontWeight: 700,
@@ -1749,7 +1707,7 @@ export default function Dashboard() {
                 <span style={{
                   fontSize: "0.85rem",
                   fontStyle: "italic",
-                  color: mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#1A0A35" : "#FF6B1A",
+                  color: theme.roastBtnText,
                   flex: 1,
                   letterSpacing: mode === "wabi-sabi" ? "0.02em" : undefined,
                 }}>
@@ -1785,9 +1743,9 @@ export default function Dashboard() {
             { color: "#00E5C4", label: "fyi" },
           ].map(({ color, label }) => (
             <span key={label} className="inline-flex items-center gap-1.5">
-              {mode === "wabi-sabi"
+              {theme.priorityDotStyle === "outline"
                 ? <span style={{ width: 7, height: 7, borderRadius: "50%", border: `1.5px solid ${color}`, display: "inline-block", flexShrink: 0 }} />
-                : mode === "zen"
+                : theme.priorityDotStyle === "soft-fill"
                   ? <span style={{ width: 7, height: 7, borderRadius: "50%", background: `${color}55`, border: `1px solid ${color}88`, display: "inline-block", flexShrink: 0 }} />
                   : <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
               }
@@ -1806,7 +1764,7 @@ export default function Dashboard() {
                 <div className="text-center">
                   <p style={{ fontSize: "4rem", marginBottom: 14 }}>📬</p>
                   <p style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", color: "rgba(26,10,53,0.45)", margin: "0 0 10px" }}>
-                    {mode === "zen" ? "Ready when you are." : mode === "wabi-sabi" ? "ok bestie let's get into it 💅" : "Ready to sort?"}
+                    {copy.idleTitle}
                   </p>
                   <p style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.60)", margin: 0 }}>
                     Hit &ldquo;Load Inbox&rdquo; to fetch and sort your emails.
@@ -1823,17 +1781,17 @@ export default function Dashboard() {
                   <div style={{ textAlign: "center" }}>
                     <p style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", color: themeAccent, margin: "0 0 6px", letterSpacing: "0.04em" }}>
                       {appState === "fetching"
-                        ? mode === "zen" ? "Receiving your letters…" : mode === "wabi-sabi" ? "OMFG LOADING ✨" : "FETCHING YOUR MAIL"
+                        ? copy.fetchingTitle
                         : appState === "proposing"
-                          ? mode === "zen" ? "Reading the patterns…" : mode === "wabi-sabi" ? "FIGURING IT OUT 💅" : "ANALYZING PATTERNS"
-                          : mode === "zen" ? "Arranging with care…" : mode === "wabi-sabi" ? "ORGANIZING YOUR LIFE ☕" : "SORTING YOUR MAIL"}
+                          ? copy.proposingTitle
+                          : copy.categorizingTitle}
                     </p>
                     <p style={{ fontSize: "0.84rem", color: "rgba(26,10,53,0.56)", margin: 0 }}>
                       {appState === "fetching"
-                        ? mode === "zen" ? "Gathering your inbox with care." : mode === "wabi-sabi" ? "hang on bestie, getting your emails rn…" : "Checking your inbox…"
+                        ? copy.fetchingSubtitle
                         : appState === "proposing"
-                          ? mode === "zen" ? "Observing the shape of your correspondence." : mode === "wabi-sabi" ? "literally analyzing your vibe rn, so exciting…" : "Analyzing your email patterns…"
-                          : mode === "zen" ? "Placing each email where it belongs." : mode === "wabi-sabi" ? "Claude is sorting your whole life, you're doing amazing sweetie…" : `Claude is sorting your emails into ${categoryNoun(mode).plural}…`}
+                          ? copy.proposingSubtitle
+                          : copy.categorizingSubtitle}
                     </p>
                   </div>
                 </div>
@@ -1845,7 +1803,7 @@ export default function Dashboard() {
               <div className="h-64 flex items-center justify-center">
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
                   <p style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", color: themeAccent, margin: 0 }}>
-                    {mode === "wabi-sabi" ? "ok something broke bestie 😬" : "Something went wrong"}
+                    {copy.errorTitle}
                   </p>
                   <p style={{ fontSize: "0.82rem", color: "rgba(26,10,53,0.48)", margin: 0, maxWidth: 420 }}>{errorMsg}</p>
                   <button

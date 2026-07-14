@@ -107,3 +107,74 @@ export function categoryNoun(mode: PartyMode): CategoryNoun {
       return { singular: "Arena", plural: "Arenas" }
   }
 }
+
+// ── Mode-aware header/hero copy ───────────────────────────────────────────────
+// Values are byte-identical to the inline mode ternaries they replace in
+// Dashboard.tsx — a lookup-table refactor, not a copy rewrite.
+
+export interface HeaderCopy {
+  subtitle: string
+  idleTitle: string
+  fetchingTitle: string
+  proposingTitle: string
+  categorizingTitle: string
+  fetchingSubtitle: string
+  proposingSubtitle: string
+  categorizingSubtitle: string
+  errorTitle: string
+  roastButtonIdle: string
+  roastButtonLoading: string
+  savedLabel: string
+}
+
+export function getCopy(mode: PartyMode): HeaderCopy {
+  if (mode === "zen") {
+    return {
+      subtitle: "Your Mindful Inbox",
+      idleTitle: "Ready when you are.",
+      fetchingTitle: "Receiving your letters…",
+      proposingTitle: "Reading the patterns…",
+      categorizingTitle: "Arranging with care…",
+      fetchingSubtitle: "Gathering your inbox with care.",
+      proposingSubtitle: "Observing the shape of your correspondence.",
+      categorizingSubtitle: "Placing each email where it belongs.",
+      errorTitle: "Something went wrong",
+      roastButtonIdle: "Read my inbox",
+      roastButtonLoading: "Reading",
+      savedLabel: "☆ Saved",
+    }
+  }
+
+  if (mode === "wabi-sabi") {
+    return {
+      subtitle: "ur inbox bestie",
+      idleTitle: "ok bestie let's get into it 💅",
+      fetchingTitle: "OMFG LOADING ✨",
+      proposingTitle: "FIGURING IT OUT 💅",
+      categorizingTitle: "ORGANIZING YOUR LIFE ☕",
+      fetchingSubtitle: "hang on bestie, getting your emails rn…",
+      proposingSubtitle: "literally analyzing your vibe rn, so exciting…",
+      categorizingSubtitle: "Claude is sorting your whole life, you're doing amazing sweetie…",
+      errorTitle: "ok something broke bestie 😬",
+      roastButtonIdle: "Spill the tea",
+      roastButtonLoading: "Spilling",
+      savedLabel: "☆ Saved",
+    }
+  }
+
+  // party (default)
+  return {
+    subtitle: "Your AI-Powered Inbox",
+    idleTitle: "Ready to sort?",
+    fetchingTitle: "FETCHING YOUR MAIL",
+    proposingTitle: "ANALYZING PATTERNS",
+    categorizingTitle: "SORTING YOUR MAIL",
+    fetchingSubtitle: "Checking your inbox…",
+    proposingSubtitle: "Analyzing your email patterns…",
+    categorizingSubtitle: `Claude is sorting your emails into ${categoryNoun(mode).plural}…`,
+    errorTitle: "Something went wrong",
+    roastButtonIdle: "Roast my inbox",
+    roastButtonLoading: "Roasting",
+    savedLabel: "★ Starred",
+  }
+}
