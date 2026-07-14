@@ -57,6 +57,9 @@ export interface ThemeTokens {
   cardBorder: string
   cardShadow: string
   textMuted: string
+
+  /** "r,g,b" — used to build the soft translucent wash on purge banner cards. */
+  purgeWashRgb: string
 }
 
 export function getTheme(mode: PartyMode): ThemeTokens {
@@ -111,6 +114,8 @@ export function getTheme(mode: PartyMode): ThemeTokens {
       cardBorder: "1px solid rgba(200,150,12,0.18)",
       cardShadow: "0 4px 32px rgba(200,150,12,0.08)",
       textMuted: "rgba(61,40,0,0.40)",
+
+      purgeWashRgb: "200,150,12",
     }
   }
 
@@ -165,6 +170,8 @@ export function getTheme(mode: PartyMode): ThemeTokens {
       cardBorder: "1px solid rgba(17,17,17,0.13)",
       cardShadow: "none",
       textMuted: "rgba(26,10,53,0.35)",
+
+      purgeWashRgb: "26,10,53",
     }
   }
 
@@ -219,6 +226,8 @@ export function getTheme(mode: PartyMode): ThemeTokens {
     cardBorder: "2px solid #1A0A35",
     cardShadow: "5px 5px 0 #1A0A35",
     textMuted: "rgba(26,10,53,0.35)",
+
+    purgeWashRgb: "255,31,110",
   }
 }
 

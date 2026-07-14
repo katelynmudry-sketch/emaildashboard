@@ -29,6 +29,7 @@ import ConfettiBlast from "./ConfettiBlast"
 import InstructionsPanel from "./InstructionsPanel"
 import LogDrawer from "./LogDrawer"
 import UndoToast from "./UndoToast"
+import ThemedPurge from "./ThemedPurge"
 import SentDrawer from "./SentDrawer"
 import QuoteGate from "./QuoteGate"
 import ProductionNotesBand from "./ProductionNotesBand"
@@ -291,10 +292,8 @@ export default function Dashboard() {
   const [karmaNextThreshold, setKarmaNextThreshold] = useState(25)
   const [karmaToast, setKarmaToast] = useState<string | null>(null)
   const [mindfulPurge, setMindfulPurge] = useState<Email[]>([])
-  const [purgeShattered, setPurgeShattered] = useState(false)
-  const [purgeDismissed, setPurgeDismissed] = useState(false)
-  const [purgeExpanded, setPurgeExpanded] = useState(false)
-  const [purgeChecked, setPurgeChecked] = useState<Set<string>>(new Set())
+  const [partyPurge, setPartyPurge] = useState<Email[]>([])
+  const [declutterEra, setDeclutterEra] = useState<Email[]>([])
   const [lotusQuote, setLotusQuote] = useState<string | null>(null)
   const [undoToast, setUndoToast] = useState<{ message: string; undoFn: () => Promise<void> } | null>(null)
   const [showLotusBloom, setShowLotusBloom] = useState(false)
@@ -775,21 +774,37 @@ export default function Dashboard() {
     setFetchedAt(now)
     setAppState("ready")
 
-    // Mindful Purge: find old promo/newsletter emails
+    // Theme-unique purges — same "safe to clean up" pool, different headline
+    // target per theme. See docs/plans/2026-07-14-bulk-cleanup-suite.md Phase 2b.
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+
+    // Zen "Mindful Purge" — old, already-read newsletters/subscriptions.
     const purgeableCandidates = categorized.filter(e =>
       e.actionFlag === "read" &&
       e.internalDate < sevenDaysAgo &&
       !e.todo &&
       !e.snoozedUntil
     )
-    if (purgeableCandidates.length >= 5) {
-      setMindfulPurge(purgeableCandidates)
-      setPurgeDismissed(false)
-      setPurgeShattered(false)
-      setPurgeExpanded(false)
-      setPurgeChecked(new Set(purgeableCandidates.map(e => e.id)))
-    }
+    if (purgeableCandidates.length >= 5) setMindfulPurge(purgeableCandidates)
+
+    // Party "Purge Party" — AI-flagged deletable emails whose reason names
+    // expired promos, past events, or deals (dead hype, not just any deletable).
+    const EXPIRED_HYPE = /promo|deal|sale|event|expired|discount|offer/i
+    const partyCandidates = categorized.filter(e =>
+      e.deletable &&
+      EXPIRED_HYPE.test(e.deletableReason ?? "") &&
+      !e.todo &&
+      !e.snoozedUntil
+    )
+    if (partyCandidates.length >= 5) setPartyPurge(partyCandidates)
+
+    // Basic AF "Declutter Era" — the online-shopping paper trail.
+    const declutterCandidates = categorized.filter(e =>
+      (e.packageDelivered || e.actionFlag === "receipt") &&
+      !e.todo &&
+      !e.snoozedUntil
+    )
+    if (declutterCandidates.length >= 5) setDeclutterEra(declutterCandidates)
 
     const cache: InboxCache = {
       account: activeAccountConfig.email,
@@ -1297,11 +1312,11 @@ export default function Dashboard() {
     setRoast(null)
   }
 
-  async function handleMindfulPurge(idsToDelete?: Set<string>) {
-    const toDelete = idsToDelete
-      ? mindfulPurge.filter(e => idsToDelete.has(e.id))
-      : [...mindfulPurge]
-    setPurgeShattered(true)
+  // Shared release handler for all 3 theme-unique purges (Mindful Purge /
+  // Purge Party / Declutter Era) — same batch delete + undo, different pool.
+  async function handleBulkPurge(pool: Email[], selectedIds: Set<string>, label: string) {
+    const toDelete = pool.filter(e => selectedIds.has(e.id))
+    if (toDelete.length === 0) return
     const ids = toDelete.map(e => e.id)
     try {
       await fetch("/api/gmail/batch", {
@@ -1317,7 +1332,7 @@ export default function Dashboard() {
       type: "delete",
       emailId: ids[0] ?? "",
       emailSubject: toDelete.length === 1 ? toDelete[0].subject : `${toDelete.length} emails`,
-      detail: "Mindful Purge",
+      detail: label,
       timestamp: Date.now(),
       undoFn: async () => {
         await fetch("/api/gmail/batch", {
@@ -1337,10 +1352,6 @@ export default function Dashboard() {
       message: `${toDelete.length} email${toDelete.length !== 1 ? "s" : ""} deleted`,
       undoFn: () => handleUndo(entry.id),
     })
-    setTimeout(() => {
-      setMindfulPurge([])
-      setPurgeDismissed(true)
-    }, 600)
   }
 
   // ── Onboarding Wizard ────────────────────────────────────────────────────────
@@ -2040,132 +2051,38 @@ export default function Dashboard() {
             )}
 
             {/* ── Mindful Purge (zen only) ── */}
-            {appState === "ready" && mode === "zen" && mindfulPurge.length >= 5 && !purgeDismissed && (
-              <div className="mb-4 overflow-hidden" style={{
-                  background: "rgba(200,150,12,0.05)",
-                  border: "1px solid rgba(200,150,12,0.25)",
-                  borderRadius: 14,
-                  transition: "opacity 0.4s ease",
-                  opacity: purgeShattered ? 0 : 1,
-                }}>
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 px-4 py-3">
-                    <div className="flex items-start gap-3 w-full sm:w-auto sm:flex-1 sm:min-w-0">
-                      <span style={{ fontSize: "1.4rem", lineHeight: 1, flexShrink: 0 }}>🍂</span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#8B6914" }}>
-                          {mindfulPurge.length} old newsletter{mindfulPurge.length !== 1 ? "s" : ""} &amp; promotions
-                        </div>
-                        <div style={{ fontSize: "0.74rem", color: "rgba(26,10,53,0.50)", marginTop: 1 }}>
-                          These haven&apos;t needed your attention in 7+ days. Review and release what no longer serves.
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-                      <button
-                        onClick={() => setPurgeExpanded(v => !v)}
-                        style={{
-                          flexShrink: 0,
-                          padding: "4px 12px", borderRadius: 6,
-                          background: "rgba(200,150,12,0.10)",
-                          border: "1px solid rgba(200,150,12,0.30)",
-                          color: "#8B6914", fontSize: "0.78rem", fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {purgeExpanded ? "▲ Hide" : "▼ Review"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (purgeChecked.size === 0) return
-                          handleMindfulPurge(purgeChecked)
-                        }}
-                        disabled={purgeChecked.size === 0 || purgeShattered}
-                        style={{
-                          flexShrink: 0,
-                          padding: "4px 14px", borderRadius: 6,
-                          background: purgeChecked.size === 0 ? "rgba(200,150,12,0.15)" : "#C8960C",
-                          color: purgeChecked.size === 0 ? "rgba(139,105,20,0.45)" : "#fff",
-                          fontSize: "0.78rem", fontWeight: 700,
-                          border: "none", cursor: purgeChecked.size === 0 ? "not-allowed" : "pointer",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        Release {purgeChecked.size > 0 ? `${purgeChecked.size} ` : ""}selected
-                      </button>
-                      <button
-                        onClick={() => setPurgeDismissed(true)}
-                        style={{
-                          flexShrink: 0,
-                          background: "none", border: "none", cursor: "pointer",
-                          color: "rgba(26,10,53,0.30)", fontSize: "0.76rem", padding: "4px 6px",
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-
-                  {purgeExpanded && (
-                    <div style={{ borderTop: "1px solid rgba(200,150,12,0.18)" }}>
-                      {/* Select all / deselect all row */}
-                      <div className="flex items-center gap-2 px-4 py-1.5" style={{ borderBottom: "1px solid rgba(200,150,12,0.10)" }}>
-                        <button
-                          onClick={() => {
-                            if (purgeChecked.size === mindfulPurge.length) {
-                              setPurgeChecked(new Set())
-                            } else {
-                              setPurgeChecked(new Set(mindfulPurge.map(e => e.id)))
-                            }
-                          }}
-                          style={{
-                            fontSize: "0.72rem", color: "#8B6914", fontWeight: 600,
-                            background: "none", border: "none", cursor: "pointer", padding: 0,
-                          }}
-                        >
-                          {purgeChecked.size === mindfulPurge.length ? "Deselect all" : "Select all"}
-                        </button>
-                        <span style={{ fontSize: "0.70rem", color: "rgba(26,10,53,0.35)" }}>
-                          · {purgeChecked.size} of {mindfulPurge.length} selected
-                        </span>
-                      </div>
-
-                      <div className="max-h-64 overflow-y-auto divide-y" style={{ borderColor: "rgba(200,150,12,0.08)" }}>
-                        {mindfulPurge.map(email => (
-                          <div
-                            key={email.id}
-                            className="flex items-center gap-3 px-4 py-2"
-                            style={{ borderColor: "rgba(200,150,12,0.08)" }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={purgeChecked.has(email.id)}
-                              onChange={ev => {
-                                setPurgeChecked(prev => {
-                                  const next = new Set(prev)
-                                  if (ev.target.checked) next.add(email.id)
-                                  else next.delete(email.id)
-                                  return next
-                                })
-                              }}
-                              style={{ accentColor: "#C8960C", flexShrink: 0, width: 15, height: 15 }}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div style={{
-                                fontSize: "0.82rem", fontWeight: 500, color: "rgba(26,10,53,0.78)",
-                                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                              }}>
-                                {email.subject}
-                              </div>
-                              <div style={{ fontSize: "0.70rem", color: "rgba(26,10,53,0.42)", marginTop: 1 }}>
-                                {(email.from?.split("<")[0] ?? email.from ?? "").trim()} · {email.timeAgo}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-              </div>
+            {appState === "ready" && mode === "zen" && (
+              <ThemedPurge
+                mode={mode}
+                icon="🍂"
+                title={count => `${count} old newsletter${count !== 1 ? "s" : ""} & promotions`}
+                description="These haven't needed your attention in 7+ days. Review and release what no longer serves."
+                candidates={mindfulPurge}
+                releaseLabel="Release"
+                onRelease={ids => handleBulkPurge(mindfulPurge, ids, "Mindful Purge")}
+              />
+            )}
+            {appState === "ready" && mode === "party" && (
+              <ThemedPurge
+                mode={mode}
+                icon="🎊"
+                title={count => `${count} dead promo${count !== 1 ? "s" : ""} & expired hype`}
+                description="The party's over for these — expired deals, past events, last-chance offers whose chance has passed."
+                candidates={partyPurge}
+                releaseLabel="Clear"
+                onRelease={ids => handleBulkPurge(partyPurge, ids, "Purge Party")}
+              />
+            )}
+            {appState === "ready" && mode === "wabi-sabi" && (
+              <ThemedPurge
+                mode={mode}
+                icon="📦"
+                title={count => `${count} item${count !== 1 ? "s" : ""} in your shopping trail`}
+                description="the package ARRIVED bestie — we don't need the tracking saga anymore"
+                candidates={declutterEra}
+                releaseLabel="Delete"
+                onRelease={ids => handleBulkPurge(declutterEra, ids, "Declutter Era")}
+              />
             )}
 
             {/* ── Category grid ── */}
