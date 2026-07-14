@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { categorizeInbox } from "@/lib/claude"
 import type { CategorizeRequest } from "@/lib/types"
 
 export const maxDuration = 120
 
 export async function POST(request: Request) {
-  const session = await auth()
-  if (!session?.access_token && !session?.work_access_token) {
+  const token = await getServerToken()
+  if (!token?.access_token && !token?.work_access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -22,6 +22,9 @@ export async function POST(request: Request) {
       aiPastEventDelete?: boolean; aiSecurityAlertCleanup?: boolean; aiSocialNotificationCleanup?: boolean
       aiExpiredPromoCleanup?: boolean; aiOldNewsletterCleanup?: boolean; aiLargeAttachmentCleanup?: boolean
     } = await request.json()
+    if (Array.isArray(emails) && emails.length > 100) {
+      return NextResponse.json({ error: "Too many emails — max 100 per request" }, { status: 400 })
+    }
     const result = await categorizeInbox(emails, categories, account, {
       customContext, systemContext, aboutYouContext, dreamInboxContext,
       aiPastEventDelete, aiSecurityAlertCleanup, aiSocialNotificationCleanup,
@@ -30,6 +33,7 @@ export async function POST(request: Request) {
     })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Categorization failed" }, { status: 500 })
+    console.error("[ai/categorize]", err)
+    return NextResponse.json({ error: "Categorization failed" }, { status: 500 })
   }
 }

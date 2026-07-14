@@ -10,7 +10,7 @@ import { cookies, headers } from "next/headers"
  * "second account" sign-in (and to avoid clobbering the first account's
  * tokens), we decode the still-present old session cookie ourselves.
  */
-async function getPreviousToken(): Promise<JWT | null> {
+async function readTokenFromCookies(): Promise<JWT | null> {
   // Match the secret resolution next-auth itself uses (lib/env.ts):
   // AUTH_SECRET takes precedence over NEXTAUTH_SECRET.
   const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
@@ -28,6 +28,20 @@ async function getPreviousToken(): Promise<JWT | null> {
   } catch {
     return null
   }
+}
+
+async function getPreviousToken(): Promise<JWT | null> {
+  return readTokenFromCookies()
+}
+
+/**
+ * Server-only access to the raw JWT (with Google access/refresh tokens).
+ * Unlike `auth()`, this does NOT go through the `session` callback, so it's
+ * safe to use in API routes without ever leaking tokens to the browser —
+ * the `session` callback strips them before the client-facing session is built.
+ */
+export async function getServerToken(): Promise<JWT | null> {
+  return readTokenFromCookies()
 }
 
 async function refreshGoogleAccess(refreshToken: string) {
@@ -169,17 +183,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async session({ session, token }) {
+      // Google access/refresh tokens are intentionally NOT included here —
+      // this session object is sent to the browser. Server code that needs
+      // the real tokens should call getServerToken() instead.
       return {
         ...session,
         user: { ...session.user, id: token.userId as string ?? token.sub },
-        access_token: token.access_token as string,
-        refresh_token: token.refresh_token as string,
-        expires_at: token.expires_at as number,
         error: token.error as "RefreshTokenError" | undefined,
         work_email: token.work_email as string | undefined,
-        work_access_token: token.work_access_token as string | undefined,
-        work_refresh_token: token.work_refresh_token as string | undefined,
-        work_expires_at: token.work_expires_at as number | undefined,
         work_error: token.work_error as "RefreshTokenError" | undefined,
         workAccountLinked: !!token.work_refresh_token,
       }

@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import Anthropic from "@anthropic-ai/sdk"
 import { getDharmaTeacher, getDharmaTeachers, getDailyQuoteIndex } from "@/lib/dashboard-data"
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function GET(request: Request) {
-  const session = await auth()
-  if (!session?.access_token) {
+  const token = await getServerToken()
+  if (!token?.access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

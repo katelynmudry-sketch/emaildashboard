@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { fetchInboxMessages, fetchExistingLabels } from "@/lib/gmail"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
 const ALLOWED_MAX = new Set([30, 50, 100])
 
 export async function GET(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const url = new URL(request.url)
   const accountId = parseAccountId(url.searchParams.get("account"))
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   try {
@@ -31,6 +31,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ emails, totalUnread, maxResults, todoLabelId })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to fetch messages" }, { status: 500 })
+    console.error("[gmail/messages]", err)
+    return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
   }
 }

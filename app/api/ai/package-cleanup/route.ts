@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { searchArchivedMessages } from "@/lib/gmail"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 import type { AccountId } from "@/lib/types"
@@ -8,16 +8,15 @@ import type { AccountId } from "@/lib/types"
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const { deliveredEmailId, orderSender, account }: { deliveredEmailId: string; orderSender: string; account?: AccountId } =
     await request.json()
   const accountId = parseAccountId(account)
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   try {
     const candidates = await searchArchivedMessages(authz.accessToken, orderSender)
-    console.log("[package-cleanup] orderSender:", orderSender, "candidates found:", candidates.length, candidates.map(c => c.subject))
     if (candidates.length === 0) {
       return NextResponse.json({ emailIds: [] })
     }
@@ -56,6 +55,7 @@ Return a JSON array of IDs only, e.g. ["id1","id2"]. No explanation.`
 
     return NextResponse.json({ emailIds, emails })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Cleanup failed" }, { status: 500 })
+    console.error("[ai/package-cleanup]", err)
+    return NextResponse.json({ error: "Cleanup failed" }, { status: 500 })
   }
 }

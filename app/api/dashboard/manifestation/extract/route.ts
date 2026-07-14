@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import Anthropic from "@anthropic-ai/sdk"
 import { saveManifestationContent } from "@/lib/dashboard-data"
 import type { ManifestationContent } from "@/lib/types"
@@ -7,8 +7,8 @@ import type { ManifestationContent } from "@/lib/types"
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: Request) {
-  const session = await auth()
-  if (!session?.access_token) {
+  const token = await getServerToken()
+  if (!token?.access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import Anthropic from "@anthropic-ai/sdk"
 import type { PartyMode } from "@/lib/party-mode"
 
@@ -38,8 +38,8 @@ const FALLBACKS: Record<PartyMode, string> = {
 }
 
 export async function POST(request: Request) {
-  const session = await auth()
-  if (!session?.access_token && !session?.work_access_token) {
+  const token = await getServerToken()
+  if (!token?.access_token && !token?.work_access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -68,6 +68,7 @@ export async function POST(request: Request) {
       : FALLBACKS[mode] ?? FALLBACKS.party
     return NextResponse.json({ roast })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Roast failed" }, { status: 500 })
+    console.error("[ai/roast]", err)
+    return NextResponse.json({ error: "Roast failed" }, { status: 500 })
   }
 }

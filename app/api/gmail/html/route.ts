@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { getGmailService, extractHtmlBody, fetchInlineImages, replaceCidImages } from "@/lib/gmail"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
 export async function GET(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const { searchParams } = new URL(request.url)
   const accountId = parseAccountId(searchParams.get("account"))
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   const id = searchParams.get("id")

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { auth, getServerToken } from "@/lib/auth"
 import { sendEmail } from "@/lib/gmail"
 
 const RECIPIENT = "katelynmudry@gmail.com"
@@ -8,7 +8,8 @@ export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const accessToken = session.access_token
+  const token = await getServerToken()
+  const accessToken = token?.access_token as string | undefined
   if (!accessToken) return NextResponse.json({ error: "No Gmail access" }, { status: 401 })
 
   const { message } = await request.json()
@@ -25,7 +26,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error("[feedback] Error sending:", err)
-    const msg = err instanceof Error ? err.message : "Send failed"
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: "Send failed" }, { status: 500 })
   }
 }

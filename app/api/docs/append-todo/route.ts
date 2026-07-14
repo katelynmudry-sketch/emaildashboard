@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { google } from "googleapis"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
@@ -13,8 +13,8 @@ interface AppendTodoBody {
 }
 
 export async function POST(request: Request) {
-  const session = await auth()
-  if (!session) {
+  const token = await getServerToken()
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const accountId = parseAccountId(body.account)
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   try {
@@ -90,6 +90,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error("[docs/append-todo]", err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Append failed" }, { status: 500 })
+    return NextResponse.json({ error: "Append failed" }, { status: 500 })
   }
 }

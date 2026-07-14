@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { google } from "googleapis"
 import type { CalendarEvent } from "@/lib/types"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
@@ -12,10 +12,10 @@ function toHHMM(isoString: string): string {
 }
 
 export async function GET(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const url = new URL(request.url)
   const accountId = parseAccountId(url.searchParams.get("account"))
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   try {

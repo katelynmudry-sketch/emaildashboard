@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { ensureLabel } from "@/lib/gmail"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 import type { AccountId } from "@/lib/types"
 
 export async function POST(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const { name, account }: { name: string; account?: AccountId } = await request.json()
   const accountId = parseAccountId(account)
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   try {
     const id = await ensureLabel(authz.accessToken, name)
     return NextResponse.json({ id })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Label creation failed" }, { status: 500 })
+    console.error("[gmail/ensure-label]", err)
+    return NextResponse.json({ error: "Label creation failed" }, { status: 500 })
   }
 }

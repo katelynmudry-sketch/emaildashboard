@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 import { fetchInboxMessages, getGmailService } from "@/lib/gmail"
 
@@ -11,11 +11,11 @@ function sanitizeUtf8(str: string): string {
 }
 
 export async function POST(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const { account, target } = await request.json().catch(() => ({ account: undefined, target: undefined }))
   const accountId = parseAccountId(account)
   const wantsDraftTone = target === "draftTone"
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   try {
@@ -81,6 +81,7 @@ Return ONLY the paragraph text. No markdown, no headers, no quotes, no explanati
     const text = response.content[0].type === "text" ? response.content[0].text.trim() : ""
     return wantsDraftTone ? NextResponse.json({ draftTone: text }) : NextResponse.json({ aboutYou: text })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "About You generation failed" }, { status: 500 })
+    console.error("[ai/about-you]", err)
+    return NextResponse.json({ error: "About You generation failed" }, { status: 500 })
   }
 }

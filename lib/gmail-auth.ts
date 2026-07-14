@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import type { Session } from "next-auth"
+import type { JWT } from "next-auth/jwt"
 import type { AccountId } from "./types"
 
 export function parseAccountId(value: string | null | undefined): AccountId {
@@ -11,13 +11,14 @@ export type GmailAuthResult =
   | { success: true; accessToken: string }
   | { success: false; response: NextResponse }
 
-export function requireGmailAccess(session: Session | null, accountId: AccountId): GmailAuthResult {
-  if (!session) {
+/** `token` comes from getServerToken() — never from the client-facing Session. */
+export function requireGmailAccess(token: JWT | null, accountId: AccountId): GmailAuthResult {
+  if (!token) {
     return { success: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
 
   if (accountId === "work") {
-    if (!session.work_refresh_token) {
+    if (!token.work_refresh_token) {
       return {
         success: false,
         response: NextResponse.json(
@@ -26,20 +27,20 @@ export function requireGmailAccess(session: Session | null, accountId: AccountId
         ),
       }
     }
-    if (session.work_error === "RefreshTokenError") {
+    if (token.work_error === "RefreshTokenError") {
       return { success: false, response: NextResponse.json({ error: "TokenExpired" }, { status: 401 }) }
     }
-    if (!session.work_access_token) {
+    if (!token.work_access_token) {
       return { success: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
     }
-    return { success: true, accessToken: session.work_access_token }
+    return { success: true, accessToken: token.work_access_token }
   }
 
-  if (session.error === "RefreshTokenError") {
+  if (token.error === "RefreshTokenError") {
     return { success: false, response: NextResponse.json({ error: "TokenExpired" }, { status: 401 }) }
   }
-  if (!session.access_token) {
+  if (!token.access_token) {
     return { success: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
-  return { success: true, accessToken: session.access_token }
+  return { success: true, accessToken: token.access_token as string }
 }

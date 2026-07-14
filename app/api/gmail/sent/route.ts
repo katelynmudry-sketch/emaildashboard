@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { getGmailService } from "@/lib/gmail"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
@@ -12,10 +12,10 @@ interface SentEmail {
 }
 
 export async function GET(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const url = new URL(request.url)
   const accountId = parseAccountId(url.searchParams.get("account"))
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   try {
@@ -44,8 +44,9 @@ export async function GET(request: Request) {
     }))
     return NextResponse.json({ emails })
   } catch (err) {
+    console.error("[gmail/sent]", err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to fetch sent" },
+      { error: "Failed to fetch sent" },
       { status: 500 }
     )
   }

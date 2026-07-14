@@ -1,12 +1,12 @@
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { getGmailService } from "@/lib/gmail"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
 export async function GET(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const { searchParams } = new URL(request.url)
   const accountId = parseAccountId(searchParams.get("account"))
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   const messageId = searchParams.get("messageId")
@@ -48,8 +48,9 @@ export async function GET(request: Request) {
       },
     })
   } catch (err) {
+    console.error("[gmail/attachment]", err)
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Failed to fetch attachment" }),
+      JSON.stringify({ error: "Failed to fetch attachment" }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     )
   }

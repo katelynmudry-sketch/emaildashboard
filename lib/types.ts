@@ -4,15 +4,12 @@ import { loadSettings } from "./settings-storage"
 // ── next-auth session augmentation ──────────────────────────────────────────
 
 declare module "next-auth" {
+  // Note: Google access/refresh tokens are deliberately NOT part of this
+  // client-facing Session type — they never leave the server. Use
+  // getServerToken() from lib/auth.ts to read them in API routes.
   interface Session extends DefaultSession {
-    access_token?: string
-    refresh_token?: string
-    expires_at?: number
     error?: "RefreshTokenError"
     work_email?: string
-    work_access_token?: string
-    work_refresh_token?: string
-    work_expires_at?: number
     work_error?: "RefreshTokenError"
     /** True when the configured work inbox has completed at least one Google sign-in with tokens stored. */
     workAccountLinked?: boolean

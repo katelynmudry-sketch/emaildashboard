@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import Anthropic from "@anthropic-ai/sdk"
 import { extractJson } from "@/lib/claude-utils"
 
@@ -27,8 +27,8 @@ interface EditContextResponse {
 }
 
 export async function POST(request: Request) {
-  const session = await auth()
-  if (!session?.access_token && !session?.work_access_token) {
+  const token = await getServerToken()
+  if (!token?.access_token && !token?.work_access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -108,7 +108,7 @@ Rules:
   } catch (err) {
     console.error("[edit-context] error:", err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to generate suggestion" },
+      { error: "Failed to generate suggestion" },
       { status: 500 }
     )
   }

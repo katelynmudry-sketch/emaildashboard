@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 import type { UnsubscribeRequest } from "@/lib/types"
 
 export async function POST(request: Request) {
-  const session = await auth()
+  const token = await getServerToken()
   const { unsubscribeUrl, account }: UnsubscribeRequest = await request.json()
   const accountId = parseAccountId(account)
-  const authz = requireGmailAccess(session, accountId)
+  const authz = requireGmailAccess(token, accountId)
   if (!authz.success) return authz.response
 
   try {
@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: true })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Unsubscribe failed" }, { status: 500 })
+    console.error("[gmail/unsubscribe]", err)
+    return NextResponse.json({ error: "Unsubscribe failed" }, { status: 500 })
   }
 }

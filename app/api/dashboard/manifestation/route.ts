@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getServerToken } from "@/lib/auth"
 import { getManifestationContent, saveManifestationContent } from "@/lib/dashboard-data"
 import type { ManifestationContent } from "@/lib/types"
 
@@ -35,8 +35,8 @@ function moonEmoji(phase: string): string {
 }
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.access_token) {
+  const token = await getServerToken()
+  if (!token?.access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const [content, moonPhase] = await Promise.all([
@@ -48,8 +48,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const session = await auth()
-  if (!session?.access_token) {
+  const token = await getServerToken()
+  if (!token?.access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const body = await request.json() as ManifestationContent
