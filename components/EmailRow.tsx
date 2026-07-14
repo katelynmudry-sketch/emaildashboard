@@ -22,6 +22,8 @@ interface Props {
   onReply?: () => void
   onForward?: () => void
   onToggleTodo?: () => void
+  onTodo?: () => void
+  onToggleBriefing?: () => void
   onSnooze?: () => void
   onUnsubscribe?: () => void
   showUnreadOnly?: boolean
@@ -55,7 +57,7 @@ function actionBtn(bg?: string, color?: string): React.CSSProperties {
 export default function EmailRow({
   email, selected, isSelected, selectionMode, mode = "party",
   onClick, onDoubleClick, onMarkRead, onDelete,
-  onReply, onForward, onToggleTodo, onSnooze, onUnsubscribe,
+  onReply, onForward, onToggleTodo, onTodo, onToggleBriefing, onSnooze, onUnsubscribe,
   showUnreadOnly,
 }: Props) {
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -76,9 +78,26 @@ export default function EmailRow({
   if (onReply) actions.push({ key: "reply", title: "Reply", icon: "↩", onClick: onReply })
   if (onForward) actions.push({ key: "forward", title: "Forward", icon: "↪", onClick: onForward })
   if (onToggleTodo) actions.push({
-    key: "todo", title: email.todo ? "Remove TODO" : "Add TODO", icon: "★", onClick: onToggleTodo,
+    key: "star", title: email.todo ? "Unstar" : "Star", icon: "★", onClick: onToggleTodo,
     bg: email.todo ? "rgba(255,208,0,0.25)" : undefined,
     color: email.todo ? "#92660A" : undefined,
+  })
+  if (onTodo) actions.push({
+    key: "todo", title: "TODO", icon: "📋", onClick: onTodo,
+  })
+  if (onToggleBriefing) actions.push({
+    key: "briefing",
+    title: email.briefingOverride === "include" ? "Remove from Briefing"
+         : email.briefingOverride === "exclude" ? "Clear Briefing"
+         : "Add to Briefing",
+    icon: "📋",
+    onClick: onToggleBriefing,
+    bg: email.briefingOverride === "include" ? "rgba(0,196,167,0.18)"
+      : email.briefingOverride === "exclude" ? "rgba(255,31,110,0.10)"
+      : undefined,
+    color: email.briefingOverride === "include" ? "#00796B"
+         : email.briefingOverride === "exclude" ? "#D4005A"
+         : undefined,
   })
   if (onSnooze) actions.push({ key: "snooze", title: "Snooze", icon: "💤", onClick: onSnooze })
   if (onUnsubscribe && email.unsubscribeOneClick && email.unsubscribeUrl) {

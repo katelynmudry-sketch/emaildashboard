@@ -80,6 +80,7 @@ export interface Email {
   replied?: boolean
   forwarded?: boolean
   todo?: boolean         // manually pinned by user to top of briefing
+  briefingOverride?: "include" | "exclude"  // manual override for Daily Briefing inclusion
   snoozedUntil?: string  // ISO date string — hidden until this date
   // AI-added fields
   category: string
@@ -125,6 +126,7 @@ export interface CategorizeRequest {
   emails: RawEmail[]
   categories: Category[]
   account: string
+  expandedSummariesForAll?: boolean
 }
 
 export interface ProposeRequest {

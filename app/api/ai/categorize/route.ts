@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       emails, categories, account, customContext, systemContext, aboutYouContext, dreamInboxContext,
       aiPastEventDelete, aiSecurityAlertCleanup, aiSocialNotificationCleanup,
       aiExpiredPromoCleanup, aiOldNewsletterCleanup, aiLargeAttachmentCleanup,
+      expandedSummariesForAll,
     }: CategorizeRequest & {
       customContext?: string; systemContext?: string; aboutYouContext?: string; dreamInboxContext?: string
       aiPastEventDelete?: boolean; aiSecurityAlertCleanup?: boolean; aiSocialNotificationCleanup?: boolean
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
       customContext, systemContext, aboutYouContext, dreamInboxContext,
       aiPastEventDelete, aiSecurityAlertCleanup, aiSocialNotificationCleanup,
       aiExpiredPromoCleanup, aiOldNewsletterCleanup, aiLargeAttachmentCleanup,
+      expandedSummariesForAll,
     })
     return NextResponse.json(result)
   } catch (err) {

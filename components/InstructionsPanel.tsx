@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from "react"
 import { loadSettings, seedIfEmpty } from "@/lib/settings-storage"
+import type { PartyMode } from "@/lib/party-mode"
 import InboxDisplaySettings from "@/components/settings/InboxDisplaySettings"
+import SummarySettings from "@/components/settings/SummarySettings"
 import AiRulesSettings from "@/components/settings/AiRulesSettings"
 import AboutYouSettings from "@/components/settings/AboutYouSettings"
 import ConnectorsSettings from "@/components/settings/ConnectorsSettings"
 import AdvancedSettings from "@/components/settings/AdvancedSettings"
 import AccountsSettings from "@/components/settings/AccountsSettings"
+import HelpGuide from "@/components/HelpGuide"
 
 interface ContextData {
   systemContext: string
@@ -18,9 +21,10 @@ interface ContextData {
 interface Props {
   open: boolean
   onClose: () => void
+  mode: PartyMode
 }
 
-type Tab = "display" | "about" | "connectors" | "accounts" | "advanced"
+type Tab = "display" | "about" | "connectors" | "accounts" | "advanced" | "help"
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "display",    label: "📥 Inbox Display" },
@@ -28,9 +32,10 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "connectors", label: "🔌 Connectors" },
   { id: "accounts",   label: "🔗 Accounts" },
   { id: "advanced",   label: "⚙️ Advanced" },
+  { id: "help",       label: "📖 How It Works" },
 ]
 
-export default function InstructionsPanel({ open, onClose }: Props) {
+export default function InstructionsPanel({ open, onClose, mode }: Props) {
   const [data, setData] = useState<ContextData | null>(null)
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<Tab>("display")
@@ -147,7 +152,14 @@ export default function InstructionsPanel({ open, onClose }: Props) {
             </div>
           )}
 
-          {!loading && tab === "display" && <InboxDisplaySettings />}
+          {!loading && tab === "display" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              <InboxDisplaySettings />
+              <div style={{ borderTop: "1px solid rgba(26,10,53,0.08)", paddingTop: 18 }}>
+                <SummarySettings />
+              </div>
+            </div>
+          )}
           {!loading && tab === "about" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               <AboutYouSettings />
@@ -159,6 +171,7 @@ export default function InstructionsPanel({ open, onClose }: Props) {
           {!loading && tab === "connectors" && <ConnectorsSettings />}
           {!loading && tab === "accounts" && <AccountsSettings />}
           {!loading && tab === "advanced" && <AdvancedSettings data={data} />}
+          {!loading && tab === "help" && <HelpGuide mode={mode} />}
 
         </div>
       </div>
