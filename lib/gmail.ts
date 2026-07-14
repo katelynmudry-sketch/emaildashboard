@@ -556,6 +556,29 @@ export async function markAsRead(accessToken: string, messageId: string): Promis
   })
 }
 
+// ── Batch label modify (bulk archive/trash/read/undo — one round trip) ───────
+// Deliberately uses batchModify + addLabelIds:["TRASH"] instead of
+// batchDelete: batchDelete is a PERMANENT, irreversible delete, which would
+// break undo. Adding the TRASH label is equivalent to trash() but reversible
+// (removeLabelIds:["TRASH"], addLabelIds:["INBOX"] restores the message).
+
+export async function batchModifyMessages(
+  accessToken: string,
+  messageIds: string[],
+  labels: { addLabelIds?: string[]; removeLabelIds?: string[] },
+): Promise<void> {
+  if (messageIds.length === 0) return
+  const gmail = getGmailService(accessToken)
+  await gmail.users.messages.batchModify({
+    userId: "me",
+    requestBody: {
+      ids: messageIds,
+      addLabelIds: labels.addLabelIds,
+      removeLabelIds: labels.removeLabelIds,
+    },
+  })
+}
+
 // ── Create a draft reply ──────────────────────────────────────────────────────
 
 export async function createDraft(

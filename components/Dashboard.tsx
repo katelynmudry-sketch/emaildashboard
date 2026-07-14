@@ -28,6 +28,7 @@ import TodoNoteModal from "./TodoNoteModal"
 import ConfettiBlast from "./ConfettiBlast"
 import InstructionsPanel from "./InstructionsPanel"
 import LogDrawer from "./LogDrawer"
+import UndoToast from "./UndoToast"
 import SentDrawer from "./SentDrawer"
 import QuoteGate from "./QuoteGate"
 import ProductionNotesBand from "./ProductionNotesBand"
@@ -295,6 +296,7 @@ export default function Dashboard() {
   const [purgeExpanded, setPurgeExpanded] = useState(false)
   const [purgeChecked, setPurgeChecked] = useState<Set<string>>(new Set())
   const [lotusQuote, setLotusQuote] = useState<string | null>(null)
+  const [undoToast, setUndoToast] = useState<{ message: string; undoFn: () => Promise<void> } | null>(null)
   const [showLotusBloom, setShowLotusBloom] = useState(false)
   const [showEmailOptIn, setShowEmailOptIn] = useState(false)
 
@@ -1300,17 +1302,41 @@ export default function Dashboard() {
       ? mindfulPurge.filter(e => idsToDelete.has(e.id))
       : [...mindfulPurge]
     setPurgeShattered(true)
-    await Promise.all(
-      toDelete.map(email =>
-        fetch("/api/gmail/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messageId: email.id, account: activeAccount }),
-        }).catch(() => {})
-      )
-    )
+    const ids = toDelete.map(e => e.id)
+    try {
+      await fetch("/api/gmail/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageIds: ids, action: "trash", account: activeAccount }),
+      })
+    } catch {}
     setEmails(prev => prev.filter(e => !toDelete.some(d => d.id === e.id)))
     for (const _ of toDelete) recordAction("delete")
+
+    const entry = createEntry({
+      type: "delete",
+      emailId: ids[0] ?? "",
+      emailSubject: toDelete.length === 1 ? toDelete[0].subject : `${toDelete.length} emails`,
+      detail: "Mindful Purge",
+      timestamp: Date.now(),
+      undoFn: async () => {
+        await fetch("/api/gmail/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messageIds: ids, action: "restore", account: activeAccount }),
+        })
+        setEmails(prev => {
+          const next = [...toDelete, ...prev]
+          writeInboxCache(next, categories)
+          return next
+        })
+      },
+    })
+    setActionLog(prev => [entry, ...prev])
+    setUndoToast({
+      message: `${toDelete.length} email${toDelete.length !== 1 ? "s" : ""} deleted`,
+      undoFn: () => handleUndo(entry.id),
+    })
     setTimeout(() => {
       setMindfulPurge([])
       setPurgeDismissed(true)
@@ -2262,6 +2288,15 @@ export default function Dashboard() {
           onUndo={handleUndo}
           mode={mode}
         />
+
+        {undoToast && (
+          <UndoToast
+            mode={mode}
+            message={undoToast.message}
+            onUndo={undoToast.undoFn}
+            onDismiss={() => setUndoToast(null)}
+          />
+        )}
 
         <SentDrawer
           open={sentDrawerOpen}

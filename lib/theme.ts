@@ -46,6 +46,17 @@ export interface ThemeTokens {
   todoCardShadow: string
 
   priorityDotStyle: "outline" | "soft-fill" | "solid"
+
+  // Generic tokens for new UI (e.g. BulkActionBar) that isn't tied to a
+  // specific header element — reuses the same per-mode accent everywhere.
+  buttonPrimaryBg: string
+  buttonPrimaryText: string
+  buttonSecondaryBorder: string
+  buttonSecondaryText: string
+  cardBg: string
+  cardBorder: string
+  cardShadow: string
+  textMuted: string
 }
 
 export function getTheme(mode: PartyMode): ThemeTokens {
@@ -91,6 +102,15 @@ export function getTheme(mode: PartyMode): ThemeTokens {
       todoCardShadow: "0 4px 24px rgba(255,208,0,0.08)",
 
       priorityDotStyle: "soft-fill",
+
+      buttonPrimaryBg: "#C8960C",
+      buttonPrimaryText: "#FFF8E0",
+      buttonSecondaryBorder: "1px solid rgba(200,150,12,0.35)",
+      buttonSecondaryText: "#C8960C",
+      cardBg: "#FFFEF9",
+      cardBorder: "1px solid rgba(200,150,12,0.18)",
+      cardShadow: "0 4px 32px rgba(200,150,12,0.08)",
+      textMuted: "rgba(61,40,0,0.40)",
     }
   }
 
@@ -136,6 +156,15 @@ export function getTheme(mode: PartyMode): ThemeTokens {
       todoCardShadow: "none",
 
       priorityDotStyle: "outline",
+
+      buttonPrimaryBg: "transparent",
+      buttonPrimaryText: "#111",
+      buttonSecondaryBorder: "1.5px solid rgba(26,10,53,0.18)",
+      buttonSecondaryText: "#111",
+      cardBg: "#FFFFFF",
+      cardBorder: "1px solid rgba(17,17,17,0.13)",
+      cardShadow: "none",
+      textMuted: "rgba(26,10,53,0.35)",
     }
   }
 
@@ -181,6 +210,15 @@ export function getTheme(mode: PartyMode): ThemeTokens {
     todoCardShadow: "0 4px 24px rgba(255,208,0,0.08)",
 
     priorityDotStyle: "solid",
+
+    buttonPrimaryBg: "#FF1F6E",
+    buttonPrimaryText: "#1A0A35",
+    buttonSecondaryBorder: "1px solid rgba(0,229,196,0.40)",
+    buttonSecondaryText: "#00E5C4",
+    cardBg: "#FFFFFF",
+    cardBorder: "2px solid #1A0A35",
+    cardShadow: "5px 5px 0 #1A0A35",
+    textMuted: "rgba(26,10,53,0.35)",
   }
 }
 
