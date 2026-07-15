@@ -3,7 +3,9 @@
 # Email Party — Project Intelligence
 
 ## What this app is
-AI-powered Gmail triage dashboard. Fetches inbox, has Claude categorize emails by priority + category, presents them in a visual sorting interface. Features: karma/XP system, morning dashboard with widgets, Daily Briefing, category blocks, compose/reply, snooze, todo flags.
+AI-powered Gmail triage dashboard. Fetches inbox, has Claude categorize emails by priority + category, presents them in a visual sorting interface. Features: bulk-cleanup suite (themed purges + Deep Clean sweep), morning dashboard with widgets, Daily Briefing, category blocks, compose/reply, snooze, todo flags.
+
+Note: the karma/XP/plant-growth gamification system was removed (2026-07-14) — `lib/stats.ts` still tracks action history/streaks for internal use, but there's no XP display, karma pill, or inbox-zero confetti/lotus-bloom celebration in the UI. `components/PlantHeader.tsx` is unused dead code kept on disk in case gamification is revisited later.
 
 Stack: Next.js (App Router) · TypeScript · Tailwind (utilities only) · NextAuth · Claude API
 

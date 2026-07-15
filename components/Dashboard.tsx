@@ -5,7 +5,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/types"
 import { getAccounts } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
-import { recordAction, getKarmaLevel } from "@/lib/stats"
+import { recordAction } from "@/lib/stats"
 import { getPartyMode, setPartyMode, hasSeenGate, hasAnsweredEmailOptIn, getCopy, type PartyMode } from "@/lib/party-mode"
 import { getTheme } from "@/lib/theme"
 import { addPrioritySender, getPrioritySenders, detectPrioritySenderCandidates, type PrioritySenderCandidate } from "@/lib/priority-senders"
@@ -20,12 +20,10 @@ import CategoryBlock from "./CategoryBlock"
 import CategoryProposal from "./CategoryProposal"
 import EmailModal from "./EmailModal"
 import EmailRow from "./EmailRow"
-import PlantHeader from "./PlantHeader"
 import DashboardPanel from "./dashboard/DashboardPanel"
 import ComposeModal from "./ComposeModal"
 import SnoozeModal from "./SnoozeModal"
 import TodoNoteModal from "./TodoNoteModal"
-import ConfettiBlast from "./ConfettiBlast"
 import InstructionsPanel from "./InstructionsPanel"
 import LogDrawer from "./LogDrawer"
 import UndoToast from "./UndoToast"
@@ -134,92 +132,6 @@ function TallyTicket({ loaded, total, mode }: { loaded: number; total: number; m
   )
 }
 
-// ── Karma pill sub-component ─────────────────────────────────────────────────
-// KarmaPill — preserved but not rendered in new header
-
-function KarmaPill({
-  emoji, label, xp, nextThreshold, toast, mode,
-}: {
-  emoji: string; label: string; xp: number; nextThreshold: number
-  toast: string | null; mode: PartyMode
-}) {
-  const prevThreshold = (() => {
-    const thresholds = [0, 25, 75, 150, 300, 9999]
-    const idx = thresholds.findIndex(t => t === nextThreshold)
-    return idx > 0 ? thresholds[idx - 1] : 0
-  })()
-  const pct = nextThreshold > prevThreshold
-    ? Math.min(100, ((xp - prevThreshold) / (nextThreshold - prevThreshold)) * 100)
-    : 100
-
-  const isParty = mode === "party"
-  const isZen = mode === "zen"
-  const isBasicAF = mode === "wabi-sabi"
-  const xpColor = isParty ? "#FFD000" : isZen ? "#C8960C" : isBasicAF ? "#111" : "#FFD000"
-  const labelColor = isParty ? "#FF6B1A" : isZen ? "rgba(200,150,12,0.65)" : isBasicAF ? "rgba(17,17,17,0.55)" : "#FF6B1A"
-  const barFill = isParty
-    ? "linear-gradient(90deg, #FFD000, #FF6B1A)"
-    : isZen
-      ? "linear-gradient(90deg, #C8960C, #B07B0A)"
-      : isBasicAF
-        ? "linear-gradient(90deg, #111, rgba(17,17,17,0.50))"
-        : "linear-gradient(90deg, #FFD000, #FF6B1A)"
-  const pillBg = isParty
-    ? "linear-gradient(135deg, rgba(255,208,0,0.14), rgba(139,63,216,0.10))"
-    : isZen
-      ? "rgba(200,150,12,0.07)"
-      : isBasicAF
-        ? "transparent"
-        : "rgba(200,150,12,0.07)"
-  const pillBorder = isParty
-    ? "1px solid rgba(255,208,0,0.35)"
-    : isZen
-      ? "1px solid rgba(200,150,12,0.22)"
-      : isBasicAF
-        ? "1.5px solid rgba(17,17,17,0.22)"
-        : "1px solid rgba(255,208,0,0.35)"
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", position: "relative" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "6px 14px", borderRadius: 999,
-        background: pillBg, border: pillBorder, position: "relative",
-      }}>
-        <span style={{ fontSize: "1.3rem", lineHeight: 1, filter: isParty ? "drop-shadow(0 0 5px rgba(255,208,0,0.5))" : "none" }}>
-          {emoji}
-        </span>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-            <span style={{ fontSize: "1.1rem", fontWeight: 800, lineHeight: 1, color: xpColor, fontFamily: "var(--font-display)" }}>
-              {xp}
-            </span>
-            <span style={{ fontSize: "0.62rem", textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(26,10,53,0.40)" }}>
-              Karma
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: "0.65rem", color: labelColor, fontWeight: 700 }}>{label}</span>
-            <div style={{ width: 44, height: 3, background: "rgba(26,10,53,0.10)", borderRadius: 99, overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: barFill, transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)" }} />
-            </div>
-          </div>
-        </div>
-        {toast && isParty && (
-          <div className="karma-toast-anim" style={{
-            position: "absolute", top: -26, left: "50%", transform: "translateX(-50%)",
-            background: "#FFD000", color: "#1A0A35",
-            fontSize: "0.75rem", fontWeight: 800, padding: "2px 8px", borderRadius: 6,
-            whiteSpace: "nowrap", pointerEvents: "none",
-          }}>
-            {toast} Karma
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ── Main dashboard component ─────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -266,9 +178,7 @@ export default function Dashboard() {
   }, [actionLog])
   const [roast, setRoast] = useState<string | null>(null)
   const [roasting, setRoasting] = useState(false)
-  const [confetti, setConfetti] = useState(false)
   const [todoLabelId, setTodoLabelId] = useState<string | null>(null)
-  const prevEmailCount = useRef<number | null>(null)
 
   // ── Priority category pin ─────────────────────────────────────────────────
   const [priorityCategory, setPriorityCategory] = useState<string | null>(() => {
@@ -287,18 +197,11 @@ export default function Dashboard() {
   const [mode, setMode] = useState<PartyMode>("party")
   const [showGate, setShowGate] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [karmaEmoji, setKarmaEmoji] = useState("🌱")
-  const [karmaLabel, setKarmaLabel] = useState("Seed")
-  const [karmaXp, setKarmaXp] = useState(0)
-  const [karmaNextThreshold, setKarmaNextThreshold] = useState(25)
-  const [karmaToast, setKarmaToast] = useState<string | null>(null)
   const [mindfulPurge, setMindfulPurge] = useState<Email[]>([])
   const [partyPurge, setPartyPurge] = useState<Email[]>([])
   const [declutterEra, setDeclutterEra] = useState<Email[]>([])
-  const [lotusQuote, setLotusQuote] = useState<string | null>(null)
   const [undoToast, setUndoToast] = useState<{ message: string; undoFn: () => Promise<void> } | null>(null)
   const [deepCleanOpen, setDeepCleanOpen] = useState(false)
-  const [showLotusBloom, setShowLotusBloom] = useState(false)
   const [showEmailOptIn, setShowEmailOptIn] = useState(false)
 
   // In-memory cache for fast account switching within a session
@@ -313,39 +216,14 @@ export default function Dashboard() {
     } else if (!hasSeenGate()) {
       setShowGate(true)
     }
-    syncKarma()
-
-    function syncKarma() {
-      const lvl = getKarmaLevel()
-      setKarmaEmoji(lvl.emoji)
-      setKarmaLabel(lvl.label)
-      setKarmaXp(lvl.xp)
-      setKarmaNextThreshold(lvl.nextThreshold)
-    }
-
-    function onStats() {
-      const lvl = getKarmaLevel()
-      const prev = karmaXp
-      setKarmaEmoji(lvl.emoji)
-      setKarmaLabel(lvl.label)
-      setKarmaXp(lvl.xp)
-      setKarmaNextThreshold(lvl.nextThreshold)
-      const gained = lvl.xp - prev
-      if (gained > 0) {
-        setKarmaToast(`+${gained}`)
-        setTimeout(() => setKarmaToast(null), 1400)
-      }
-    }
 
     function onModeChange(e: Event) {
       const detail = (e as CustomEvent<PartyMode>).detail
       setMode(detail)
     }
 
-    window.addEventListener("inbox-stats-updated", onStats)
     window.addEventListener("inbox-mode-changed", onModeChange)
     return () => {
-      window.removeEventListener("inbox-stats-updated", onStats)
       window.removeEventListener("inbox-mode-changed", onModeChange)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -480,25 +358,6 @@ export default function Dashboard() {
     return false
   }
 
-  // ── Inbox zero: confetti + lotus bloom ──────────────────────────────────────
-
-  useEffect(() => {
-    if (appState !== "ready") return
-    const count = visibleEmails.filter(e => !e.deletable && !e.snoozedUntil).length
-    if (prevEmailCount.current !== null && prevEmailCount.current > 0 && count === 0) {
-      if (mode === "party") setConfetti(true)
-      setShowLotusBloom(true)
-      const LOTUS_QUOTES = [
-        "Peace comes from within. Do not seek it without.",
-        "The present moment is the only moment available to us.",
-        "You yourself, as much as anybody in the entire universe, deserve your love.",
-        "Wherever you are, be there totally.",
-        "Let go of the past. Let go of the future. Let go of the present.",
-      ]
-      setLotusQuote(LOTUS_QUOTES[Math.floor(Math.random() * LOTUS_QUOTES.length)])
-    }
-    prevEmailCount.current = count
-  }, [visibleEmails, appState, mode])
 
   // ── On mount: restore last active account's data ─────────────────────────────
 
@@ -1613,16 +1472,11 @@ export default function Dashboard() {
           </div>
           {/* end Row A */}
 
-          {/* ── Row B: stats row — left: Plant/Tally/MiniStats, right: batch picker + Refresh (+ Connect work Gmail) ── */}
+          {/* ── Row B: stats row — left: Tally/MiniStats, right: batch picker + Refresh (+ Connect work Gmail) ── */}
           <div className="flex items-start justify-between gap-4 flex-wrap mt-5">
 
             {/* Left cluster */}
             <div className="flex items-center gap-4 flex-wrap">
-              <PlantHeader
-                remaining={emails.length}
-                total={totalUnreadInbox}
-                mode={mode}
-              />
               <TallyTicket loaded={emails.length} total={totalUnreadInbox} mode={mode} />
               <div className="flex items-stretch gap-1">
                 <MiniStat value={urgentCount} label="urgent" color={mode === "party" ? "#FF1F6E" : themeAccent} mode={mode} />
@@ -2030,40 +1884,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ── Inbox zero / Lotus Bloom ── */}
-            {appState === "ready" && visibleEmails.filter(e => !e.deletable).length === 0 && totalEmailsAtLoad > 0 && showLotusBloom && (
-              <div className="mb-4 text-center" style={{
-                background: mode === "party"
-                  ? "linear-gradient(135deg, rgba(0,229,196,0.12), rgba(184,240,0,0.08))"
-                  : "linear-gradient(135deg, rgba(147,197,253,0.10), rgba(0,229,196,0.07))",
-                border: `1px solid ${mode === "party" ? "rgba(0,229,196,0.28)" : "rgba(147,197,253,0.25)"}`,
-                borderRadius: 20,
-                padding: "40px 24px",
-                boxShadow: "0 4px 40px rgba(0,229,196,0.07)",
-              }}>
-                <div className="lotus-bloom-anim" style={{ fontSize: "4rem", marginBottom: 12, display: "inline-block" }}>🪷</div>
-                <p style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: mode === "party" ? "2.4rem" : "1.8rem",
-                  color: "#00E5C4", margin: "0 0 12px", letterSpacing: "0.04em",
-                }}>
-                  {mode === "party" ? "🎉 INBOX ZERO!" : "Inbox Clear"}
-                </p>
-                {lotusQuote && (
-                  <p style={{
-                    fontStyle: "italic", fontSize: "0.88rem",
-                    color: "rgba(26,10,53,0.55)", maxWidth: 420, margin: "0 auto 10px",
-                    lineHeight: 1.6,
-                  }}>
-                    &ldquo;{lotusQuote}&rdquo;
-                  </p>
-                )}
-                <p style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.45)", margin: 0 }}>
-                  You triaged everything in this batch. Refresh to load more.
-                </p>
-              </div>
-            )}
-
             {/* ── Daily Briefing ── */}
             {appState === "ready" && briefingEmails.length > 0 && (
               <div className="mb-6">
@@ -2293,8 +2113,6 @@ export default function Dashboard() {
             onClose={() => setTodoNoteTarget(null)}
           />
         )}
-
-        {confetti && <ConfettiBlast onDone={() => setConfetti(false)} />}
 
         {showEmailOptIn && (
           <EmailOptInBanner mode={mode} onDone={() => setShowEmailOptIn(false)} />
