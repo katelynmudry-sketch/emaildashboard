@@ -208,6 +208,7 @@ ${buildSummaryInstruction(settings)}
 - deletableReason: one short phrase explaining why (e.g. "Security login alert, no longer actionable"), or null if not deletable.
 - packageDelivered: true if this email confirms a package/parcel was successfully delivered. Look at subject AND body. Signs: "delivered", "arrived", "left at door", "delivery complete", "your parcel is here", "successfully delivered", "package received", "order delivered", "shipment delivered", "item delivered", "has been delivered", "delivery confirmation", "delivered to". "Out for delivery" or "on its way" are NOT enough — must confirm actual delivery happened.
 - orderSender: if packageDelivered is true, extract a short identifier for the sender (e.g. "amazon.ca", "Postmedia Parcel Services", "Canada Post" — use the display name if the domain isn't recognizable). Otherwise null.
+- otp: true if this is a one-time verification code, 2FA/MFA code, or a passwordless magic sign-in link. These expire within minutes and are always safe to delete regardless of the deletable settings above — flag them independently of "deletable".
 
 Return a JSON array with one object per email, in the same order:
 [
@@ -222,7 +223,8 @@ Return a JSON array with one object per email, in the same order:
     "deletable": true|false,
     "deletableReason": "<short phrase or null>",
     "packageDelivered": true|false,
-    "orderSender": "<sender domain or null>"
+    "orderSender": "<sender domain or null>",
+    "otp": true|false
   }
 ]
 
@@ -244,7 +246,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
   })
 
   const raw = response.content[0].type === "text" ? response.content[0].text : "[]"
-  let results: { id: string; category: string; priority: "urgent" | "today" | "fyi"; microSummary: string; actionFlag: "reply" | "confirm" | "receipt" | "read"; summary: string | null; draftReply: string | null; deletable: boolean; deletableReason: string | null; packageDelivered: boolean; orderSender: string | null }[]
+  let results: { id: string; category: string; priority: "urgent" | "today" | "fyi"; microSummary: string; actionFlag: "reply" | "confirm" | "receipt" | "read"; summary: string | null; draftReply: string | null; deletable: boolean; deletableReason: string | null; packageDelivered: boolean; orderSender: string | null; otp?: boolean }[]
   try {
     results = JSON.parse(extractJson(raw))
   } catch {
@@ -264,6 +266,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
       deletableReason: null,
       packageDelivered: false,
       orderSender: null,
+      otp: false,
     }
     return {
       ...raw,
@@ -278,6 +281,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
       deletableReason: ai.deletableReason ?? null,
       packageDelivered: ai.packageDelivered ?? false,
       orderSender: ai.orderSender ?? null,
+      otp: ai.otp ?? false,
     }
   })
 }

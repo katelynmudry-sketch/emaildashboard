@@ -91,6 +91,7 @@ export interface Email {
   deletableReason: string | null  // e.g. "Security login alert, no longer actionable"
   packageDelivered: boolean    // AI detected this is a package delivery confirmation
   orderSender: string | null   // e.g. "amazon.com" — extracted from delivered email
+  otp: boolean                 // AI detected a verification code / 2FA / magic sign-in link — expires in minutes
 }
 
 // ── Category ─────────────────────────────────────────────────────────────────

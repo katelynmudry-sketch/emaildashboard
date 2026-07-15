@@ -185,6 +185,18 @@ export default function EmailRow({
           )}
           {email.todo && <span style={{ fontSize: "0.75rem", color: "#B8860B" }}>★</span>}
           {email.replied && <span style={{ fontSize: "0.75rem", color: "rgba(26,10,53,0.40)" }}>↩</span>}
+          {email.otp && (
+            <span
+              title="Verification code — expires soon, safe to delete"
+              style={{
+                fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.02em",
+                color: "#8B3FD8", background: "rgba(139,63,216,0.12)",
+                borderRadius: 4, padding: "1px 5px", lineHeight: 1.4,
+              }}
+            >
+              OTP
+            </span>
+          )}
           {email.attachments && email.attachments.length > 0 && (
             <span title={`${email.attachments.length} attachment${email.attachments.length !== 1 ? "s" : ""}`} style={{ fontSize: "0.78rem", color: "rgba(26,10,53,0.45)", lineHeight: 1 }}>
               📎

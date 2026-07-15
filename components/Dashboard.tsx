@@ -778,32 +778,40 @@ export default function Dashboard() {
     // target per theme. See docs/plans/2026-07-14-bulk-cleanup-suite.md Phase 2b.
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
 
+    // OTP/authenticator codes expire in minutes — every theme's purge leads
+    // with them as free, always-safe wins, unioned onto that theme's own target.
+    const otpCandidates = categorized.filter(e => e.otp && !e.todo && !e.snoozedUntil)
+    const withOtp = (pool: Email[]): Email[] => {
+      const ids = new Set(pool.map(e => e.id))
+      return [...otpCandidates.filter(e => !ids.has(e.id)), ...pool]
+    }
+
     // Zen "Mindful Purge" — old, already-read newsletters/subscriptions.
-    const purgeableCandidates = categorized.filter(e =>
+    const purgeableCandidates = withOtp(categorized.filter(e =>
       e.actionFlag === "read" &&
       e.internalDate < sevenDaysAgo &&
       !e.todo &&
       !e.snoozedUntil
-    )
+    ))
     if (purgeableCandidates.length >= 5) setMindfulPurge(purgeableCandidates)
 
     // Party "Purge Party" — AI-flagged deletable emails whose reason names
     // expired promos, past events, or deals (dead hype, not just any deletable).
     const EXPIRED_HYPE = /promo|deal|sale|event|expired|discount|offer/i
-    const partyCandidates = categorized.filter(e =>
+    const partyCandidates = withOtp(categorized.filter(e =>
       e.deletable &&
       EXPIRED_HYPE.test(e.deletableReason ?? "") &&
       !e.todo &&
       !e.snoozedUntil
-    )
+    ))
     if (partyCandidates.length >= 5) setPartyPurge(partyCandidates)
 
     // Basic AF "Declutter Era" — the online-shopping paper trail.
-    const declutterCandidates = categorized.filter(e =>
+    const declutterCandidates = withOtp(categorized.filter(e =>
       (e.packageDelivered || e.actionFlag === "receipt") &&
       !e.todo &&
       !e.snoozedUntil
-    )
+    ))
     if (declutterCandidates.length >= 5) setDeclutterEra(declutterCandidates)
 
     const cache: InboxCache = {
@@ -1881,15 +1889,13 @@ export default function Dashboard() {
                   <button
                     onClick={async () => {
                       const toDelete = [...cleanupChecked]
-                      await Promise.all(
-                        toDelete.map(id =>
-                          fetch("/api/gmail/delete", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ messageId: id, account: activeAccount }),
-                          }).catch(() => {})
-                        )
-                      )
+                      try {
+                        await fetch("/api/gmail/batch", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ messageIds: toDelete, action: "trash", account: activeAccount }),
+                        })
+                      } catch {}
                       setEmails(prev => prev.filter(e => !cleanupChecked.has(e.id)))
                       recordAction("cleanupDelete", { details: `Deleted ${toDelete.length} cleanup email${toDelete.length === 1 ? "" : "s"}` })
                       setPackageCleanup(null)

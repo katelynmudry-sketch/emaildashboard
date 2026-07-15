@@ -1,5 +1,10 @@
 # BUGS & DEBT
 
+## Low – DEBT (added 2026-07-14 — Phase 2c bulk-suggestions pass)
+
+### Package cleanup still doesn't group delivery chains per order/carrier
+`/api/ai/package-cleanup` (and its banner in Dashboard.tsx) finds delivered-package emails from one sender but doesn't group shipped→out-for-delivery→delivered chains per order. The plan (docs/plans/2026-07-14-bulk-cleanup-suite.md, Phase 2c) calls for grouping + feeding "delivered" chains directly into the Declutter Era suggestion list instead of a separate banner. The banner's delete action now goes through the shared `/api/gmail/batch` route (was N per-email calls), but the detection/grouping improvement itself is unstarted — it's an AI-prompt change in `lib/claude.ts`/`app/api/ai/package-cleanup/route.ts`, not a quick follow-on to the UI work done in this pass.
+
 ## Low – DEBT (added 2026-07-14 — theme unification pass)
 
 ### ~20 hand-rolled fetch blocks in Dashboard.tsx could collapse to a shared `apiPost(url, body)` helper
