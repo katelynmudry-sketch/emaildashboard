@@ -30,6 +30,7 @@ import InstructionsPanel from "./InstructionsPanel"
 import LogDrawer from "./LogDrawer"
 import UndoToast from "./UndoToast"
 import ThemedPurge from "./ThemedPurge"
+import DeepCleanModal from "./DeepCleanModal"
 import SentDrawer from "./SentDrawer"
 import QuoteGate from "./QuoteGate"
 import ProductionNotesBand from "./ProductionNotesBand"
@@ -296,6 +297,7 @@ export default function Dashboard() {
   const [declutterEra, setDeclutterEra] = useState<Email[]>([])
   const [lotusQuote, setLotusQuote] = useState<string | null>(null)
   const [undoToast, setUndoToast] = useState<{ message: string; undoFn: () => Promise<void> } | null>(null)
+  const [deepCleanOpen, setDeepCleanOpen] = useState(false)
   const [showLotusBloom, setShowLotusBloom] = useState(false)
   const [showEmailOptIn, setShowEmailOptIn] = useState(false)
 
@@ -1362,6 +1364,39 @@ export default function Dashboard() {
     })
   }
 
+  // Deep Clean operates on already-archived mail that was never loaded into
+  // `emails`, so unlike handleBulkPurge there's no inbox-state filtering to do.
+  async function handleDeepCleanDelete(messageIds: string[]) {
+    try {
+      await fetch("/api/gmail/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageIds, action: "trash", account: activeAccount }),
+      })
+    } catch {}
+    for (const _ of messageIds) recordAction("delete")
+
+    const entry = createEntry({
+      type: "delete",
+      emailId: messageIds[0] ?? "",
+      emailSubject: `${messageIds.length} email${messageIds.length !== 1 ? "s" : ""}`,
+      detail: "Deep Clean",
+      timestamp: Date.now(),
+      undoFn: async () => {
+        await fetch("/api/gmail/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messageIds, action: "restore", account: activeAccount }),
+        })
+      },
+    })
+    setActionLog(prev => [entry, ...prev])
+    setUndoToast({
+      message: `${messageIds.length} email${messageIds.length !== 1 ? "s" : ""} deleted`,
+      undoFn: () => handleUndo(entry.id),
+    })
+  }
+
   // ── Onboarding Wizard ────────────────────────────────────────────────────────
 
   if (showOnboarding) {
@@ -1510,6 +1545,13 @@ export default function Dashboard() {
                   style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
                 >
                   Log
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeepCleanOpen(true)}
+                  style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+                >
+                  Deep Clean
                 </button>
                 <div style={{ width: 1, height: 16, background: "rgba(26,10,53,0.14)", margin: "0 2px" }} />
                 <button
@@ -2220,6 +2262,14 @@ export default function Dashboard() {
             onDismiss={() => setUndoToast(null)}
           />
         )}
+
+        <DeepCleanModal
+          open={deepCleanOpen}
+          onClose={() => setDeepCleanOpen(false)}
+          mode={mode}
+          account={activeAccount}
+          onDelete={handleDeepCleanDelete}
+        />
 
         <SentDrawer
           open={sentDrawerOpen}

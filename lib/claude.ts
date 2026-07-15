@@ -286,6 +286,54 @@ Return ONLY valid JSON array. No markdown, no explanation.
   })
 }
 
+// ── Deep Clean: cheap subjects+senders-only delete suggestions ───────────────
+// Metadata-only classification for the read/archived sweep — much cheaper
+// than full categorizeInbox (no body, no draft reply, no category).
+
+export interface SweepClassifyInput {
+  id: string
+  subject: string
+  from: string
+}
+
+export interface SweepSuggestion {
+  id: string
+  reason: string
+}
+
+export async function proposeSweepDeletions(emails: SweepClassifyInput[]): Promise<SweepSuggestion[]> {
+  if (emails.length === 0) return []
+
+  const prompt = `
+These are subject lines and senders from a person's archived/read email, all older than 30 days. Identify which are safe to delete permanently — the same categories used elsewhere in this app: expired promos/deals, old newsletters/digests, past-event invitations, security/login alerts, social media notifications, delivered-package shipping notifications, one-time verification codes.
+
+Do NOT suggest deleting anything that looks like a receipt, invoice, contract, personal correspondence, or anything that could matter for records/taxes/warranty.
+
+Emails:
+${emails.map(e => `ID: ${e.id}\nFrom: ${sanitizeUtf8(e.from)}\nSubject: ${sanitizeUtf8(e.subject)}`).join("\n---\n")}
+
+Return a JSON array of only the emails safe to delete, with one short reason each:
+[{ "id": "<id>", "reason": "<short phrase>" }]
+
+Return ONLY valid JSON. No markdown, no explanation.
+`.trim()
+
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 4000,
+    messages: [{ role: "user", content: prompt }],
+  })
+
+  const raw = response.content[0].type === "text" ? response.content[0].text : "[]"
+  try {
+    const parsed = JSON.parse(extractJson(raw)) as SweepSuggestion[]
+    const validIds = new Set(emails.map(e => e.id))
+    return parsed.filter(s => validIds.has(s.id))
+  } catch {
+    return []
+  }
+}
+
 // ── Generate a draft reply for a single email ─────────────────────────────────
 
 export async function generateDraftReply(

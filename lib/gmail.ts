@@ -523,6 +523,66 @@ export async function searchArchivedMessages(
   return results
 }
 
+// ── Deep Clean: paginated metadata-only sweep of old read/archived mail ──────
+
+export interface SweepMessage {
+  id: string
+  subject: string
+  from: string
+  fromEmail: string
+  date: string
+  internalDate: number
+}
+
+export interface SweepPage {
+  messages: SweepMessage[]
+  nextPageToken: string | null
+  resultSizeEstimate: number
+}
+
+export async function sweepOlderMessages(accessToken: string, pageToken?: string): Promise<SweepPage> {
+  const gmail = getGmailService(accessToken)
+  const list = await gmail.users.messages.list({
+    userId: "me",
+    q: "is:read older_than:30d -in:inbox",
+    maxResults: 100,
+    pageToken,
+  })
+
+  const items = list.data.messages ?? []
+  const messages = await Promise.all(
+    items.map(m =>
+      gmail.users.messages.get({
+        userId: "me",
+        id: m.id!,
+        format: "metadata",
+        metadataHeaders: ["Subject", "From", "Date"],
+      }).then(r => {
+        const headers: { name?: string | null; value?: string | null }[] = r.data.payload?.headers ?? []
+        const subject = headers.find(h => h.name?.toLowerCase() === "subject")?.value ?? "(no subject)"
+        const fromRaw = headers.find(h => h.name?.toLowerCase() === "from")?.value ?? ""
+        const emailMatch = fromRaw.match(/<(.+)>/)
+        const fromEmail = emailMatch ? emailMatch[1] : fromRaw
+        const rawDate = headers.find(h => h.name?.toLowerCase() === "date")?.value ?? ""
+        return {
+          id: m.id!,
+          subject,
+          from: fromRaw,
+          fromEmail,
+          date: rawDate,
+          internalDate: Number(r.data.internalDate ?? 0),
+        }
+      })
+    )
+  )
+
+  return {
+    messages,
+    nextPageToken: list.data.nextPageToken ?? null,
+    resultSizeEstimate: list.data.resultSizeEstimate ?? messages.length,
+  }
+}
+
 // ── Archive a message (remove from INBOX) ────────────────────────────────────
 
 export async function archiveMessage(accessToken: string, messageId: string): Promise<void> {
