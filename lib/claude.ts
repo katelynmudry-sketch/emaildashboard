@@ -286,6 +286,49 @@ Return ONLY valid JSON array. No markdown, no explanation.
   })
 }
 
+// ── Daily Briefing action paragraph ───────────────────────────────────────────
+// Cheap metadata-only call (from/subject/priority/actionFlag/category, no
+// bodies) — directive summary of what actually needs doing right now.
+// Generated from the full current inbox snapshot each refresh (not just the
+// newly-categorized subset from an incremental categorizeInbox call), so it
+// stays accurate even when most emails are served from cache.
+
+export interface BriefingInput {
+  from: string
+  subject: string
+  priority: "urgent" | "today" | "fyi"
+  actionFlag: "reply" | "confirm" | "receipt" | "read"
+  category: string
+}
+
+const BRIEFING_TONE: Record<string, string> = {
+  zen: "Tone: quiet, wise, unhurried — like a calm teacher naming what's true. No exclamation points.",
+  party: "Tone: energetic hype-person giving you the game plan. Short, punchy sentences.",
+  "wabi-sabi": "Tone: bubbly Basic AF bestie energy, but the CONTENT must still be genuinely useful — literally, honestly, bestie.",
+}
+
+export async function generateBriefingSummary(emails: BriefingInput[], mode: string): Promise<string> {
+  if (emails.length === 0) return ""
+
+  const urgentCount = emails.filter(e => e.priority === "urgent").length
+  const repliesOwed = emails.filter(e => e.actionFlag === "reply" || e.actionFlag === "confirm").length
+
+  const prompt = `Here is someone's current inbox (from, subject, priority, action type, category):
+
+${emails.slice(0, 150).map(e => `- [${e.priority}/${e.actionFlag}] ${e.subject} (from ${e.from}, ${e.category})`).join("\n")}
+
+Write a 2-3 sentence action-focused briefing paragraph: what replies are owed, any deadlines/dates you can spot in subjects, and roughly ${urgentCount} urgent item${urgentCount !== 1 ? "s" : ""} / ${repliesOwed} awaiting a reply. Be specific — name an actual sender or subject where useful. Directive, not a summary of counts. Under 50 words. No preamble, no "Your inbox..." opener.
+${BRIEFING_TONE[mode] ?? BRIEFING_TONE.party}`
+
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 150,
+    messages: [{ role: "user", content: prompt }],
+  })
+
+  return response.content[0].type === "text" ? response.content[0].text.trim() : ""
+}
+
 // ── Deep Clean: cheap subjects+senders-only delete suggestions ───────────────
 // Metadata-only classification for the read/archived sweep — much cheaper
 // than full categorizeInbox (no body, no draft reply, no category).

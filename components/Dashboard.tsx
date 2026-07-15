@@ -202,6 +202,7 @@ export default function Dashboard() {
   const [declutterEra, setDeclutterEra] = useState<Email[]>([])
   const [undoToast, setUndoToast] = useState<{ message: string; undoFn: () => Promise<void> } | null>(null)
   const [deepCleanOpen, setDeepCleanOpen] = useState(false)
+  const [briefingSummary, setBriefingSummary] = useState("")
   const [showEmailOptIn, setShowEmailOptIn] = useState(false)
 
   // In-memory cache for fast account switching within a session
@@ -331,6 +332,7 @@ export default function Dashboard() {
       setFetchedAt(sess.fetchedAt)
       setTotalEmailsAtLoad(sess.emails.length)
       setTotalUnreadInbox(sess.totalUnreadEstimate ?? sess.emails.length)
+      setBriefingSummary(sess.briefingSummary ?? "")
       setAppState("ready")
       return true
     }
@@ -341,6 +343,7 @@ export default function Dashboard() {
       setFetchedAt(stored.fetchedAt)
       setTotalEmailsAtLoad(stored.emails.length)
       setTotalUnreadInbox(stored.totalUnreadEstimate ?? stored.emails.length)
+      setBriefingSummary(stored.briefingSummary ?? "")
       sessionCache.current.set(accountEmail, stored)
       setAppState("ready")
       return true
@@ -690,6 +693,36 @@ export default function Dashboard() {
       importBatchSize: fetchMeta.importBatchSize,
     })
 
+    // ── Daily Briefing action paragraph — off the critical path, fills in when ready ──
+    const briefingCandidates = categorized.filter(e => !e.todo && !e.snoozedUntil && e.briefingOverride !== "exclude")
+    if (briefingCandidates.length > 0) {
+      fetch("/api/ai/briefing-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emails: briefingCandidates.slice(0, 150).map(e => ({
+            from: e.from, subject: e.subject, priority: e.priority, actionFlag: e.actionFlag, category: e.category,
+          })),
+          mode,
+        }),
+      })
+        .then(r => r.json())
+        .then((data: { summary?: string }) => {
+          if (!data.summary) return
+          setBriefingSummary(data.summary)
+          sessionCache.current.set(activeAccountConfig.email, { ...cache, briefingSummary: data.summary })
+          saveCachedInbox(activeAccountConfig.email, categorized, cats, {
+            fetchedAt: now,
+            totalUnreadEstimate: fetchMeta.totalUnreadEstimate,
+            importBatchSize: fetchMeta.importBatchSize,
+            briefingSummary: data.summary,
+          })
+        })
+        .catch(() => {})
+    } else {
+      setBriefingSummary("")
+    }
+
     // ── Delivery chain cleanup (AI action — off via settings) ─────────────────
     const deliveryCleanupEnabled = loadSettings().aiDeliveryChainCleanup !== false
     if (deliveryCleanupEnabled) {
@@ -736,17 +769,19 @@ export default function Dashboard() {
           .catch(() => {})
       }
     }
-  }, [activeAccount, activeAccountConfig.email, gmailAccountQuery, priorityCategory])
+  }, [activeAccount, activeAccountConfig.email, gmailAccountQuery, priorityCategory, mode])
 
   const writeInboxCache = useCallback((next: Email[], cats: Category[], opt?: { totalUnreadEstimate?: number }) => {
     const sess = sessionCache.current.get(activeAccountConfig.email)
     const ft = fetchedAt ?? sess?.fetchedAt ?? new Date().toISOString()
     const totalUnreadEstimate = opt?.totalUnreadEstimate !== undefined ? opt.totalUnreadEstimate : sess?.totalUnreadEstimate
     const ib = sess?.importBatchSize
+    const briefingSummaryVal = sess?.briefingSummary
     saveCachedInbox(activeAccountConfig.email, next, cats, {
       fetchedAt: ft,
       ...(totalUnreadEstimate !== undefined && { totalUnreadEstimate }),
       ...(ib !== undefined && { importBatchSize: ib }),
+      ...(briefingSummaryVal !== undefined && { briefingSummary: briefingSummaryVal }),
     })
     sessionCache.current.set(activeAccountConfig.email, {
       account: activeAccountConfig.email,
@@ -755,6 +790,7 @@ export default function Dashboard() {
       fetchedAt: ft,
       totalUnreadEstimate,
       importBatchSize: ib,
+      briefingSummary: briefingSummaryVal,
     })
   }, [activeAccountConfig.email, fetchedAt])
 
@@ -1889,6 +1925,7 @@ export default function Dashboard() {
               <div className="mb-6">
               <BriefingSection
                 mode={mode}
+                summary={briefingSummary}
                 emails={briefingEmails}
                 categories={categories}
                 selectedEmail={selectedEmail}

@@ -13,6 +13,8 @@ export interface InboxCache {
   totalUnreadEstimate?: number
   /** Max messages requested on the last full inbox fetch (30 / 50 / 100). */
   importBatchSize?: number
+  /** AI-generated Daily Briefing action paragraph — cached so it survives reloads. */
+  briefingSummary?: string
 }
 
 function storageKey(account: string): string {
@@ -38,6 +40,7 @@ export function saveCachedInbox(
     fetchedAt?: string
     totalUnreadEstimate?: number
     importBatchSize?: number
+    briefingSummary?: string
   }
 ): void {
   if (typeof window === "undefined") return
@@ -49,6 +52,7 @@ export function saveCachedInbox(
     fetchedAt: opts?.fetchedAt ?? prev?.fetchedAt ?? new Date().toISOString(),
     totalUnreadEstimate: opts?.totalUnreadEstimate !== undefined ? opts.totalUnreadEstimate : prev?.totalUnreadEstimate,
     importBatchSize: opts?.importBatchSize !== undefined ? opts.importBatchSize : prev?.importBatchSize,
+    briefingSummary: opts?.briefingSummary !== undefined ? opts.briefingSummary : prev?.briefingSummary,
   }
   try {
     localStorage.setItem(storageKey(account), JSON.stringify(cache))
