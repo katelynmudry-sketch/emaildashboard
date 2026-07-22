@@ -139,6 +139,11 @@ export default function Dashboard() {
   const [activeAccount, setActiveAccount] = useState<AccountId>("personal")
   const [emails, setEmails] = useState<Email[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  // Ref mirror of `categories` — lets handlers invoked immediately after a
+  // category is created (e.g. DetailPanel's "Create & move") read the
+  // up-to-date list instead of the stale value captured in their closure.
+  const categoriesRef = useRef<Category[]>(categories)
+  useEffect(() => { categoriesRef.current = categories }, [categories])
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null)
   const [appState, setAppState] = useState<AppState>("idle")
   const [errorMsg, setErrorMsg] = useState("")
@@ -1128,10 +1133,10 @@ export default function Dashboard() {
   }
 
   async function handleRecategorize(email: Email, newCategory: string, teachClaude: boolean) {
-    const cat = categories.find(c => c.name === newCategory)
+    const cat = categoriesRef.current.find(c => c.name === newCategory)
     setEmails(prev => {
       const updated = prev.map(e => e.id === email.id ? { ...e, category: newCategory } : e)
-      writeInboxCache(updated, categories)
+      writeInboxCache(updated, categoriesRef.current)
       return updated
     })
     if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, category: newCategory } : null)
@@ -1164,7 +1169,7 @@ export default function Dashboard() {
       detail: newCategory,
       timestamp: Date.now(),
       undoFn: async () => {
-        const oldCat = categories.find(c => c.name === email.category)
+        const oldCat = categoriesRef.current.find(c => c.name === email.category)
         if (oldCat?.gmailLabelId) {
           await fetch("/api/gmail/label", {
             method: "POST",
@@ -1174,7 +1179,7 @@ export default function Dashboard() {
         }
         setEmails(prev => {
           const updated = prev.map(e => e.id === email.id ? { ...e, category: email.category } : e)
-          writeInboxCache(updated, categories)
+          writeInboxCache(updated, categoriesRef.current)
           return updated
         })
         if (selectedEmail?.id === email.id) setSelectedEmail(prev => prev ? { ...prev, category: email.category } : null)
