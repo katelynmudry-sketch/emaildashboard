@@ -652,7 +652,13 @@ export default function Dashboard() {
 
     // Theme-unique purges — same "safe to clean up" pool, different headline
     // target per theme. See docs/plans/2026-07-14-bulk-cleanup-suite.md Phase 2b.
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    // Each theme gets its own age cutoff — hype dies fast (party), delivery/
+    // receipt issues surface within a few days (wabi-sabi), newsletters can
+    // sit longer before they're truly stale (zen).
+    const DAY_MS = 24 * 60 * 60 * 1000
+    const zenCutoff = Date.now() - 7 * DAY_MS
+    const partyCutoff = Date.now() - 3 * DAY_MS
+    const wabiCutoff = Date.now() - 5 * DAY_MS
 
     // OTP/authenticator codes expire in minutes — every theme's purge leads
     // with them as free, always-safe wins, unioned onto that theme's own target.
@@ -665,11 +671,11 @@ export default function Dashboard() {
     // Zen "Mindful Purge" — old, already-read newsletters/subscriptions.
     const purgeableCandidates = withOtp(categorized.filter(e =>
       e.actionFlag === "read" &&
-      e.internalDate < sevenDaysAgo &&
+      e.internalDate < zenCutoff &&
       !e.todo &&
       !e.snoozedUntil
     ))
-    if (purgeableCandidates.length >= 5) setMindfulPurge(purgeableCandidates)
+    setMindfulPurge(purgeableCandidates)
 
     // Party "Purge Party" — AI-flagged deletable emails whose reason names
     // expired promos, past events, or deals (dead hype, not just any deletable).
@@ -677,18 +683,20 @@ export default function Dashboard() {
     const partyCandidates = withOtp(categorized.filter(e =>
       e.deletable &&
       EXPIRED_HYPE.test(e.deletableReason ?? "") &&
+      e.internalDate < partyCutoff &&
       !e.todo &&
       !e.snoozedUntil
     ))
-    if (partyCandidates.length >= 5) setPartyPurge(partyCandidates)
+    setPartyPurge(partyCandidates)
 
     // Basic AF "Declutter Era" — the online-shopping paper trail.
     const declutterCandidates = withOtp(categorized.filter(e =>
       (e.packageDelivered || e.actionFlag === "receipt") &&
+      e.internalDate < wabiCutoff &&
       !e.todo &&
       !e.snoozedUntil
     ))
-    if (declutterCandidates.length >= 5) setDeclutterEra(declutterCandidates)
+    setDeclutterEra(declutterCandidates)
 
     const cache: InboxCache = {
       account: activeAccountConfig.email,
@@ -1453,13 +1461,6 @@ export default function Dashboard() {
                 >
                   Log
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setDeepCleanOpen(true)}
-                  style={{ fontSize: "0.70rem", fontWeight: 500, opacity: 0.55, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
-                >
-                  Deep Clean
-                </button>
                 <div style={{ width: 1, height: 16, background: "rgba(26,10,53,0.14)", margin: "0 2px" }} />
                 <button
                   type="button"
@@ -2076,6 +2077,42 @@ export default function Dashboard() {
               )
             })()}
 
+            {/* ── Deep Clean entry point — a next step once you're done up above ── */}
+            {appState === "ready" && (
+              <div
+                className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-3"
+                style={{
+                  padding: "16px 20px",
+                  borderRadius: 14,
+                  background: theme.cardBg,
+                  border: theme.cardBorder,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 700, color: theme.headingColor }}>
+                    {mode === "zen" ? "Ready for more?" : mode === "wabi-sabi" ? "one more thing bestie" : "NOT DONE YET"}
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: theme.textMuted, marginTop: 2 }}>
+                    {mode === "zen"
+                      ? "Deep Clean sweeps years of old archived mail, gently."
+                      : mode === "wabi-sabi"
+                        ? "Deep Clean sweeps your old archived mail too ✨"
+                        : "Deep Clean hunts down old archived mail for one more sweep."}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDeepCleanOpen(true)}
+                  style={{
+                    padding: "8px 18px", borderRadius: 999, border: "none",
+                    background: theme.buttonPrimaryBg, color: theme.buttonPrimaryText,
+                    fontSize: "0.82rem", fontWeight: 700, cursor: "pointer",
+                  }}
+                >
+                  Deep Clean
+                </button>
+              </div>
+            )}
 
           </div>
         </div>

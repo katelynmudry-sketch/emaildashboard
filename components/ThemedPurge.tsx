@@ -24,7 +24,7 @@ interface Props {
  * docs/plans/2026-07-14-bulk-cleanup-suite.md Phase 2b.
  */
 export default function ThemedPurge({
-  mode, icon, title, description, candidates, releaseLabel = "Release", minToShow = 5, onRelease,
+  mode, icon, title, description, candidates, releaseLabel = "Release", minToShow = 1, onRelease,
 }: Props) {
   const theme = getTheme(mode)
   const [dismissed, setDismissed] = useState(false)

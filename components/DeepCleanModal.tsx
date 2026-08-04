@@ -63,9 +63,13 @@ export default function DeepCleanModal({ open, onClose, mode, account, onDelete 
 
   useEffect(() => {
     if (!open) return
+    // The modal never unmounts (it just renders null while closed), so without
+    // this the selection Set from a previous open/account would linger and
+    // show a stale "Delete N selected" count against the freshly-empty list.
     setMessages([])
     setNextPageToken(null)
     setResultSizeEstimate(0)
+    bulk.clear()
     loadPage()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, account])
@@ -132,7 +136,12 @@ export default function DeepCleanModal({ open, onClose, mode, account, onDelete 
               </div>
             </div>
           ))}
-          {messages.length === 0 && !loading && (
+          {messages.length === 0 && loading && (
+            <div className="px-5 py-8 text-center" style={{ fontSize: "0.85rem", color: theme.textMuted }}>
+              Scanning your archive…
+            </div>
+          )}
+          {messages.length === 0 && !loading && !error && (
             <div className="px-5 py-8 text-center" style={{ fontSize: "0.85rem", color: theme.textMuted }}>
               Nothing older to review — your archive is already tidy.
             </div>
