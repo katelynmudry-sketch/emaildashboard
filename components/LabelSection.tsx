@@ -65,6 +65,9 @@ export interface LabelSectionProps {
   className?: string
   mode?: PartyMode
   showUnreadOnly?: boolean
+
+  // Only the Daily Briefing shows the AI-generated per-email summary in the opened email view.
+  showAiSummary?: boolean
 }
 
 export default function LabelSection({
@@ -87,6 +90,7 @@ export default function LabelSection({
   className = "",
   mode = "party",
   showUnreadOnly,
+  showAiSummary = false,
 }: LabelSectionProps) {
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
   const [moveToOpen, setMoveToOpen] = useState(false)
@@ -362,6 +366,7 @@ export default function LabelSection({
                     onNewCategory={onNewCategory}
                     onToggleBriefing={onToggleBriefing}
                     onTodo={onTodo}
+                    showAiSummary={showAiSummary}
                   />
                 </div>
               )}

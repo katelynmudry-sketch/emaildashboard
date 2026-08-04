@@ -47,6 +47,11 @@
 ### Header layout
 - [ ] Tighten dead space in header area — stats row feels sparse at mid widths
 
+### Calendar "no events" bug (WIP in stash, branch `onboarding-ux-ai-naive`)
+- [ ] `/api/calendar/today` sometimes returns zero events when it shouldn't — stashed WIP adds debug info to the route + `CalendarWidget`, bypasses the calendar cache while debugging, and adds a "↻ Reconnect" button in Account Settings to re-grant Google OAuth (Calendar scope may be getting dropped on re-auth)
+- [ ] Also in the stash: real fix in `lib/auth.ts` — second-account sign-in was building a fresh JWT via Auth.js with none of the prior session's custom claims (`primary_email`, `work_*`, tokens), now recovered via `getToken()` against the previous session cookie
+- [ ] Not yet applied — `git stash show -p` to review, apply, and finish before shipping
+
 ### Mobile (future — bigger lift)
 - [ ] Responsive mobile layout pass
 

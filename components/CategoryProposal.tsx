@@ -87,6 +87,17 @@ export default function CategoryProposal({ proposed, account, existingLabelNames
     return existingLabelNames.some(n => n.toLowerCase() === name.toLowerCase())
   }
 
+  function addExistingLabel(name: string) {
+    setCategories(prev => prev.some(c => c.name.toLowerCase() === name.toLowerCase())
+      ? prev
+      : [...prev, { name, color: nextColor(prev) }])
+  }
+
+  // Real Gmail folders not already represented in the category list — offered as a second column to add from.
+  const availableLabels = existingLabelNames.filter(
+    n => !categories.some(c => c.name.toLowerCase() === n.toLowerCase())
+  )
+
   async function handleConfirm() {
     setSaving(true)
     const prioritySenderEmail = prioritySenderChoice === "accepted" ? prioritySenderCandidate?.email : undefined
@@ -132,6 +143,24 @@ export default function CategoryProposal({ proposed, account, existingLabelNames
 
   const countWord = (n: number) => n === 1 ? singular : plural
 
+  const suggestedColumnTitle = mode === "zen"
+    ? "Claude's suggestions"
+    : mode === "wabi-sabi"
+      ? "claude's picks"
+      : "AI Suggestions"
+
+  const foldersColumnTitle = mode === "zen"
+    ? "Your Gmail folders"
+    : mode === "wabi-sabi"
+      ? "ur gmail folders"
+      : "Your Gmail Folders"
+
+  const foldersColumnHint = mode === "zen"
+    ? "Tap to add any of these as well."
+    : mode === "wabi-sabi"
+      ? "tap one to add it too, no big deal"
+      : "Tap any to add it too."
+
   const confirmLabel = saving
     ? (mode === "zen"
         ? `Creating your ${plural.toLowerCase()}…`
@@ -163,9 +192,11 @@ export default function CategoryProposal({ proposed, account, existingLabelNames
   const yesLabel = mode === "zen" ? "Yes, always" : mode === "wabi-sabi" ? "yes bestie, always" : "Yes, always! 🎉"
   const noLabel = mode === "zen" ? "Not now" : mode === "wabi-sabi" ? "nah, maybe later" : "Not now"
 
+  const hasFolderColumn = availableLabels.length > 0
+
   return (
     <div className="min-h-screen flex items-center justify-center p-8" style={{ background: theme.pageBg }}>
-      <div className="rounded-2xl shadow-sm p-8 w-full max-w-lg" style={{ background: theme.cardBg, border: `1px solid ${theme.border}` }}>
+      <div className={`rounded-2xl shadow-sm p-8 w-full ${hasFolderColumn ? "max-w-3xl" : "max-w-lg"}`} style={{ background: theme.cardBg, border: `1px solid ${theme.border}` }}>
         <div className="mb-6">
           <h1 className="text-xl font-semibold" style={{ color: theme.text, fontFamily: mode === "party" ? "var(--font-display)" : undefined }}>{title}</h1>
           <p className="text-sm mt-1" style={{ color: theme.sub }}>{description}</p>
@@ -175,45 +206,72 @@ export default function CategoryProposal({ proposed, account, existingLabelNames
           <p className="text-xs mb-3" style={{ color: theme.sub }}>{existingHint}</p>
         )}
 
-        <div className="space-y-2 mb-4">
-          {categories.map((cat, i) => {
-            const existing = isExisting(cat.name)
-            return (
-              <div key={i} className="flex items-center gap-3">
-                <span className={`w-3 h-3 rounded-full shrink-0 ${cat.color}`} />
-                <input
-                  type="text"
-                  value={cat.name}
-                  onChange={e => updateName(i, e.target.value)}
-                  className="flex-1 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:border-transparent"
-                  style={{ color: theme.text, border: `1px solid ${theme.border}`, background: "transparent" }}
-                />
-                {existing && (
-                  <span title="Already exists in Gmail" className="text-xs font-medium shrink-0" style={{ color: "#10A37F" }}>
-                    existing
-                  </span>
-                )}
-                <button
-                  onClick={() => removeCategory(i)}
-                  disabled={categories.length <= 1}
-                  className="hover:text-red-400 disabled:opacity-20 transition-colors shrink-0 text-lg leading-none"
-                  style={{ color: theme.border }}
-                  title="Remove"
-                >
-                  ×
-                </button>
-              </div>
-            )
-          })}
-        </div>
+        <div className={hasFolderColumn ? "grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4" : "mb-4"}>
+          <div>
+            {hasFolderColumn && (
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: theme.sub }}>{suggestedColumnTitle}</p>
+            )}
+            <div className="space-y-2">
+              {categories.map((cat, i) => {
+                const existing = isExisting(cat.name)
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className={`w-3 h-3 rounded-full shrink-0 ${cat.color}`} />
+                    <input
+                      type="text"
+                      value={cat.name}
+                      onChange={e => updateName(i, e.target.value)}
+                      className="flex-1 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:border-transparent"
+                      style={{ color: theme.text, border: `1px solid ${theme.border}`, background: "transparent" }}
+                    />
+                    {existing && (
+                      <span title="Already exists in Gmail" className="text-xs font-medium shrink-0" style={{ color: "#10A37F" }}>
+                        existing
+                      </span>
+                    )}
+                    <button
+                      onClick={() => removeCategory(i)}
+                      disabled={categories.length <= 1}
+                      className="hover:text-red-400 disabled:opacity-20 transition-colors shrink-0 text-lg leading-none"
+                      style={{ color: theme.border }}
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
 
-        <button
-          onClick={addCategory}
-          className="w-full text-sm rounded-lg py-2 transition-colors mb-6"
-          style={{ color: theme.accent, border: `1px dashed ${theme.border}` }}
-        >
-          {addLabel}
-        </button>
+            <button
+              onClick={addCategory}
+              className="w-full text-sm rounded-lg py-2 transition-colors mt-2"
+              style={{ color: theme.accent, border: `1px dashed ${theme.border}` }}
+            >
+              {addLabel}
+            </button>
+          </div>
+
+          {hasFolderColumn && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: theme.sub }}>{foldersColumnTitle}</p>
+              <p className="text-xs mb-2" style={{ color: theme.sub }}>{foldersColumnHint}</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {availableLabels.map(name => (
+                  <button
+                    key={name}
+                    onClick={() => addExistingLabel(name)}
+                    className="w-full flex items-center gap-2 text-sm text-left rounded-lg px-3 py-2 transition-colors"
+                    style={{ color: theme.text, border: `1px solid ${theme.border}`, background: "transparent" }}
+                  >
+                    <span className="shrink-0 text-base leading-none" style={{ color: theme.accent }}>+</span>
+                    <span className="truncate">{name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {prioritySenderCandidate && prioritySenderChoice === null && (
           <div className="mb-6 rounded-xl p-4" style={{ border: `1px solid ${theme.border}`, background: "rgba(255,255,255,0.4)" }}>

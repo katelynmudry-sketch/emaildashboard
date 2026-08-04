@@ -145,6 +145,13 @@ export default function Dashboard() {
   const categoriesRef = useRef<Category[]>(categories)
   useEffect(() => { categoriesRef.current = categories }, [categories])
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null)
+  // Tracks which list opened the email so the same object doesn't also expand in the other list it happens to belong to.
+  const [selectedEmailSource, setSelectedEmailSource] = useState<"briefing" | "category" | null>(null)
+  function selectEmail(email: Email, source: "briefing" | "category") {
+    const isSame = selectedEmail?.id === email.id && selectedEmailSource === source
+    setSelectedEmail(isSame ? null : email)
+    setSelectedEmailSource(isSame ? null : source)
+  }
   const [appState, setAppState] = useState<AppState>("idle")
   const [errorMsg, setErrorMsg] = useState("")
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
@@ -1933,13 +1940,13 @@ export default function Dashboard() {
                 summary={briefingSummary}
                 emails={briefingEmails}
                 categories={categories}
-                selectedEmail={selectedEmail}
-                onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                selectedEmail={selectedEmailSource === "briefing" ? selectedEmail : null}
+                onSelect={email => selectEmail(email, "briefing")}
                 onExpand={(email, composeMode) => {
                   setExpandedEmail(email)
                   setExpandedComposeMode(composeMode ?? null)
                 }}
-                onClose={() => setSelectedEmail(null)}
+                onClose={() => { setSelectedEmail(null); setSelectedEmailSource(null) }}
                 onMarkRead={handleMarkRead}
                 onArchive={handleArchive}
                 onSaveDraft={handleSaveDraft}
@@ -2034,16 +2041,17 @@ export default function Dashboard() {
                         ? deletableEmails
                         : emails.filter(e => e.category === cat.name)}
                       selectedEmail={
+                        selectedEmailSource !== "category" ? null :
                         cat.id === "__delete__"
                           ? (selectedEmail?.deletable ? selectedEmail : null)
                           : (selectedEmail?.category === cat.name ? selectedEmail : null)
                       }
-                      onSelect={email => setSelectedEmail(prev => prev?.id === email.id ? null : email)}
+                      onSelect={email => selectEmail(email, "category")}
                       onExpand={(email, composeMode) => {
                         setExpandedEmail(email)
                         setExpandedComposeMode(composeMode ?? null)
                       }}
-                      onClose={() => setSelectedEmail(null)}
+                      onClose={() => { setSelectedEmail(null); setSelectedEmailSource(null) }}
                       onMarkRead={handleMarkRead}
                       onArchive={handleArchive}
                       onSaveDraft={handleSaveDraft}

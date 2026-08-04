@@ -317,7 +317,7 @@ export async function generateBriefingSummary(emails: BriefingInput[], mode: str
 
 ${emails.slice(0, 150).map(e => `- [${e.priority}/${e.actionFlag}] ${e.subject} (from ${e.from}, ${e.category})`).join("\n")}
 
-Write a 2-3 sentence action-focused briefing paragraph: what replies are owed, any deadlines/dates you can spot in subjects, and roughly ${urgentCount} urgent item${urgentCount !== 1 ? "s" : ""} / ${repliesOwed} awaiting a reply. Be specific — name an actual sender or subject where useful. Directive, not a summary of counts. Under 50 words. No preamble, no "Your inbox..." opener.
+Write a 2-3 sentence action-focused briefing paragraph: what replies are owed, any deadlines/dates you can spot in subjects, and roughly ${urgentCount} urgent item${urgentCount !== 1 ? "s" : ""} / ${repliesOwed} awaiting a reply. Be specific — name an actual sender or subject where useful. Directive, not a summary of counts. Under 50 words. No preamble, no "Your inbox..." opener, no title or heading before the paragraph — the UI already shows a heading, just write the paragraph itself. Plain text only — no markdown (no asterisks, bold, headers, or bullet points).
 ${BRIEFING_TONE[mode] ?? BRIEFING_TONE.party}`
 
   const response = await client.messages.create({
@@ -386,12 +386,15 @@ export async function generateDraftReply(
   settings?: ClaudeSettings
 ): Promise<string> {
   const hasPartial = partialDraft.trim().length > 0
+  const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
 
   const partialSection = hasPartial
     ? `\n\nThe user has already started writing this reply — continue it naturally, keeping their tone and completing their thought. Do not restart or rewrite what they wrote; seamlessly extend it:\n<partial_draft>\n${partialDraft.trim()}\n</partial_draft>`
     : ""
 
   const prompt = `${hasPartial ? "Complete this in-progress reply" : "Write a friendly, concise reply to this email"}. ${hasPartial ? "Keep the user's tone and seamlessly extend what they've written." : "2-4 sentences."} Return only the ${hasPartial ? "full completed reply text (including what was already written)" : "reply text"}.
+
+Today's date: ${today} — use this as the true current date when reasoning about "today," "tomorrow," days of the week, or any other relative dates. Do not guess the day of the week.
 
 From: ${sanitizeUtf8(email.from)} <${sanitizeUtf8(email.fromEmail)}>
 Subject: ${sanitizeUtf8(email.subject)}

@@ -19,5 +19,12 @@
     "fromPattern": "cgoodwin@abacuskimberley.ca",
     "category": "Business",
     "createdAt": "2026-06-11T15:57:37.501Z"
+  },
+  {
+    "id": "developer@email.apple.com->developer",
+    "description": "Apple Developer → Developer",
+    "fromPattern": "developer@email.apple.com",
+    "category": "Developer",
+    "createdAt": "2026-07-23T15:56:50.833Z"
   }
 ]

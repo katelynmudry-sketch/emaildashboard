@@ -90,7 +90,7 @@ export default function EmailRow({
     title: email.briefingOverride === "include" ? "Remove from Briefing"
          : email.briefingOverride === "exclude" ? "Clear Briefing"
          : "Add to Briefing",
-    icon: "📋",
+    icon: "☀️",
     onClick: onToggleBriefing,
     bg: email.briefingOverride === "include" ? "rgba(0,196,167,0.18)"
       : email.briefingOverride === "exclude" ? "rgba(255,31,110,0.10)"

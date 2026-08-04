@@ -4,6 +4,26 @@ import type { AccountId, Email, Category, Attachment } from "@/lib/types"
 import type { PartyMode } from "@/lib/party-mode"
 import LabelSection from "./LabelSection"
 
+// Defensive strip in case the model slips markdown into the briefing paragraph despite being told not to.
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[-*]\s+/gm, "")
+}
+
+// The heading now lives in the UI (see GAME_PLAN_TITLE below) — strip it if the model echoes it anyway.
+const KNOWN_TITLES = ["game plan", "today's focus", "the tea"]
+function stripLeadingLabel(text: string): string {
+  const trimmed = text.trim()
+  const match = trimmed.match(/^([a-z' ]{2,20}):\s*/i)
+  if (match && KNOWN_TITLES.includes(match[1].trim().toLowerCase())) {
+    return trimmed.slice(match[0].length)
+  }
+  return trimmed
+}
+
 interface Props {
   emails: Email[]
   categories: Category[]
@@ -45,6 +65,9 @@ export default function BriefingSection({
   const borderColor = mode === "zen" ? "rgba(200,150,12,0.22)" : mode === "wabi-sabi" ? "rgba(17,17,17,0.13)" : "rgba(255,31,110,0.22)"
   const shadow      = mode === "zen" ? "0 4px 28px rgba(200,150,12,0.08)" : mode === "wabi-sabi" ? "none" : "0 4px 28px rgba(255,31,110,0.08)"
 
+  const gamePlanTitle  = mode === "zen" ? "Today's Focus" : mode === "wabi-sabi" ? "The Tea" : "GAME PLAN"
+  const gamePlanAccent = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#C17D3C" : "#FF1F6E"
+
   return (
     <LabelSection
       title="DAILY BRIEFING"
@@ -55,6 +78,7 @@ export default function BriefingSection({
       emails={emails}
       categories={categories}
       selectedEmail={selectedEmail}
+      showAiSummary
       bulkActions={[
         { label: "Mark read", handler: async (targets) => { for (const e of targets) await onMarkRead(e) } },
         { label: "Archive",   handler: async (targets) => { for (const e of targets) await onArchive(e) } },
@@ -92,12 +116,26 @@ export default function BriefingSection({
       {summary && (
         <div style={{
           padding: "10px 16px 8px",
-          fontSize: "0.84rem",
-          lineHeight: 1.55,
-          color: "rgba(26,10,53,0.68)",
           borderBottom: "1px solid rgba(26,10,53,0.06)",
         }}>
-          {summary}
+          <p style={{
+            fontSize: "0.72rem",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: gamePlanAccent,
+            margin: "0 0 4px",
+          }}>
+            {gamePlanTitle}
+          </p>
+          <p style={{
+            fontSize: "0.84rem",
+            lineHeight: 1.55,
+            color: "rgba(26,10,53,0.68)",
+            margin: 0,
+          }}>
+            {stripLeadingLabel(stripMarkdown(summary))}
+          </p>
         </div>
       )}
     </LabelSection>

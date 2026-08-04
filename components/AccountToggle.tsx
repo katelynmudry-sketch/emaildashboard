@@ -11,13 +11,13 @@ interface Props {
 
 export default function AccountToggle({ active, accounts, onChange, loading }: Props) {
   return (
-    <div className="flex items-center gap-1 bg-zinc-100 rounded-full p-1">
+    <div className="self-start w-fit flex items-center gap-0.5 bg-zinc-100 rounded-full p-0.5">
       {accounts.map(account => (
         <button
           key={account.id}
           onClick={() => !loading && onChange(account.id)}
           disabled={loading}
-          className={`px-2.5 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+          className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
             active === account.id
               ? "bg-white text-zinc-900 shadow-sm"
               : "text-zinc-500 hover:text-zinc-700"
