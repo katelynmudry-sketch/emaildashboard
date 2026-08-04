@@ -2015,24 +2015,57 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ── Mindful Purge (zen only) ── */}
-            {appState === "ready" && mode === "zen" && mindfulPurge.length >= 5 && !purgeDismissed && (
+            {/* ── Mindful Purge — mass-delete suggestion for old, read newsletters & promos ── */}
+            {appState === "ready" && mindfulPurge.length >= 5 && !purgeDismissed && (() => {
+              const purgeAccent = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#111111" : "#FF1F6E"
+              const purgeAccentSoft = mode === "zen" ? "#8B6914" : mode === "wabi-sabi" ? "#111111" : "#B8005A"
+              const purgeBg = mode === "zen"
+                ? "rgba(200,150,12,0.05)"
+                : mode === "wabi-sabi"
+                  ? "transparent"
+                  : "rgba(255,31,110,0.06)"
+              const purgeBorder = mode === "zen"
+                ? "1px solid rgba(200,150,12,0.25)"
+                : mode === "wabi-sabi"
+                  ? "1.5px solid rgba(17,17,17,0.25)"
+                  : "1px solid rgba(255,31,110,0.28)"
+              const purgeChipBg = mode === "zen" ? "rgba(200,150,12,0.10)" : mode === "wabi-sabi" ? "transparent" : "rgba(255,31,110,0.10)"
+              const purgeChipBorder = mode === "zen"
+                ? "1px solid rgba(200,150,12,0.30)"
+                : mode === "wabi-sabi"
+                  ? "1.5px solid rgba(17,17,17,0.25)"
+                  : "1px solid rgba(255,31,110,0.30)"
+              const s = mindfulPurge.length !== 1 ? "s" : ""
+              const purgeEmoji = mode === "zen" ? "🍂" : mode === "wabi-sabi" ? "☕" : "🎉"
+              const purgeTitle = mode === "zen"
+                ? `${mindfulPurge.length} old newsletter${s} & promotions`
+                : mode === "wabi-sabi"
+                  ? `${mindfulPurge.length} old newsletter${s} & promos, bestie`
+                  : `${mindfulPurge.length} old newsletter${s} & promos ready to go!`
+              const purgeSubtitle = mode === "zen"
+                ? "These haven't needed your attention in 7+ days. Review and release what no longer serves."
+                : mode === "wabi-sabi"
+                  ? "these have been sitting here rent free for 7+ days. it's giving clutter, no thoughts, purge era."
+                  : "You've already read these — clear the clutter and keep that inbox streak going!"
+              const purgeReviewLabel = purgeExpanded ? "▲ Hide" : mode === "wabi-sabi" ? "▼ vibe check" : "▼ Review"
+              const purgeActionVerb = mode === "zen" ? "Release" : mode === "wabi-sabi" ? "Purge" : "Clear"
+              return (
               <div className="mb-4 overflow-hidden" style={{
-                  background: "rgba(200,150,12,0.05)",
-                  border: "1px solid rgba(200,150,12,0.25)",
+                  background: purgeBg,
+                  border: purgeBorder,
                   borderRadius: 14,
                   transition: "opacity 0.4s ease",
                   opacity: purgeShattered ? 0 : 1,
                 }}>
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 px-4 py-3">
                     <div className="flex items-start gap-3 w-full sm:w-auto sm:flex-1 sm:min-w-0">
-                      <span style={{ fontSize: "1.4rem", lineHeight: 1, flexShrink: 0 }}>🍂</span>
+                      <span style={{ fontSize: "1.4rem", lineHeight: 1, flexShrink: 0 }}>{purgeEmoji}</span>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#8B6914" }}>
-                          {mindfulPurge.length} old newsletter{mindfulPurge.length !== 1 ? "s" : ""} &amp; promotions
+                        <div style={{ fontSize: "0.85rem", fontWeight: mode === "wabi-sabi" ? 800 : 600, color: purgeAccentSoft }}>
+                          {purgeTitle}
                         </div>
                         <div style={{ fontSize: "0.74rem", color: "rgba(26,10,53,0.50)", marginTop: 1 }}>
-                          These haven&apos;t needed your attention in 7+ days. Review and release what no longer serves.
+                          {purgeSubtitle}
                         </div>
                       </div>
                     </div>
@@ -2042,13 +2075,13 @@ export default function Dashboard() {
                         style={{
                           flexShrink: 0,
                           padding: "4px 12px", borderRadius: 6,
-                          background: "rgba(200,150,12,0.10)",
-                          border: "1px solid rgba(200,150,12,0.30)",
-                          color: "#8B6914", fontSize: "0.78rem", fontWeight: 600,
+                          background: purgeChipBg,
+                          border: purgeChipBorder,
+                          color: purgeAccentSoft, fontSize: "0.78rem", fontWeight: 600,
                           cursor: "pointer",
                         }}
                       >
-                        {purgeExpanded ? "▲ Hide" : "▼ Review"}
+                        {purgeReviewLabel}
                       </button>
                       <button
                         onClick={() => {
@@ -2059,14 +2092,15 @@ export default function Dashboard() {
                         style={{
                           flexShrink: 0,
                           padding: "4px 14px", borderRadius: 6,
-                          background: purgeChecked.size === 0 ? "rgba(200,150,12,0.15)" : "#C8960C",
-                          color: purgeChecked.size === 0 ? "rgba(139,105,20,0.45)" : "#fff",
+                          background: purgeChecked.size === 0 ? purgeChipBg : purgeAccent,
+                          color: purgeChecked.size === 0 ? purgeAccentSoft : (mode === "wabi-sabi" ? "#FFF" : "#fff"),
+                          opacity: purgeChecked.size === 0 ? 0.55 : 1,
                           fontSize: "0.78rem", fontWeight: 700,
                           border: "none", cursor: purgeChecked.size === 0 ? "not-allowed" : "pointer",
                           transition: "all 0.15s",
                         }}
                       >
-                        Release {purgeChecked.size > 0 ? `${purgeChecked.size} ` : ""}selected
+                        {purgeActionVerb} {purgeChecked.size > 0 ? `${purgeChecked.size} ` : ""}selected
                       </button>
                       <button
                         onClick={() => setPurgeDismissed(true)}
@@ -2082,9 +2116,9 @@ export default function Dashboard() {
                   </div>
 
                   {purgeExpanded && (
-                    <div style={{ borderTop: "1px solid rgba(200,150,12,0.18)" }}>
+                    <div style={{ borderTop: mode === "wabi-sabi" ? "1.5px solid rgba(17,17,17,0.15)" : `1px solid ${purgeAccent}2e` }}>
                       {/* Select all / deselect all row */}
-                      <div className="flex items-center gap-2 px-4 py-1.5" style={{ borderBottom: "1px solid rgba(200,150,12,0.10)" }}>
+                      <div className="flex items-center gap-2 px-4 py-1.5" style={{ borderBottom: mode === "wabi-sabi" ? "1px solid rgba(17,17,17,0.10)" : `1px solid ${purgeAccent}1a` }}>
                         <button
                           onClick={() => {
                             if (purgeChecked.size === mindfulPurge.length) {
@@ -2094,7 +2128,7 @@ export default function Dashboard() {
                             }
                           }}
                           style={{
-                            fontSize: "0.72rem", color: "#8B6914", fontWeight: 600,
+                            fontSize: "0.72rem", color: purgeAccentSoft, fontWeight: 600,
                             background: "none", border: "none", cursor: "pointer", padding: 0,
                           }}
                         >
@@ -2105,12 +2139,12 @@ export default function Dashboard() {
                         </span>
                       </div>
 
-                      <div className="max-h-64 overflow-y-auto divide-y" style={{ borderColor: "rgba(200,150,12,0.08)" }}>
+                      <div className="max-h-64 overflow-y-auto divide-y" style={{ borderColor: "rgba(26,10,53,0.08)" }}>
                         {mindfulPurge.map(email => (
                           <div
                             key={email.id}
                             className="flex items-center gap-3 px-4 py-2"
-                            style={{ borderColor: "rgba(200,150,12,0.08)" }}
+                            style={{ borderColor: "rgba(26,10,53,0.08)" }}
                           >
                             <input
                               type="checkbox"
@@ -2123,7 +2157,7 @@ export default function Dashboard() {
                                   return next
                                 })
                               }}
-                              style={{ accentColor: "#C8960C", flexShrink: 0, width: 15, height: 15 }}
+                              style={{ accentColor: purgeAccent, flexShrink: 0, width: 15, height: 15 }}
                             />
                             <div className="min-w-0 flex-1">
                               <div style={{
@@ -2142,7 +2176,8 @@ export default function Dashboard() {
                     </div>
                   )}
               </div>
-            )}
+              )
+            })()}
 
             {/* ── Category grid ── */}
             {appState === "ready" && categories.length > 0 && (() => {
