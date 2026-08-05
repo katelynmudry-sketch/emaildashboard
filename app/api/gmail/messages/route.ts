@@ -5,6 +5,10 @@ import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
 const ALLOWED_MAX = new Set([30, 50, 100])
 
+// "oldest first" walks the full unread list to find the true tail — can take
+// longer than the default serverless timeout on a large backlog.
+export const maxDuration = 60
+
 export async function GET(request: Request) {
   const token = await getServerToken()
   const url = new URL(request.url)

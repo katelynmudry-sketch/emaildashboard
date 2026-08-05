@@ -255,21 +255,40 @@ export async function fetchInboxMessages(
   else if (unreadOnly && includeArchived) q = "is:unread"
   else q = ""
 
-  // Fetch accurate unread count from INBOX label + message list in parallel.
-  // labels.get('INBOX').messagesUnread is the true count; resultSizeEstimate is unreliable.
-  // This always reflects the true inbox-unread count, independent of the display filters above.
-  const [inboxLabel, list] = await Promise.all([
-    gmail.users.labels.get({ userId: "me", id: "INBOX" }).catch(() => null),
-    gmail.users.messages.list({
-      userId: "me",
-      q,
-      maxResults,
-    }),
-  ])
+  // Fetch accurate unread count from INBOX label in parallel with the message
+  // list walk below. labels.get('INBOX').messagesUnread is the true count;
+  // resultSizeEstimate is unreliable.
+  const inboxLabelPromise = gmail.users.labels.get({ userId: "me", id: "INBOX" }).catch(() => null)
 
-  const totalUnread =
-    (inboxLabel?.data.messagesUnread ?? list.data.resultSizeEstimate) ?? 0
-  const messages = list.data.messages ?? []
+  type ListedMessage = { id?: string | null; threadId?: string | null }
+  let messages: ListedMessage[]
+  let resultSizeEstimate = 0
+
+  if (sortOrder === "oldest") {
+    // Gmail's list endpoint always returns newest-first, with no server-side
+    // way to reverse it — to find the true oldest N matching `q`, page
+    // through cheap (metadata-only) listings all the way to the end, then
+    // take the tail. Capped to avoid runaway walks on huge backlogs.
+    const PAGE_SIZE = 500
+    const MAX_PAGES = 50 // ~25k messages worst case
+    let all: ListedMessage[] = []
+    let pageToken: string | undefined
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const list = await gmail.users.messages.list({ userId: "me", q, maxResults: PAGE_SIZE, pageToken })
+      all = all.concat(list.data.messages ?? [])
+      resultSizeEstimate = list.data.resultSizeEstimate ?? resultSizeEstimate
+      if (!list.data.nextPageToken) break
+      pageToken = list.data.nextPageToken
+    }
+    messages = all.slice(-maxResults)
+  } else {
+    const list = await gmail.users.messages.list({ userId: "me", q, maxResults })
+    messages = list.data.messages ?? []
+    resultSizeEstimate = list.data.resultSizeEstimate ?? 0
+  }
+
+  const inboxLabel = await inboxLabelPromise
+  const totalUnread = (inboxLabel?.data.messagesUnread ?? resultSizeEstimate) ?? 0
   if (messages.length === 0) return { emails: [], totalUnread }
 
   const details = await Promise.all(
