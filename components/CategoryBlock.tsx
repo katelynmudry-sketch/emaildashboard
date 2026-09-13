@@ -1,10 +1,25 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import type { AccountId, Email, Category, Attachment } from "@/lib/types"
+import type { AccountId, Email, Category, Attachment, EmailKeyPoint } from "@/lib/types"
 import { categoryNoun, type PartyMode } from "@/lib/party-mode"
 import { recordAction } from "@/lib/stats"
 import LabelSection from "./LabelSection"
+
+// Defensive strip in case the model slips markdown into the summary despite being told not to.
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[-*]\s+/gm, "")
+}
+
+const SUMMARY_TITLE: Record<PartyMode, string> = {
+  zen: "A Closer Look",
+  party: "THE GIST",
+  "wabi-sabi": "The Tea, Bestie",
+}
 
 const NOISY_CATEGORIES = /newsletter|subscri|promo|deals|marketing|digest|update|notif/i
 
@@ -99,6 +114,48 @@ export default function CategoryBlock({
     mode === "zen" && isNoisyCategory(category.name)
   )
 
+  // On-demand section summary — generated only when the user asks for it, never persisted.
+  const [summary, setSummary] = useState<EmailKeyPoint[]>([])
+  const [summaryLoading, setSummaryLoading] = useState(false)
+
+  async function handleSummarize() {
+    if (summary.length > 0) {
+      setSummary([])
+      return
+    }
+    setSummaryLoading(true)
+    try {
+      const res = await fetch("/api/ai/section-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoryName: category.name,
+          emails: sorted.slice(0, 150).map(e => ({
+            id: e.id, from: e.from, subject: e.subject, priority: e.priority, actionFlag: e.actionFlag,
+            microSummary: e.microSummary,
+            // Prefer the real body over Gmail's auto snippet — the snippet is just a
+            // teaser line and routinely misses details (dates, prices) further down.
+            bodySnippet: (e.body || e.snippet || "").slice(0, 500),
+          })),
+          mode,
+        }),
+      })
+      const data: { items?: EmailKeyPoint[] } = await res.json()
+      setSummary(data.items ?? [])
+    } catch {
+      setSummary([])
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
+
+  // Order points to match the email list order, dropping any with no extracted point.
+  const orderedPoints = summary.length > 0
+    ? sorted
+        .map(e => ({ email: e, point: summary.find(p => p.id === e.id)?.point }))
+        .filter((row): row is { email: Email; point: string } => !!row.point)
+    : []
+
   // Party mode: track initial count for evolution
   const initialCount = useRef(emails.length)
   const clearedCount = Math.max(0, initialCount.current - emails.length)
@@ -145,6 +202,22 @@ export default function CategoryBlock({
 
   const headerControls = (
     <div style={{ display: "flex", alignItems: "center", gap: 1, marginLeft: 4 }}>
+      {category.id !== "__delete__" && emails.length > 0 && (
+        <button
+          onClick={e => { e.stopPropagation(); handleSummarize() }}
+          disabled={summaryLoading}
+          title={summary.length > 0 ? "Hide summary" : "Summarize this section"}
+          style={{
+            background: "none", border: "none", cursor: summaryLoading ? "wait" : "pointer",
+            fontSize: "0.72rem", lineHeight: 1, padding: "1px 3px",
+            opacity: summaryLoading ? 0.4 : 0.55,
+            color: "inherit",
+          }}
+          aria-label={summary.length > 0 ? "hide summary" : "summarize section"}
+        >
+          {summaryLoading ? "⏳" : "✨"}
+        </button>
+      )}
       {onTogglePriority && category.id !== "__delete__" && (
         <button
           onClick={e => { e.stopPropagation(); onTogglePriority() }}
@@ -251,7 +324,34 @@ export default function CategoryBlock({
         gmailAccount={gmailAccount}
         mode={mode}
         showUnreadOnly={showUnreadOnly}
-      />
+      >
+        {orderedPoints.length > 0 && (
+          <div style={{
+            padding: "10px 16px 8px",
+            borderBottom: "1px solid rgba(26,10,53,0.06)",
+          }}>
+            <p style={{
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: accent.text === "#FFF5E0" ? accent.header : accent.text,
+              margin: "0 0 6px",
+            }}>
+              {SUMMARY_TITLE[mode]}
+            </p>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
+              {orderedPoints.map(({ email, point }) => (
+                <li key={email.id} style={{ fontSize: "0.84rem", lineHeight: 1.45, color: "rgba(26,10,53,0.75)" }}>
+                  <span style={{ fontWeight: 600, color: "rgba(26,10,53,0.9)" }}>{email.from.split("<")[0].trim() || email.from}</span>
+                  {" — "}
+                  {stripMarkdown(point)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </LabelSection>
     </div>
   )
 }

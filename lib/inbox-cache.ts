@@ -1,6 +1,6 @@
 "use client"
 
-import type { Email, Category } from "./types"
+import type { Email, Category, EmailKeyPoint } from "./types"
 
 const STORAGE_KEY = "inbox-ai-inbox"
 
@@ -13,8 +13,8 @@ export interface InboxCache {
   totalUnreadEstimate?: number
   /** Max messages requested on the last full inbox fetch (30 / 50 / 100). */
   importBatchSize?: number
-  /** AI-generated Daily Briefing action paragraph — cached so it survives reloads. */
-  briefingSummary?: string
+  /** AI-extracted Daily Briefing key points (one per email with something concrete) — cached so it survives reloads. */
+  briefingSummary?: EmailKeyPoint[]
 }
 
 function storageKey(account: string): string {
@@ -40,11 +40,16 @@ export function saveCachedInbox(
     fetchedAt?: string
     totalUnreadEstimate?: number
     importBatchSize?: number
-    briefingSummary?: string
+    briefingSummary?: EmailKeyPoint[]
   }
 ): void {
   if (typeof window === "undefined") return
   const prev = getCachedInbox(account)
+  // htmlBody is kept here (not stripped) so a page reload can render an
+  // email instantly from cache instead of re-fetching it from Gmail on
+  // every click. This write is called off the render path (see
+  // Dashboard's writeInboxCache, which defers it via setTimeout), so its
+  // size no longer blocks the UI the way it used to.
   const cache: InboxCache = {
     account,
     emails,
@@ -57,7 +62,18 @@ export function saveCachedInbox(
   try {
     localStorage.setItem(storageKey(account), JSON.stringify(cache))
   } catch {
-    // Storage quota exceeded — skip silently
+    // Quota exceeded — a 100-email batch with inline images can easily blow
+    // past the ~5-10MB per-origin localStorage limit. Retry without
+    // htmlBody: it's the bulk of the size and EmailModal/DetailPanel always
+    // re-fetch it from /api/gmail/html anyway, so losing it just means an
+    // extra fetch on next open — much better than silently freezing the
+    // whole cached snapshot (categories included) on a stale write.
+    try {
+      const slim = { ...cache, emails: cache.emails.map(({ htmlBody: _htmlBody, ...rest }) => rest) }
+      localStorage.setItem(storageKey(account), JSON.stringify(slim))
+    } catch {
+      // Still too big — skip silently rather than throw.
+    }
   }
 }
 

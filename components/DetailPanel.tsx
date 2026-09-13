@@ -36,7 +36,6 @@ interface Props {
   onNewCategory: (name: string, color: string) => Promise<string>
   onToggleBriefing?: (email: Email) => void
   onTodo?: (email: Email) => void
-  showAiSummary?: boolean
 }
 
 const PRIORITY_BADGE: Record<string, string> = {
@@ -48,7 +47,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 const btnBase =
   "text-[11px] font-medium px-2 py-1 rounded-md bg-white border border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d1d5db] hover:shadow-[0_1px_0_0_#d1d5db] hover:translate-y-px active:shadow-none active:translate-y-0.5 transition-all duration-75 whitespace-nowrap"
 
-export default function DetailPanel({ email, gmailAccount, categories, onClose, onArchive, onMarkRead, onSaveDraft, onSend, onStar, onDelete, onRecategorize, onMarkReplied, onMarkDeletable, onNewCategory, onToggleBriefing, onTodo, showAiSummary = false }: Props) {
+export default function DetailPanel({ email, gmailAccount, categories, onClose, onArchive, onMarkRead, onSaveDraft, onSend, onStar, onDelete, onRecategorize, onMarkReplied, onMarkDeletable, onNewCategory, onToggleBriefing, onTodo }: Props) {
   const [draftMode, setDraftMode] = useState<"reply" | "forward" | null>(null)
   const [autoAiDraft, setAutoAiDraft] = useState(false)
   const [imgPreview, setImgPreview] = useState<{ src: string; name: string } | null>(null)
@@ -202,13 +201,6 @@ export default function DetailPanel({ email, gmailAccount, categories, onClose, 
 
       {/* Body */}
       <div className="max-h-[520px] overflow-y-auto p-4 space-y-3">
-        {showAiSummary && email.summary && (
-          <div className="bg-violet-50 border border-violet-100 rounded-xl p-3">
-            <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-1">AI Summary</p>
-            <p className="text-sm text-zinc-700 leading-relaxed">{email.summary}</p>
-          </div>
-        )}
-
         {htmlLoading ? (
           <div className="flex items-center gap-2 py-4 text-sm text-zinc-400">
             <div className="w-4 h-4 border-2 border-violet-300 border-t-transparent rounded-full animate-spin" />

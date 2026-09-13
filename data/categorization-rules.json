@@ -26,5 +26,54 @@
     "fromPattern": "developer@email.apple.com",
     "category": "Developer",
     "createdAt": "2026-07-23T15:56:50.833Z"
+  },
+  {
+    "id": "no-reply@bakinghermann.com->food",
+    "description": "Hermann by Julius Fiedler → Food",
+    "fromPattern": "no-reply@bakinghermann.com",
+    "category": "Food",
+    "createdAt": "2026-08-05T02:14:09.837Z"
+  },
+  {
+    "id": "keyword:horoscope->astrology",
+    "description": "Subject contains \"horoscope\" → Astrology",
+    "subjectPattern": "horoscope",
+    "category": "Astrology & Spirituality",
+    "createdAt": "2026-09-12T00:00:00.000Z"
+  },
+  {
+    "id": "keyword:astrology->astrology",
+    "description": "Subject contains \"astrology\" → Astrology",
+    "subjectPattern": "astrology",
+    "category": "Astrology & Spirituality",
+    "createdAt": "2026-09-12T00:00:00.000Z"
+  },
+  {
+    "id": "keyword:zodiac->astrology",
+    "description": "Subject contains \"zodiac\" → Astrology",
+    "subjectPattern": "zodiac",
+    "category": "Astrology & Spirituality",
+    "createdAt": "2026-09-12T00:00:00.000Z"
+  },
+  {
+    "id": "keyword:tarot->astrology",
+    "description": "Subject contains \"tarot\" → Astrology",
+    "subjectPattern": "tarot",
+    "category": "Astrology & Spirituality",
+    "createdAt": "2026-09-12T00:00:00.000Z"
+  },
+  {
+    "id": "keyword:retrograde->astrology",
+    "description": "Subject contains \"retrograde\" → Astrology",
+    "subjectPattern": "retrograde",
+    "category": "Astrology & Spirituality",
+    "createdAt": "2026-09-12T00:00:00.000Z"
+  },
+  {
+    "id": "keyword:birth chart->astrology",
+    "description": "Subject contains \"birth chart\" → Astrology",
+    "subjectPattern": "birth chart",
+    "category": "Astrology & Spirituality",
+    "createdAt": "2026-09-12T00:00:00.000Z"
   }
 ]

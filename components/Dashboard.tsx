@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
-import type { Email, Category, AccountId, RawEmail, Attachment } from "@/lib/types"
+import type { Email, Category, AccountId, RawEmail, Attachment, EmailKeyPoint } from "@/lib/types"
 import { getAccounts } from "@/lib/types"
 import { getCategories, saveCategories } from "@/lib/categories"
 import { recordAction } from "@/lib/stats"
@@ -214,7 +214,7 @@ export default function Dashboard() {
   const [declutterEra, setDeclutterEra] = useState<Email[]>([])
   const [undoToast, setUndoToast] = useState<{ message: string; undoFn: () => Promise<void> } | null>(null)
   const [deepCleanOpen, setDeepCleanOpen] = useState(false)
-  const [briefingSummary, setBriefingSummary] = useState("")
+  const [briefingSummary, setBriefingSummary] = useState<EmailKeyPoint[]>([])
   const [showEmailOptIn, setShowEmailOptIn] = useState(false)
 
   // In-memory cache for fast account switching within a session
@@ -344,19 +344,25 @@ export default function Dashboard() {
       setFetchedAt(sess.fetchedAt)
       setTotalEmailsAtLoad(sess.emails.length)
       setTotalUnreadInbox(sess.totalUnreadEstimate ?? sess.emails.length)
-      setBriefingSummary(sess.briefingSummary ?? "")
+      setBriefingSummary(Array.isArray(sess.briefingSummary) ? sess.briefingSummary : [])
       setAppState("ready")
       return true
     }
     const stored = getCachedInbox(accountEmail)
     if (stored) {
+      // Prefer the dedicated categories store over what's bundled in the
+      // inbox cache blob — that blob can silently fail to write under
+      // localStorage quota (large batches with images), leaving it stale,
+      // while the dedicated store is small and always saved successfully.
+      const savedCategories = getCategories(accountEmail)
+      const categoriesToUse = savedCategories && savedCategories.length > 0 ? savedCategories : stored.categories
       setEmails(rehydrateEmails(stored.emails))
-      setCategories(stored.categories)
+      setCategories(categoriesToUse)
       setFetchedAt(stored.fetchedAt)
       setTotalEmailsAtLoad(stored.emails.length)
       setTotalUnreadInbox(stored.totalUnreadEstimate ?? stored.emails.length)
-      setBriefingSummary(stored.briefingSummary ?? "")
-      sessionCache.current.set(accountEmail, stored)
+      setBriefingSummary(Array.isArray(stored.briefingSummary) ? stored.briefingSummary : [])
+      sessionCache.current.set(accountEmail, { ...stored, categories: categoriesToUse })
       setAppState("ready")
       return true
     }
@@ -539,6 +545,14 @@ export default function Dashboard() {
   const runCategorization = useCallback(async (rawEmails: RawEmail[], cats: Category[], fetchMeta: InboxFetchMeta) => {
     setAppState("categorizing")
     setCategories(cats)
+    // Persist the full category list to its own small, quota-safe key on
+    // every refresh — not just when categories are first proposed/created.
+    // The inbox cache below also bundles categories, but that blob is much
+    // larger (emails + bodies) and can silently fail to write under
+    // localStorage quota, freezing on a stale snapshot that predates a
+    // since-added category (e.g. a category vanishing after a normal
+    // refresh, even though nothing removed it).
+    saveCategories(activeAccountConfig.email, cats)
 
     // Incremental categorization: emails already categorized in the last snapshot
     // (same account, same category set) keep their AI fields — only genuinely new
@@ -707,11 +721,13 @@ export default function Dashboard() {
       importBatchSize: fetchMeta.importBatchSize,
     }
     sessionCache.current.set(activeAccountConfig.email, cache)
-    saveCachedInbox(activeAccountConfig.email, categorized, cats, {
-      fetchedAt: now,
-      totalUnreadEstimate: fetchMeta.totalUnreadEstimate,
-      importBatchSize: fetchMeta.importBatchSize,
-    })
+    setTimeout(() => {
+      saveCachedInbox(activeAccountConfig.email, categorized, cats, {
+        fetchedAt: now,
+        totalUnreadEstimate: fetchMeta.totalUnreadEstimate,
+        importBatchSize: fetchMeta.importBatchSize,
+      })
+    }, 0)
 
     // ── Daily Briefing action paragraph — off the critical path, fills in when ready ──
     const briefingCandidates = categorized.filter(e => !e.todo && !e.snoozedUntil && e.briefingOverride !== "exclude")
@@ -721,26 +737,32 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           emails: briefingCandidates.slice(0, 150).map(e => ({
-            from: e.from, subject: e.subject, priority: e.priority, actionFlag: e.actionFlag, category: e.category,
+            id: e.id, from: e.from, subject: e.subject, priority: e.priority, actionFlag: e.actionFlag, category: e.category,
+            microSummary: e.microSummary,
+            // Prefer the real body over Gmail's auto snippet — the snippet is just a
+            // teaser line and routinely misses details (dates, prices) further down.
+            bodySnippet: (e.body || e.snippet || "").slice(0, 500),
           })),
           mode,
         }),
       })
         .then(r => r.json())
-        .then((data: { summary?: string }) => {
-          if (!data.summary) return
-          setBriefingSummary(data.summary)
-          sessionCache.current.set(activeAccountConfig.email, { ...cache, briefingSummary: data.summary })
-          saveCachedInbox(activeAccountConfig.email, categorized, cats, {
-            fetchedAt: now,
-            totalUnreadEstimate: fetchMeta.totalUnreadEstimate,
-            importBatchSize: fetchMeta.importBatchSize,
-            briefingSummary: data.summary,
-          })
+        .then((data: { items?: EmailKeyPoint[] }) => {
+          if (!data.items || data.items.length === 0) return
+          setBriefingSummary(data.items)
+          sessionCache.current.set(activeAccountConfig.email, { ...cache, briefingSummary: data.items })
+          setTimeout(() => {
+            saveCachedInbox(activeAccountConfig.email, categorized, cats, {
+              fetchedAt: now,
+              totalUnreadEstimate: fetchMeta.totalUnreadEstimate,
+              importBatchSize: fetchMeta.importBatchSize,
+              briefingSummary: data.items,
+            })
+          }, 0)
         })
         .catch(() => {})
     } else {
-      setBriefingSummary("")
+      setBriefingSummary([])
     }
 
     // ── Delivery chain cleanup (AI action — off via settings) ─────────────────
@@ -797,14 +819,24 @@ export default function Dashboard() {
     const totalUnreadEstimate = opt?.totalUnreadEstimate !== undefined ? opt.totalUnreadEstimate : sess?.totalUnreadEstimate
     const ib = sess?.importBatchSize
     const briefingSummaryVal = sess?.briefingSummary
-    saveCachedInbox(activeAccountConfig.email, next, cats, {
-      fetchedAt: ft,
-      ...(totalUnreadEstimate !== undefined && { totalUnreadEstimate }),
-      ...(ib !== undefined && { importBatchSize: ib }),
-      ...(briefingSummaryVal !== undefined && { briefingSummary: briefingSummaryVal }),
-    })
-    sessionCache.current.set(activeAccountConfig.email, {
-      account: activeAccountConfig.email,
+    // Keep the in-memory snapshot synchronous (cheap, needed immediately for
+    // incremental categorization / other reads this session). The actual
+    // disk write is JSON.stringify + localStorage.setItem over the whole
+    // emails array — deferred to a macrotask so it runs *after* the browser
+    // paints the optimistic UI update instead of blocking it. Without this,
+    // every delete/star/todo click froze the page for as long as the write
+    // took, since it ran synchronously inside the setEmails updater.
+    const accountEmail = activeAccountConfig.email
+    setTimeout(() => {
+      saveCachedInbox(accountEmail, next, cats, {
+        fetchedAt: ft,
+        ...(totalUnreadEstimate !== undefined && { totalUnreadEstimate }),
+        ...(ib !== undefined && { importBatchSize: ib }),
+        ...(briefingSummaryVal !== undefined && { briefingSummary: briefingSummaryVal }),
+      })
+    }, 0)
+    sessionCache.current.set(accountEmail, {
+      account: accountEmail,
       emails: next,
       categories: cats,
       fetchedAt: ft,

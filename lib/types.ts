@@ -239,6 +239,13 @@ export interface ManifestationContent {
   lastUpdated?: string // ISO date
 }
 
+// ── AI-extracted per-email key points (Daily Briefing + section summaries) ──
+
+export interface EmailKeyPoint {
+  id: string     // Email.id this point was extracted from
+  point: string  // short, concrete fact pulled from the email body (not a vague label)
+}
+
 export interface DashboardPrefs {
   theme: DashboardTheme
   dharmaTeacherId: string

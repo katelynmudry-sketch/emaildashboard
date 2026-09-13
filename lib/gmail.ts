@@ -266,19 +266,49 @@ export async function fetchInboxMessages(
 
   if (sortOrder === "oldest") {
     // Gmail's list endpoint always returns newest-first, with no server-side
-    // way to reverse it — to find the true oldest N matching `q`, page
-    // through cheap (metadata-only) listings all the way to the end, then
-    // take the tail. Capped to avoid runaway walks on huge backlogs.
+    // way to reverse it. Walking the *entire* matching list page-by-page to
+    // find the tail works but doesn't scale — an inbox with thousands of
+    // unread messages would page through all of them just to return the
+    // oldest 100, often exceeding the request timeout.
+    //
+    // Instead, narrow to an `older_than:Nd` window first: exponentially grow
+    // the window (cheap maxResults=1 estimate calls) until Gmail's estimated
+    // count for that window covers maxResults, then do the real walk only
+    // within that narrow window. If the estimate undershoots (Gmail's
+    // resultSizeEstimate is approximate), fall back to walking the full,
+    // unrestricted query so correctness never depends on the estimate.
     const PAGE_SIZE = 500
-    const MAX_PAGES = 50 // ~25k messages worst case
-    let all: ListedMessage[] = []
-    let pageToken: string | undefined
-    for (let page = 0; page < MAX_PAGES; page++) {
-      const list = await gmail.users.messages.list({ userId: "me", q, maxResults: PAGE_SIZE, pageToken })
-      all = all.concat(list.data.messages ?? [])
-      resultSizeEstimate = list.data.resultSizeEstimate ?? resultSizeEstimate
-      if (!list.data.nextPageToken) break
-      pageToken = list.data.nextPageToken
+    const MAX_PAGES = 50 // ~25k messages worst case, for the full-query fallback
+
+    async function walkQuery(walkQ: string, capPages: number): Promise<ListedMessage[]> {
+      let acc: ListedMessage[] = []
+      let pageToken: string | undefined
+      for (let page = 0; page < capPages; page++) {
+        const list = await gmail.users.messages.list({ userId: "me", q: walkQ, maxResults: PAGE_SIZE, pageToken })
+        acc = acc.concat(list.data.messages ?? [])
+        resultSizeEstimate = list.data.resultSizeEstimate ?? resultSizeEstimate
+        if (!list.data.nextPageToken) break
+        pageToken = list.data.nextPageToken
+      }
+      return acc
+    }
+
+    let windowQ = q
+    let days = 1
+    const MAX_DAYS = 3650 // ~10 years — beyond this, just walk the unrestricted query
+    while (days < MAX_DAYS) {
+      const probe = await gmail.users.messages.list({ userId: "me", q: `${q} older_than:${days}d`, maxResults: 1 })
+      if ((probe.data.resultSizeEstimate ?? 0) >= maxResults) {
+        windowQ = `${q} older_than:${days}d`
+        break
+      }
+      days *= 2
+    }
+
+    let all = await walkQuery(windowQ, windowQ === q ? MAX_PAGES : 10)
+    if (all.length < maxResults && windowQ !== q) {
+      // Estimate undershot the true tail — fall back to the full walk.
+      all = await walkQuery(q, MAX_PAGES)
     }
     messages = all.slice(-maxResults)
   } else {

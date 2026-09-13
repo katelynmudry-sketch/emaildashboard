@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk"
-import type { RawEmail, Email, Category, ProposeResponse } from "./types"
+import type { RawEmail, Email, Category, ProposeResponse, EmailKeyPoint } from "./types"
 import { loadRules, formatRulesForPrompt } from "./rules"
 import { DEFAULT_SYSTEM_CONTEXT, extractJson } from "./claude-utils"
 
@@ -196,7 +196,7 @@ Today's date: ${today}
 
 Also assign:
 - priority: "urgent" (needs reply today/time-sensitive), "today" (action needed soon), or "fyi" (informational, no action needed)
-- microSummary: 2-3 word phrase describing the email's topic or action. Verb-noun style preferred. Do not repeat the sender name or brand if it already appears in the subject or sender. Focus on the action, event, price, or deadline. Examples: "order shipped", "confirm appointment", "payment due", "ADHD Day 3", "VIP pass", "course discount". No punctuation.
+- microSummary: 2-4 word phrase naming the SPECIFIC topic, subject, or action in this exact email — never a generic content-type label. Do not repeat the sender name or brand if it already appears in the subject or sender. Focus on the actual dish/product/event/price/deadline named in the body. Examples: "order shipped", "confirm appointment", "payment due", "South Indian fish stew", "Aztec cacao history", "3g matcha ratio", "grilled spring onions" — NOT vague labels like "recipe content", "food history", "coffee check-in", or "newsletter update". If you can't name the specific thing, use the most concrete noun phrase the body actually gives you. No punctuation.
 - actionFlag: one of:
   - "reply" — personal or patient email asking a question that needs a reply
   - "confirm" — needs a specific action, confirmation, scheduling, or response
@@ -286,47 +286,89 @@ Return ONLY valid JSON array. No markdown, no explanation.
   })
 }
 
-// ── Daily Briefing action paragraph ───────────────────────────────────────────
-// Cheap metadata-only call (from/subject/priority/actionFlag/category, no
-// bodies) — directive summary of what actually needs doing right now.
-// Generated from the full current inbox snapshot each refresh (not just the
-// newly-categorized subset from an incremental categorizeInbox call), so it
-// stays accurate even when most emails are served from cache.
+// ── Daily Briefing / section summaries: per-email extracted key points ───────
+// Pulls the actual bodies (truncated) so it can surface concrete facts —
+// numbers, ratios, dates, decisions — instead of a vague one-paragraph blob.
+// Output is one row per email (skipping emails with nothing concrete to
+// extract), rendered by the UI in the same order as the email list.
 
 export interface BriefingInput {
+  id: string
   from: string
   subject: string
   priority: "urgent" | "today" | "fyi"
   actionFlag: "reply" | "confirm" | "receipt" | "read"
-  category: string
+  category?: string
+  microSummary?: string  // the short label already shown on the email's row — used to avoid restating it
+  bodySnippet: string  // short plain-text excerpt of the body
 }
 
 const BRIEFING_TONE: Record<string, string> = {
   zen: "Tone: quiet, wise, unhurried — like a calm teacher naming what's true. No exclamation points.",
-  party: "Tone: energetic hype-person giving you the game plan. Short, punchy sentences.",
+  party: "Tone: energetic hype-person giving you the rundown. Short, punchy phrasing.",
   "wabi-sabi": "Tone: bubbly Basic AF bestie energy, but the CONTENT must still be genuinely useful — literally, honestly, bestie.",
 }
 
-export async function generateBriefingSummary(emails: BriefingInput[], mode: string): Promise<string> {
-  if (emails.length === 0) return ""
+// Shared extraction call: numbers the emails, asks the model to return a JSON
+// array of {i, point} for only the emails with something concrete worth
+// surfacing, then maps indices back to email ids. Used by both the Daily
+// Briefing and on-demand section summaries below.
+async function extractKeyPoints(
+  emails: BriefingInput[],
+  mode: string,
+  contextLine: string
+): Promise<EmailKeyPoint[]> {
+  if (emails.length === 0) return []
 
-  const urgentCount = emails.filter(e => e.priority === "urgent").length
-  const repliesOwed = emails.filter(e => e.actionFlag === "reply" || e.actionFlag === "confirm").length
+  const capped = emails.slice(0, 150)
+  const listing = capped.map((e, i) => {
+    const excerpt = (e.bodySnippet || "").replace(/\s+/g, " ").trim().slice(0, 500)
+    const rowLabel = e.microSummary ? ` | row already shows: "${e.microSummary}"` : ""
+    return `${i}. [${e.priority}/${e.actionFlag}] "${e.subject}" from ${e.from}${e.category ? ` (${e.category})` : ""}${rowLabel}\n   body: "${excerpt}"`
+  }).join("\n")
 
-  const prompt = `Here is someone's current inbox (from, subject, priority, action type, category):
+  const prompt = `${contextLine}
+Each email also lists the short label already visible on its row in the UI ("row already shows: ...") — the reader sees the subject and that label before reading your point, so don't waste a point restating either one.
 
-${emails.slice(0, 150).map(e => `- [${e.priority}/${e.actionFlag}] ${e.subject} (from ${e.from}, ${e.category})`).join("\n")}
+${listing}
 
-Write a 2-3 sentence action-focused briefing paragraph: what replies are owed, any deadlines/dates you can spot in subjects, and roughly ${urgentCount} urgent item${urgentCount !== 1 ? "s" : ""} / ${repliesOwed} awaiting a reply. Be specific — name an actual sender or subject where useful. Directive, not a summary of counts. Under 50 words. No preamble, no "Your inbox..." opener, no title or heading before the paragraph — the UI already shows a heading, just write the paragraph itself. Plain text only — no markdown (no asterisks, bold, headers, or bullet points).
-${BRIEFING_TONE[mode] ?? BRIEFING_TONE.party}`
+For each numbered email, decide whether it earns an entry in the output array:
+- Leave it OUT of the array entirely if the subject + row label already tell the reader everything worth knowing (nothing new to add), or if the body has nothing real to extract (pure ads, boilerplate, no actual content). Do not include an object for it at all — not even with an empty or placeholder point.
+- Otherwise include one object with exactly ONE additional concrete detail from the body that is NOT already conveyed by the subject or row label — a specific dish/ingredient/technique, number, ratio, amount, date/deadline, decision, name, or claim. Never fall back to a generic content-type label ("recipe content", "food history", "coffee update") — name the actual specific thing. If the body gives you a number or ratio, state it exactly.
+- Don't leave an email out just because it has no numbers — a specific fact, ingredient, or claim counts too. Every email with real content in its body should get an entry unless it is truly redundant with what's already shown or truly empty.
+
+Under 14 words per point, and every point must be a real extracted detail — never the literal word "skip" or any placeholder. Return ONLY a JSON array containing entries for the emails that earned one, no prose, no markdown fences: [{"i": 0, "point": "..."}, ...] — an email with nothing to add simply has no object in this array.
+Word each "point" in this voice: ${BRIEFING_TONE[mode] ?? BRIEFING_TONE.party} Keep every number and fact exactly accurate regardless of tone.`
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 150,
+    max_tokens: 1024,
     messages: [{ role: "user", content: prompt }],
   })
 
-  return response.content[0].type === "text" ? response.content[0].text.trim() : ""
+  const text = response.content[0].type === "text" ? response.content[0].text : "[]"
+  try {
+    const parsed = JSON.parse(extractJson(text)) as Array<{ i: number; point: string }>
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(p => typeof p.i === "number" && capped[p.i] && typeof p.point === "string" && p.point.trim())
+      .map(p => ({ id: capped[p.i].id, point: p.point.trim() }))
+      .filter(p => !/^skip$/i.test(p.point))
+  } catch {
+    return []
+  }
+}
+
+export async function generateBriefingSummary(emails: BriefingInput[], mode: string): Promise<EmailKeyPoint[]> {
+  return extractKeyPoints(emails, mode, "Here is someone's current inbox, numbered, with subject/sender/priority/action-type and a short body excerpt for each:")
+}
+
+// ── On-demand per-category summary ────────────────────────────────────────────
+// Same extraction shape as the briefing, scoped to a single category's
+// current emails and triggered on demand (not auto-run).
+
+export async function generateSectionSummary(categoryName: string, emails: BriefingInput[], mode: string): Promise<EmailKeyPoint[]> {
+  return extractKeyPoints(emails, mode, `Here are the current emails in the "${categoryName}" category, numbered, with subject/sender/priority/action-type and a short body excerpt for each:`)
 }
 
 // ── Deep Clean: cheap subjects+senders-only delete suggestions ───────────────

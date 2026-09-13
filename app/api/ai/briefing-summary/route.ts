@@ -13,8 +13,8 @@ export async function POST(request: Request) {
     if (Array.isArray(emails) && emails.length > 150) {
       return NextResponse.json({ error: "Too many emails — max 150 per request" }, { status: 400 })
     }
-    const summary = await generateBriefingSummary(emails, mode ?? "party")
-    return NextResponse.json({ summary })
+    const items = await generateBriefingSummary(emails, mode ?? "party")
+    return NextResponse.json({ items })
   } catch (err) {
     console.error("[ai/briefing-summary]", err)
     return NextResponse.json({ error: "Briefing summary failed" }, { status: 500 })
