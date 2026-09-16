@@ -267,6 +267,39 @@ export default function QuoteGate({ onEnter }: QuoteGateProps) {
             </p>
           </div>
 
+          {/* Mode buttons */}
+          <div
+            style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}
+            onMouseLeave={supportsHover ? () => setHovered(null) : undefined}
+          >
+            {MODE_BUTTONS.map(btn => {
+              const isHovered = hovered === btn.mode
+              return (
+                <button
+                  key={btn.mode}
+                  onClick={() => handleModeClick(btn.mode)}
+                  onMouseEnter={supportsHover ? () => setHovered(btn.mode) : undefined}
+                  style={{
+                    padding: "12px 32px", borderRadius: 999,
+                    border: btn.border,
+                    background: isHovered ? btn.hoverBg : btn.bg,
+                    color: btn.color,
+                    fontSize: "0.88rem", fontWeight: 600, letterSpacing: "0.10em",
+                    cursor: "pointer", transition: "background 0.2s",
+                    display: "flex", alignItems: "center", gap: 8,
+                    boxShadow: btn.glow,
+                    animation: btn.pulse ? "pulse-gate 2.4s ease-in-out infinite" : undefined,
+                  }}
+                >
+                  {btn.emoji} {btn.label}
+                  {!supportsHover && isHovered && (
+                    <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>· tap again</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
           {/* Live demo line — updates with hover (desktop) / tap (mobile) */}
           <div style={{
             display: "flex", flexDirection: "column", alignItems: "center",
@@ -303,7 +336,7 @@ export default function QuoteGate({ onEnter }: QuoteGateProps) {
                 margin: 0,
                 transition: "color 0.5s ease",
               }}>
-                {supportsHover ? "👀 Hover a vibe below to preview it" : "👀 Tap a vibe below to preview it"}
+                {supportsHover ? "👀 Hover a vibe above to preview it" : "👀 Tap a vibe above to preview it"}
               </p>
             )}
 
@@ -316,39 +349,6 @@ export default function QuoteGate({ onEnter }: QuoteGateProps) {
                 {reflection}
               </p>
             )}
-          </div>
-
-          {/* Mode buttons */}
-          <div
-            style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}
-            onMouseLeave={supportsHover ? () => setHovered(null) : undefined}
-          >
-            {MODE_BUTTONS.map(btn => {
-              const isHovered = hovered === btn.mode
-              return (
-                <button
-                  key={btn.mode}
-                  onClick={() => handleModeClick(btn.mode)}
-                  onMouseEnter={supportsHover ? () => setHovered(btn.mode) : undefined}
-                  style={{
-                    padding: "12px 32px", borderRadius: 999,
-                    border: btn.border,
-                    background: isHovered ? btn.hoverBg : btn.bg,
-                    color: btn.color,
-                    fontSize: "0.88rem", fontWeight: 600, letterSpacing: "0.10em",
-                    cursor: "pointer", transition: "background 0.2s",
-                    display: "flex", alignItems: "center", gap: 8,
-                    boxShadow: btn.glow,
-                    animation: btn.pulse ? "pulse-gate 2.4s ease-in-out infinite" : undefined,
-                  }}
-                >
-                  {btn.emoji} {btn.label}
-                  {!supportsHover && isHovered && (
-                    <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>· tap again</span>
-                  )}
-                </button>
-              )
-            })}
           </div>
 
           {/* Skip link */}
