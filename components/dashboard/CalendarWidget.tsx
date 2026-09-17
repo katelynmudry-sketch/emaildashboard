@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import type { AccountId, CalendarEvent } from "@/lib/types"
+import { signIn, useSession } from "next-auth/react"
+import { getAccounts, type AccountId, type CalendarEvent } from "@/lib/types"
 import type { ThemeConfig } from "./theme-config"
 import { getCalendarCache, saveCalendarCache } from "@/lib/dashboard-prefs"
 
@@ -15,10 +16,13 @@ export default function CalendarWidget({ theme, account, onEventsLoaded }: Calen
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [needsReconnect, setNeedsReconnect] = useState(false)
+  const { data: session } = useSession()
 
   useEffect(() => {
     setLoading(true)
     setError(false)
+    setNeedsReconnect(false)
     const cached = getCalendarCache(account)
     if (cached) {
       setEvents(cached.events)
@@ -34,7 +38,13 @@ export default function CalendarWidget({ theme, account, onEventsLoaded }: Calen
         const evts: CalendarEvent[] = data.events ?? []
         setEvents(evts)
         onEventsLoaded?.(evts)
-        saveCalendarCache(account, evts)
+        if (data.code === "CALENDAR_SCOPE_MISSING") {
+          // Not actually an empty day — the stored token predates the
+          // calendar scope, so don't cache this as "confirmed empty."
+          setNeedsReconnect(true)
+        } else {
+          saveCalendarCache(account, evts)
+        }
       })
       .catch(err => {
         if (err.name !== "AbortError") {
@@ -46,6 +56,15 @@ export default function CalendarWidget({ theme, account, onEventsLoaded }: Calen
     return () => { clearTimeout(timer); controller.abort() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account])
+
+  function handleReconnect() {
+    const email = getAccounts(session ?? null).find(a => a.id === account)?.email
+    signIn(
+      "google",
+      { redirectTo: typeof window !== "undefined" ? window.location.pathname : "/" },
+      { prompt: "consent", login_hint: email || undefined },
+    )
+  }
 
   const today = new Date()
   const dayName = today.toLocaleDateString("en-US", { weekday: "long" })
@@ -115,7 +134,41 @@ export default function CalendarWidget({ theme, account, onEventsLoaded }: Calen
             Couldn't load calendar — sign out &amp; back in to reconnect
           </p>
         )}
-        {!loading && !error && events.length === 0 && (
+        {!loading && !error && needsReconnect && (
+          <div>
+            <p style={{
+              color: "#1A0A35", opacity: 0.55,
+              fontSize: isAltar ? "1rem" : "0.83rem",
+              fontStyle: isAltar ? "italic" : "normal",
+              fontFamily: theme.bodyFont,
+              margin: 0,
+            }}>
+              {isAltar
+                ? "✦ Your calendar connection needs renewing before today's events can appear."
+                : isFestival
+                  ? "CALENDAR ACCESS EXPIRED — RECONNECT TO SEE TODAY'S LINEUP"
+                  : "Calendar connection expired — reconnect to see today's events."}
+            </p>
+            <button
+              type="button"
+              onClick={handleReconnect}
+              style={{
+                marginTop: "8px",
+                padding: "5px 14px", borderRadius: 999,
+                background: theme.accentColor,
+                color: isAltar ? "#FFFEF9" : "#FFFFFF",
+                border: "none",
+                fontSize: "0.72rem", fontWeight: 700,
+                letterSpacing: isFestival ? "0.06em" : undefined,
+                textTransform: isFestival ? "uppercase" : "none",
+                cursor: "pointer", fontFamily: theme.bodyFont,
+              }}
+            >
+              {isFestival ? "↻ RECONNECT" : "↻ Reconnect calendar"}
+            </button>
+          </div>
+        )}
+        {!loading && !error && !needsReconnect && events.length === 0 && (
           <p style={{
             color: "#1A0A35", opacity: 0.38,
             fontSize: isAltar ? "1rem" : "0.83rem",

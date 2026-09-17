@@ -75,9 +75,13 @@ export function saveDharmaCache(data: DharmaCache): void {
 export interface CalendarCache {
   fetchedAt: number // ms timestamp
   events: import("./types").CalendarEvent[]
+  v?: number
 }
 
 const CALENDAR_TTL_MS = 15 * 60 * 1000 // 15 minutes
+// Bumped when the events.list query logic changes, so caches written under the
+// old (broken) query get invalidated instead of masking the fix for up to 15 min.
+const CALENDAR_CACHE_VERSION = 2
 
 export function getCalendarCache(account: string): CalendarCache | null {
   if (typeof window === "undefined") return null
@@ -85,6 +89,7 @@ export function getCalendarCache(account: string): CalendarCache | null {
     const raw = localStorage.getItem(`${CALENDAR_CACHE_KEY}:${account}`)
     if (!raw) return null
     const cached = JSON.parse(raw) as CalendarCache
+    if (cached.v !== CALENDAR_CACHE_VERSION) return null
     if (Date.now() - cached.fetchedAt > CALENDAR_TTL_MS) return null
     return cached
   } catch {
@@ -94,5 +99,8 @@ export function getCalendarCache(account: string): CalendarCache | null {
 
 export function saveCalendarCache(account: string, events: import("./types").CalendarEvent[]): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(`${CALENDAR_CACHE_KEY}:${account}`, JSON.stringify({ fetchedAt: Date.now(), events }))
+  localStorage.setItem(
+    `${CALENDAR_CACHE_KEY}:${account}`,
+    JSON.stringify({ fetchedAt: Date.now(), events, v: CALENDAR_CACHE_VERSION }),
+  )
 }

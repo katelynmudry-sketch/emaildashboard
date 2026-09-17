@@ -27,35 +27,66 @@ export async function GET(request: Request) {
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
 
-    const res = await calendar.events.list({
-      calendarId: "primary",
-      timeMin: startOfDay.toISOString(),
-      timeMax: endOfDay.toISOString(),
-      singleEvents: true,
-      orderBy: "startTime",
-      maxResults: 20,
-    })
+    // "primary" is only this account's own default calendar — secondary,
+    // shared, and subscribed calendars (which Google Calendar's UI merges
+    // into one view) live under their own calendar IDs and need their own
+    // events.list call.
+    const calendarList = await calendar.calendarList.list()
+    const sourceCalendars = (calendarList.data.items ?? []).filter(c => c.accessRole !== "freeBusyReader")
+
+    const perCalendarResults = await Promise.all(
+      sourceCalendars.map(cal =>
+        calendar.events
+          .list({
+            calendarId: cal.id!,
+            timeMin: startOfDay.toISOString(),
+            timeMax: endOfDay.toISOString(),
+            singleEvents: true,
+            orderBy: "startTime",
+            maxResults: 20,
+          })
+          .then(res => ({ cal, items: res.data.items ?? [] }))
+          .catch(() => ({ cal, items: [] as typeof res.data.items })),
+      ),
+    )
 
     const nowMs = now.getTime()
-    const events: CalendarEvent[] = (res.data.items ?? []).map((item, i) => {
-      const start = item.start?.dateTime ?? item.start?.date ?? ""
-      const end = item.end?.dateTime ?? item.end?.date ?? ""
-      const startMs = start ? new Date(start).getTime() : 0
-      const endMs = end ? new Date(end).getTime() : startMs + 3_600_000
-      return {
-        id: item.id ?? String(i),
-        title: item.summary ?? "Untitled event",
-        startTime: start ? toHHMM(start) : "All day",
-        endTime: end ? toHHMM(end) : undefined,
-        colorDot: EVENT_COLORS[i % EVENT_COLORS.length],
-        location: item.location ?? undefined,
-        isNow: nowMs >= startMs && nowMs <= endMs,
-      }
-    })
+    const events: CalendarEvent[] = perCalendarResults
+      .flatMap(({ cal, items }, calIdx) =>
+        items
+          .filter(item => item.status !== "cancelled")
+          .map((item, i) => {
+            const start = item.start?.dateTime ?? item.start?.date ?? ""
+            const end = item.end?.dateTime ?? item.end?.date ?? ""
+            const startMs = start ? new Date(start).getTime() : 0
+            const endMs = end ? new Date(end).getTime() : startMs + 3_600_000
+            return {
+              id: item.id ?? `${cal.id}-${i}`,
+              title: item.summary ?? "Untitled event",
+              startTime: start ? toHHMM(start) : "All day",
+              endTime: end ? toHHMM(end) : undefined,
+              colorDot: cal.backgroundColor || EVENT_COLORS[calIdx % EVENT_COLORS.length],
+              location: item.location ?? undefined,
+              isNow: nowMs >= startMs && nowMs <= endMs,
+              _sortMs: startMs,
+            }
+          }),
+      )
+      .sort((a, b) => a._sortMs - b._sortMs)
+      .slice(0, 20)
+      .map(({ _sortMs, ...event }) => event)
 
     return NextResponse.json({ events })
   } catch (err) {
     console.error("[calendar/today]", err)
-    return NextResponse.json({ events: [] }) // graceful fallback — never 500 for dashboard
+    // Google returns 403 "insufficient authentication scopes" when the stored
+    // access token predates the calendar.readonly scope being added — the
+    // user authenticated before that scope existed and hasn't re-consented
+    // since, so their refresh token still only carries Gmail scopes. That
+    // looks identical to "no events today" unless we call it out separately.
+    const status = (err as { response?: { status?: number }; code?: number })?.response?.status
+      ?? (err as { code?: number })?.code
+    const code = status === 403 ? "CALENDAR_SCOPE_MISSING" : undefined
+    return NextResponse.json({ events: [], code }) // graceful fallback — never 500 for dashboard
   }
 }
