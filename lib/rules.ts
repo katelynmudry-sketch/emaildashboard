@@ -1,5 +1,4 @@
-import fs from "fs"
-import path from "path"
+import { put, list } from "@vercel/blob"
 
 export interface CategorizationRule {
   id: string
@@ -10,36 +9,40 @@ export interface CategorizationRule {
   createdAt: string          // ISO
 }
 
-const RULES_FILE = path.join(process.cwd(), "data", "categorization-rules.json")
+const BLOB_PATHNAME = "categorization-rules.json"
 
-function ensureDir() {
-  const dir = path.dirname(RULES_FILE)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-}
-
-export function loadRules(): CategorizationRule[] {
+export async function loadRules(): Promise<CategorizationRule[]> {
   try {
-    if (!fs.existsSync(RULES_FILE)) return []
-    return JSON.parse(fs.readFileSync(RULES_FILE, "utf-8")) as CategorizationRule[]
+    const { blobs } = await list({ prefix: BLOB_PATHNAME })
+    if (!blobs.length) return []
+    const res = await fetch(blobs[0].url)
+    if (!res.ok) return []
+    return await res.json() as CategorizationRule[]
   } catch {
     return []
   }
 }
 
-export function saveRule(rule: CategorizationRule): void {
-  ensureDir()
-  const existing = loadRules()
+async function writeRules(rules: CategorizationRule[]): Promise<void> {
+  await put(BLOB_PATHNAME, JSON.stringify(rules, null, 2), {
+    access: "public",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  })
+}
+
+export async function saveRule(rule: CategorizationRule): Promise<void> {
+  const existing = await loadRules()
   // Replace if same id, otherwise append
   const idx = existing.findIndex(r => r.id === rule.id)
   if (idx >= 0) existing[idx] = rule
   else existing.push(rule)
-  fs.writeFileSync(RULES_FILE, JSON.stringify(existing, null, 2), "utf-8")
+  await writeRules(existing)
 }
 
-export function deleteRule(id: string): void {
-  ensureDir()
-  const existing = loadRules().filter(r => r.id !== id)
-  fs.writeFileSync(RULES_FILE, JSON.stringify(existing, null, 2), "utf-8")
+export async function deleteRule(id: string): Promise<void> {
+  const existing = (await loadRules()).filter(r => r.id !== id)
+  await writeRules(existing)
 }
 
 /** Format rules as a prompt section to inject into Claude's system prompt */

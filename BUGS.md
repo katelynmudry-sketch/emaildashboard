@@ -23,12 +23,6 @@ Combines optimistic UI append, fetch, two error paths, and response merge into o
 If the chat editor grows, extract the fetch logic to a `useChatEditor()` hook.
 File: `components/InstructionsPanel.tsx` lines ~202–239
 
-### `categorization-rules.json` file writes fail silently on Vercel
-`lib/rules.ts` uses `fs.writeFileSync` which is a no-op on Vercel's read-only filesystem.
-"Teach Claude" sender rules created in the UI won't persist on the hosted version.
-Fix: migrate `rules.ts` to use the same localStorage → request-body pattern as settings.
-File: `lib/rules.ts`
-
 ## Low – DEBT
 
 ### Auth-check boilerplate duplicated across all 7 route handlers

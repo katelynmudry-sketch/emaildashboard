@@ -6,7 +6,7 @@ import type { CategorizationRule } from "@/lib/rules"
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  return NextResponse.json({ rules: loadRules() })
+  return NextResponse.json({ rules: await loadRules() })
 }
 
 export async function POST(request: Request) {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (!rule.id || !rule.category || !rule.description) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
   }
-  saveRule(rule)
+  await saveRule(rule)
   return NextResponse.json({ ok: true })
 }
 
@@ -27,6 +27,6 @@ export async function DELETE(request: Request) {
 
   const { id } = await request.json()
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 })
-  deleteRule(id)
+  await deleteRule(id)
   return NextResponse.json({ ok: true })
 }
