@@ -156,7 +156,7 @@ export async function categorizeInbox(
   if (emails.length === 0) return []
 
   const categoryList = categories.map(c => c.name).join(", ")
-  const rulesSection = formatRulesForPrompt(loadRules())
+  const rulesSection = formatRulesForPrompt(await loadRules())
   const customContextSection = settings?.customContext?.trim()
     ? `\n## Custom instructions for this account\n${settings.customContext.trim()}`
     : ""

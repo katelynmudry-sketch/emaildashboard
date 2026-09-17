@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import type { AccountId, Email, Category, Attachment, EmailKeyPoint } from "@/lib/types"
 import type { PartyMode } from "@/lib/party-mode"
 import LabelSection from "./LabelSection"
@@ -57,6 +58,8 @@ export default function BriefingSection({
   const gamePlanTitle  = mode === "zen" ? "Today's Focus" : mode === "wabi-sabi" ? "The Tea" : "GAME PLAN"
   const gamePlanAccent = mode === "zen" ? "#C8960C" : mode === "wabi-sabi" ? "#C17D3C" : "#FF1F6E"
 
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false)
+
   // Order points to match the email list order, dropping any with no extracted point.
   // (Array.isArray guards against stale cached data from before this became a list.)
   const orderedPoints = Array.isArray(summary) && summary.length > 0
@@ -111,28 +114,50 @@ export default function BriefingSection({
       {/* Summary slot — pass summary={items} from Dashboard when AI generation is ready */}
       {orderedPoints.length > 0 && (
         <div style={{
-          padding: "10px 16px 8px",
+          padding: summaryCollapsed ? "10px 16px" : "10px 16px 8px",
           borderBottom: "1px solid rgba(26,10,53,0.06)",
         }}>
-          <p style={{
-            fontSize: "0.72rem",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: gamePlanAccent,
-            margin: "0 0 6px",
-          }}>
-            {gamePlanTitle}
-          </p>
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
-            {orderedPoints.map(({ email, point }) => (
-              <li key={email.id} style={{ fontSize: "0.84rem", lineHeight: 1.45, color: "rgba(26,10,53,0.75)" }}>
-                <span style={{ fontWeight: 600, color: "rgba(26,10,53,0.9)" }}>{email.from.split("<")[0].trim() || email.from}</span>
-                {" — "}
-                {stripMarkdown(point)}
-              </li>
-            ))}
-          </ul>
+          <button
+            onClick={() => setSummaryCollapsed(v => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              margin: summaryCollapsed ? 0 : "0 0 6px",
+            }}
+            aria-expanded={!summaryCollapsed}
+            aria-label={summaryCollapsed ? `Expand ${gamePlanTitle}` : `Collapse ${gamePlanTitle}`}
+          >
+            <span style={{
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: gamePlanAccent,
+            }}>
+              {gamePlanTitle}
+            </span>
+            <span style={{
+              fontSize: "0.6rem",
+              color: gamePlanAccent,
+              opacity: 0.7,
+              transition: "transform 0.2s",
+              transform: summaryCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+              display: "inline-block",
+            }}>
+              ▼
+            </span>
+          </button>
+          {!summaryCollapsed && (
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
+              {orderedPoints.map(({ email, point }) => (
+                <li key={email.id} style={{ fontSize: "0.84rem", lineHeight: 1.45, color: "rgba(26,10,53,0.75)" }}>
+                  <span style={{ fontWeight: 600, color: "rgba(26,10,53,0.9)" }}>{email.from.split("<")[0].trim() || email.from}</span>
+                  {" — "}
+                  {stripMarkdown(point)}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </LabelSection>

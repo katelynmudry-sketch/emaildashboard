@@ -117,6 +117,7 @@ export default function CategoryBlock({
   // On-demand section summary — generated only when the user asks for it, never persisted.
   const [summary, setSummary] = useState<EmailKeyPoint[]>([])
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false)
 
   async function handleSummarize() {
     if (summary.length > 0) {
@@ -142,6 +143,7 @@ export default function CategoryBlock({
       })
       const data: { items?: EmailKeyPoint[] } = await res.json()
       setSummary(data.items ?? [])
+      setSummaryCollapsed(false)
     } catch {
       setSummary([])
     } finally {
@@ -327,28 +329,50 @@ export default function CategoryBlock({
       >
         {orderedPoints.length > 0 && (
           <div style={{
-            padding: "10px 16px 8px",
+            padding: summaryCollapsed ? "10px 16px" : "10px 16px 8px",
             borderBottom: "1px solid rgba(26,10,53,0.06)",
           }}>
-            <p style={{
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: accent.text === "#FFF5E0" ? accent.header : accent.text,
-              margin: "0 0 6px",
-            }}>
-              {SUMMARY_TITLE[mode]}
-            </p>
-            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
-              {orderedPoints.map(({ email, point }) => (
-                <li key={email.id} style={{ fontSize: "0.84rem", lineHeight: 1.45, color: "rgba(26,10,53,0.75)" }}>
-                  <span style={{ fontWeight: 600, color: "rgba(26,10,53,0.9)" }}>{email.from.split("<")[0].trim() || email.from}</span>
-                  {" — "}
-                  {stripMarkdown(point)}
-                </li>
-              ))}
-            </ul>
+            <button
+              onClick={e => { e.stopPropagation(); setSummaryCollapsed(v => !v) }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: "none", border: "none", cursor: "pointer", padding: 0,
+                margin: summaryCollapsed ? 0 : "0 0 6px",
+              }}
+              aria-expanded={!summaryCollapsed}
+              aria-label={summaryCollapsed ? `Expand ${SUMMARY_TITLE[mode]}` : `Collapse ${SUMMARY_TITLE[mode]}`}
+            >
+              <span style={{
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: accent.text === "#FFF5E0" ? accent.header : accent.text,
+              }}>
+                {SUMMARY_TITLE[mode]}
+              </span>
+              <span style={{
+                fontSize: "0.6rem",
+                color: accent.text === "#FFF5E0" ? accent.header : accent.text,
+                opacity: 0.7,
+                transition: "transform 0.2s",
+                transform: summaryCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                display: "inline-block",
+              }}>
+                ▼
+              </span>
+            </button>
+            {!summaryCollapsed && (
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
+                {orderedPoints.map(({ email, point }) => (
+                  <li key={email.id} style={{ fontSize: "0.84rem", lineHeight: 1.45, color: "rgba(26,10,53,0.75)" }}>
+                    <span style={{ fontWeight: 600, color: "rgba(26,10,53,0.9)" }}>{email.from.split("<")[0].trim() || email.from}</span>
+                    {" — "}
+                    {stripMarkdown(point)}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </LabelSection>
