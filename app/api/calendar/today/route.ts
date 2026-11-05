@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerToken } from "@/lib/auth"
-import { google } from "googleapis"
+import { google, type calendar_v3 } from "googleapis"
 import type { CalendarEvent } from "@/lib/types"
 import { parseAccountId, requireGmailAccess } from "@/lib/gmail-auth"
 
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
             maxResults: 20,
           })
           .then(res => ({ cal, items: res.data.items ?? [] }))
-          .catch(() => ({ cal, items: [] as typeof res.data.items })),
+          .catch(() => ({ cal, items: [] as calendar_v3.Schema$Event[] })),
       ),
     )
 
