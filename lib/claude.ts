@@ -147,6 +147,11 @@ Return ONLY valid JSON array. No markdown, no explanation.
 
 // ── Categorize inbox emails ───────────────────────────────────────────────────
 
+// One giant request for 100 emails generates ~16k output tokens (summaries +
+// draft replies) and exceeds the 120s function limit. Split into small batches
+// that run in parallel so wall-clock time ≈ one batch, not the whole inbox.
+const CATEGORIZE_BATCH_SIZE = 20
+
 export async function categorizeInbox(
   emails: RawEmail[],
   categories: Category[],
@@ -154,6 +159,26 @@ export async function categorizeInbox(
   settings?: ClaudeSettings
 ): Promise<Email[]> {
   if (emails.length === 0) return []
+  const batches: RawEmail[][] = []
+  for (let i = 0; i < emails.length; i += CATEGORIZE_BATCH_SIZE) {
+    batches.push(emails.slice(i, i + CATEGORIZE_BATCH_SIZE))
+  }
+  const run = async (batch: RawEmail[]): Promise<Email[]> => {
+    try {
+      return await categorizeBatch(batch, categories, account, settings)
+    } catch {
+      return await categorizeBatch(batch, categories, account, settings) // one retry (bad JSON / transient error)
+    }
+  }
+  return (await Promise.all(batches.map(run))).flat()
+}
+
+async function categorizeBatch(
+  emails: RawEmail[],
+  categories: Category[],
+  account: string,
+  settings?: ClaudeSettings
+): Promise<Email[]> {
 
   const categoryList = categories.map(c => c.name).join(", ")
   const rulesSection = formatRulesForPrompt(await loadRules())
@@ -240,7 +265,7 @@ Return ONLY valid JSON array. No markdown, no explanation.
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 16000,
+    max_tokens: 8000,
     system: [{ type: "text", text: effectiveSystemContext + aboutYouSection, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
   })
