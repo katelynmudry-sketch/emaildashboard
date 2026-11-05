@@ -318,17 +318,22 @@ export async function fetchInboxMessages(
       return acc
     }
 
-    let windowQ = q
-    let days = 1
+    // Probe every window size at once (≈12 cheap calls in parallel instead of
+    // ≈12 sequential round-trips), then take the smallest window that covers
+    // maxResults.
     const MAX_DAYS = 3650 // ~10 years — beyond this, just walk the unrestricted query
-    while (days < MAX_DAYS) {
-      const probe = await gmail.users.messages.list({ userId: "me", q: `${q} older_than:${days}d`, maxResults: 1 })
-      if ((probe.data.resultSizeEstimate ?? 0) >= maxResults) {
-        windowQ = `${q} older_than:${days}d`
-        break
-      }
-      days *= 2
-    }
+    const windowDays: number[] = []
+    for (let d = 1; d < MAX_DAYS; d *= 2) windowDays.push(d)
+    const probes = await Promise.all(
+      windowDays.map(d =>
+        gmail.users.messages
+          .list({ userId: "me", q: `${q} older_than:${d}d`, maxResults: 1 })
+          .then(r => r.data.resultSizeEstimate ?? 0)
+          .catch(() => 0),
+      ),
+    )
+    const hit = probes.findIndex(n => n >= maxResults)
+    const windowQ = hit === -1 ? q : `${q} older_than:${windowDays[hit]}d`
 
     let all = await walkQuery(windowQ, windowQ === q ? MAX_PAGES : 10)
     if (all.length < maxResults && windowQ !== q) {
@@ -349,7 +354,7 @@ export async function fetchInboxMessages(
   // Bounded concurrency: firing up to 100 `format: full` gets at once trips
   // Gmail's per-user concurrent-request limit (429s + retries/backoff inside
   // googleapis), which is what pushed fetches past the function timeout.
-  const details = await mapWithConcurrency(messages, 12, async m => {
+  const details = await mapWithConcurrency(messages, 25, async m => {
     const r = await getMessageWithRetry(gmail, m.id!)
     return parseMessage(r.data)
   })
