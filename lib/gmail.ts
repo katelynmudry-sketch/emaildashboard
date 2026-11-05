@@ -318,27 +318,35 @@ export async function fetchInboxMessages(
       return acc
     }
 
-    // Probe every window size at once (≈12 cheap calls in parallel instead of
-    // ≈12 sequential round-trips), then take the smallest window that covers
-    // maxResults.
-    const MAX_DAYS = 3650 // ~10 years — beyond this, just walk the unrestricted query
-    const windowDays: number[] = []
-    for (let d = 1; d < MAX_DAYS; d *= 2) windowDays.push(d)
-    const probes = await Promise.all(
-      windowDays.map(d =>
+    // Probe every window size at once with a REAL first page of ids (not the
+    // unreliable resultSizeEstimate). A first page with no nextPageToken is the
+    // complete result for that window, so it is exact and needs no further
+    // calls. Candidates run smallest window → unrestricted query.
+    const MAX_DAYS = 3650 // ~10 years
+    const candidates: string[] = []
+    for (let d = 1; d < MAX_DAYS; d *= 2) candidates.push(`${q} older_than:${d}d`)
+    candidates.push(q)
+    const firstPages = await Promise.all(
+      candidates.map(cq =>
         gmail.users.messages
-          .list({ userId: "me", q: `${q} older_than:${d}d`, maxResults: 1 })
-          .then(r => r.data.resultSizeEstimate ?? 0)
-          .catch(() => 0),
+          .list({ userId: "me", q: cq, maxResults: PAGE_SIZE })
+          .then(r => ({ ids: r.data.messages ?? [], more: r.data.nextPageToken ?? null, est: r.data.resultSizeEstimate ?? 0 }))
+          .catch(() => null),
       ),
     )
-    const hit = probes.findIndex(n => n >= maxResults)
-    const windowQ = hit === -1 ? q : `${q} older_than:${windowDays[hit]}d`
-
-    let all = await walkQuery(windowQ, windowQ === q ? MAX_PAGES : 10)
-    if (all.length < maxResults && windowQ !== q) {
-      // Estimate undershot the true tail — fall back to the full walk.
+    // The smallest window holding at least maxResults messages, or one that is
+    // complete on page one (nextPageToken absent).
+    const hit = firstPages.findIndex(p => p !== null && (p.ids.length >= maxResults))
+    let all: ListedMessage[]
+    if (hit === -1) {
+      // Every probe failed or came back short: fall back to the unrestricted walk.
       all = await walkQuery(q, MAX_PAGES)
+    } else if (!firstPages[hit]!.more) {
+      all = firstPages[hit]!.ids
+      resultSizeEstimate = firstPages[hit]!.est || resultSizeEstimate
+    } else {
+      // Dense window (>500 messages): continue paging inside it only.
+      all = await walkQuery(candidates[hit], hit === candidates.length - 1 ? MAX_PAGES : 10)
     }
     messages = all.slice(-maxResults)
   } else {
