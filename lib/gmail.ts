@@ -242,6 +242,31 @@ export interface FetchInboxOptions {
   sortOrder?: "newest" | "oldest"
 }
 
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await fn(items[i])
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+async function getMessageWithRetry(gmail: ReturnType<typeof getGmailService>, id: string, attempts = 3) {
+  for (let i = 0; ; i++) {
+    try {
+      return await gmail.users.messages.get({ userId: "me", id, format: "full" })
+    } catch (err) {
+      const status = (err as { code?: number; status?: number }).code ?? (err as { status?: number }).status
+      if (i >= attempts - 1 || (status !== 429 && status !== 403 && (status ?? 0) < 500)) throw err
+      await new Promise(r => setTimeout(r, 300 * 2 ** i))
+    }
+  }
+}
+
 export async function fetchInboxMessages(
   accessToken: string,
   options: FetchInboxOptions = {},
@@ -321,15 +346,13 @@ export async function fetchInboxMessages(
   const totalUnread = (inboxLabel?.data.messagesUnread ?? resultSizeEstimate) ?? 0
   if (messages.length === 0) return { emails: [], totalUnread }
 
-  const details = await Promise.all(
-    messages.map(m =>
-      gmail.users.messages.get({
-        userId: "me",
-        id: m.id!,
-        format: "full",
-      }).then(r => parseMessage(r.data))
-    )
-  )
+  // Bounded concurrency: firing up to 100 `format: full` gets at once trips
+  // Gmail's per-user concurrent-request limit (429s + retries/backoff inside
+  // googleapis), which is what pushed fetches past the function timeout.
+  const details = await mapWithConcurrency(messages, 12, async m => {
+    const r = await getMessageWithRetry(gmail, m.id!)
+    return parseMessage(r.data)
+  })
 
   return {
     emails: details.sort((a, b) => sortOrder === "oldest" ? a.internalDate - b.internalDate : b.internalDate - a.internalDate),
